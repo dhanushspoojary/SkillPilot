@@ -252,6 +252,26 @@ button:disabled {
   box-shadow: 0 0 12px rgba(255, 122, 0, 0.4);
 }
 
+/* Auth Loading State */
+.auth-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--bg-main, #2D276F);
+  color: #FFFFFF;
+  text-align: center;
+  padding: 24px;
+}
+.auth-loading p {
+  color: var(--text-secondary, #D5D5E8);
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+}
+
 /* Auth Pages (Friendly Future Landing) */
 .auth-shell {
   min-height: 100vh;
@@ -805,6 +825,50 @@ nav {
   padding: 4px 8px;
   border-radius: 99px;
   white-space: nowrap;
+}
+
+/* Progress Ring & Readiness */
+.readiness {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.progress-ring {
+  width: 96px;
+  height: 96px;
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+}
+.progress-ring .track {
+  stroke: var(--surface-indigo, #38347F);
+  stroke-width: 12;
+}
+.progress-ring .value {
+  stroke: var(--primary, #FF7A00);
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.5s ease;
+}
+.readiness-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.readiness-copy small {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--cyan, #00F0FF);
+}
+.readiness-copy b {
+  font-size: 28px;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1.1;
+}
+.readiness-copy span {
+  font-size: 12px;
+  color: var(--text-secondary, #D5D5E8);
 }
 
 /* Compact Roadmap Progress */

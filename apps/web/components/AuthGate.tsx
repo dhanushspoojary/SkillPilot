@@ -57,7 +57,16 @@ export function AuthGate() {
         if (verify) {
             post('/api/auth/verify', { token: verify }).then((r) => (r.ok ? setNotice(r.data.message) : setError(r.data.error || 'Could not confirm email')));
         }
-        fetch('/api/auth/me', { cache: 'no-store' }).then((r) => r.json()).then((x) => setUser(x.user ?? null)).catch(() => { }).finally(() => setLoading(false));
+        const safetyTimer = window.setTimeout(() => setLoading(false), 3000);
+        fetch('/api/auth/me', { cache: 'no-store' })
+            .then((r) => r.json())
+            .then((x) => setUser(x.user ?? null))
+            .catch(() => { setUser(null); })
+            .finally(() => {
+                window.clearTimeout(safetyTimer);
+                setLoading(false);
+            });
+        return () => window.clearTimeout(safetyTimer);
     }, []);
     function switchMode(next: Mode) { setMode(next); setError(''); setNotice(''); setUnverified(false); }
     async function submit(e: FormEvent) {
