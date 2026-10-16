@@ -194,7 +194,7 @@ export function AgentPanel({
                                 onApprove(p);
                               }}
                             >
-                              {p.type === 'send_mentor_request' ? 'Review & send to mentor' : p.type === 'start_retest' ? 'Start retest now' : 'Apply to plan'}
+                              {p.type === 'send_mentor_request' ? 'Review & send to mentor' : p.type === 'start_retest' ? 'Start retest now' : p.type === 'share_passport' ? 'Open passport sharing' : 'Apply to plan'}
                               <ArrowRight size={13} />
                             </button>
                             <button

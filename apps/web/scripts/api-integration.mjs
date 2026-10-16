@@ -101,5 +101,30 @@ const adminList = await call('/api/admin/users', { headers: auth });
 check(adminList.status === 403, 'students must not reach the admin user list');
 const adminSuspend = await call('/api/admin/users', { method: 'PATCH', headers: auth, body: { userId: '00000000-0000-4000-8000-000000000000', status: 'suspended' } });
 check(adminSuspend.status === 403, 'students must not suspend accounts');
+// --- passport sharing and public verification ---------------------------------------------
+const shareCreate = await call('/api/passport/share', { method: 'POST', headers: auth, body: { includeName: true, includeSkills: true, includeEvidence: true } });
+check(shareCreate.status === 201 || shareCreate.status === 200, `passport share creation failed: ${shareCreate.status}`);
+check(shareCreate.data.share?.shareToken && shareCreate.data.share?.url, 'passport share response missing token or url');
+const token = shareCreate.data.share.shareToken;
+
+// Public access without auth cookie
+const publicCard = await call(`/api/passport/${token}`);
+check(publicCard.status === 200, `public passport access failed: ${publicCard.status}`);
+check(publicCard.data.passport?.shareToken === token, 'public passport token mismatch');
+check(typeof publicCard.data.passport?.readiness === 'number', 'public passport missing readiness score');
+check(publicCard.data.passport?.authenticityHash, 'public passport missing authenticity hash');
+
+// Student manages share
+const shareGet = await call('/api/passport/share', { headers: auth });
+check(shareGet.status === 200 && shareGet.data.share?.shareToken === token, 'passport share get failed');
+
+// Revocation
+const shareRevoke = await call('/api/passport/share', { method: 'DELETE', headers: auth, body: { shareToken: token } });
+check(shareRevoke.status === 200 && shareRevoke.data.revoked === true, `passport revoke failed: ${shareRevoke.status}`);
+
+// Public access after revocation returns 404
+const publicRevoked = await call(`/api/passport/${token}`);
+check(publicRevoked.status === 404, `revoked passport should return 404, got ${publicRevoked.status}`);
+
 await call('/api/auth/logout', { method: 'POST', headers: auth });
 console.log('api integration: PASS');

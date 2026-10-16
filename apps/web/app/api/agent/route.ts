@@ -46,9 +46,14 @@ export async function POST(req: Request) {
             mentorNoteResolved: activity.some((a) => a.id === 'MENTOR:feedback'),
             planNote: '', agentRuns: [],
         }));
+        const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
+        const provider: 'anthropic' | 'openai' | 'gemini' | undefined = process.env.ANTHROPIC_API_KEY ? 'anthropic' : (process.env.OPENAI_API_KEY ? 'openai' : (process.env.GEMINI_API_KEY ? 'gemini' : undefined));
+        const model = process.env.ANTHROPIC_MODEL || process.env.OPENAI_MODEL || process.env.GEMINI_MODEL || (provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-5-5');
+
         const { status, body } = await handleAgentRequest({ question: parsed.question }, {
-            apiKey: process.env.ANTHROPIC_API_KEY,
-            model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5-5',
+            apiKey,
+            provider,
+            model,
             fetchImpl: fetch,
             state,
             mentors: mentors.map((m) => ({ id: m.id, name: m.name, initials: m.name.split(' ').map((x: string) => x[0]).join('').slice(0, 2), focus: m.focus || 'Career mentor', strengths: {} })),
@@ -57,7 +62,7 @@ export async function POST(req: Request) {
         const mode = isReply ? body.mode : 'unknown';
         const proposalCount = isReply && Array.isArray(body.proposals) ? body.proposals.length : 0;
         try {
-            await db().query(`insert into agent_runs(user_id,agent,input_hash,provider,model_version,status,output) values($1,'career-orchestrator',encode(digest($2::text,'sha256'),'hex'),$3,$4,'proposed',$5)`, [u.id, parsed.question, process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'deterministic', process.env.ANTHROPIC_MODEL ?? 'deterministic', JSON.stringify({ mode, proposalCount, redacted: true })]);
+            await db().query(`insert into agent_runs(user_id,agent,input_hash,provider,model_version,status,output) values($1,'career-orchestrator',encode(digest($2::text,'sha256'),'hex'),$3,$4,'proposed',$5)`, [u.id, parsed.question, apiKey ? provider : 'deterministic', apiKey ? model : 'deterministic-engine', JSON.stringify({ mode, proposalCount, redacted: true })]);
         }
         catch (e) {
             console.error('agent audit failed', e);

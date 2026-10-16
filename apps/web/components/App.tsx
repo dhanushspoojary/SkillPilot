@@ -163,6 +163,8 @@ export function App({ user }: {
             return go('assess', p.skill);
         if (p.type === 'send_mentor_request' && p.mentorId && p.message)
             return onSend(p.mentorId, p.message);
+        if (p.type === 'share_passport')
+            return go('passport');
         const a = actions.find((x) => x.id === p.actionId);
         if (a)
             onAction(a);

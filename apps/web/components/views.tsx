@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, } from 'lucide-react';
+import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, Share2, Copy, ExternalLink, Lock } from 'lucide-react';
 import { STAGES, SKILLS, passportSummary, readiness, skillStates, stageProgress, type AppState, type PlanAction, } from '../lib/engine';
 import { ProgressRing } from './ProgressRing';
 import { ChatPanel } from './ChatPanel';
@@ -247,7 +247,66 @@ export function Passport({ state, setName, notify }: {
     notify: (m: string) => void;
 }) {
     const skills = skillStates(state.evidence);
-    const copy = async () => {
+    const [share, setShare] = useState<{ shareToken: string; url: string; viewsCount: number } | null>(null);
+    const [loadingShare, setLoadingShare] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        fetch('/api/passport/share', { cache: 'no-store' })
+            .then(r => r.json())
+            .then(d => { if (d.share) setShare(d.share); })
+            .catch(() => {});
+    }, []);
+
+    const generateShareLink = async () => {
+        setLoadingShare(true);
+        try {
+            const r = await fetch('/api/passport/share', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const d = await r.json();
+            if (d.share) {
+                setShare(d.share);
+                notify('Public verification link generated!');
+            }
+        } catch {
+            notify('Could not generate verification link.');
+        } finally {
+            setLoadingShare(false);
+        }
+    };
+
+    const revokeShareLink = async () => {
+        if (!share) return;
+        try {
+            await fetch('/api/passport/share', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shareToken: share.shareToken }),
+            });
+            setShare(null);
+            notify('Passport link revoked. Public access removed.');
+        } catch {
+            notify('Could not revoke link.');
+        }
+    };
+
+    const copyShareUrl = async () => {
+        if (!share) return;
+        const fullUrl = `${window.location.origin}${share.url}`;
+        try {
+            await navigator.clipboard.writeText(fullUrl);
+            setCopied(true);
+            notify('Passport link copied to clipboard!');
+            setTimeout(() => setCopied(false), 2500);
+        } catch {
+            notify('Copy was blocked by the browser.');
+        }
+    };
+
+    const copyTextSummary = async () => {
         try {
             await navigator.clipboard.writeText(passportSummary(state.name, state.evidence));
             notify('Summary copied. You decide where to paste it.');
@@ -256,16 +315,75 @@ export function Passport({ state, setName, notify }: {
             notify('Copy was blocked by the browser.');
         }
     };
+
     const recent = [...state.evidence].filter((e) => !e.id.startsWith('seed-')).slice(-4).reverse();
+
     return <div className="passport">
     <div className="passport-top"><div><span className="kicker">SKILL PASSPORT</span>
       <label className="sr-only" htmlFor="pname">Your name</label>
       <input id="pname" className="name-input" value={state.name} placeholder="Add your name" maxLength={60} onChange={(e) => setName(e.target.value)}/>
       <p>Software Engineer pathway · private until you choose to share it</p></div>
       <div className="passport-score"><strong>{readiness(skills)}%</strong><span>READINESS</span></div></div>
-    <div className="passport-stats"><div><b>{skills.length}</b><span>skills tracked</span></div><div><b>{skills.filter((s) => s.verified).length}</b><span>verified</span></div><div><b>{state.evidence.length}</b><span>evidence items</span></div><div><b>{recent.length}</b><span>new this cycle</span></div></div>
-    <div className="proof-list">{skills.map((s) => <div key={s.def.id}><span><CheckCircle2 size={15}/>{s.def.name}<small>{s.verified ? 'verified' : 'in progress'} · {s.count} evidence</small></span><em>{s.score}%</em></div>)}</div>
-    <button className="primary" onClick={copy}><Award size={15}/> Copy passport summary</button>
+
+    {/* Share Management Section */}
+    <div className="passport-share-box">
+      <div className="share-box-head">
+        <h4><Share2 size={15} /> Public Verified Card</h4>
+        {share && <span className="auth-hash" style={{ fontSize: '11px', color: 'var(--cyan)' }}>{share.viewsCount} view{share.viewsCount === 1 ? '' : 's'}</span>}
+      </div>
+
+      {share ? (
+        <>
+          <div className="share-url-row">
+            <input
+              type="text"
+              readOnly
+              className="share-url-input"
+              value={typeof window !== 'undefined' ? `${window.location.origin}${share.url}` : share.url}
+              aria-label="Public passport link"
+            />
+            <button type="button" className="btn-sm-action primary" onClick={copyShareUrl}>
+              <Copy size={13} /> {copied ? 'Copied!' : 'Copy Link'}
+            </button>
+          </div>
+          <div className="share-actions">
+            <a href={share.url} target="_blank" rel="noopener noreferrer" className="btn-sm-action ghost">
+              <ExternalLink size={13} /> View Public Card
+            </a>
+            <button type="button" className="btn-sm-action danger" onClick={revokeShareLink}>
+              <Lock size={13} /> Revoke Link
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="share-actions">
+          <button type="button" className="btn-sm-action primary" onClick={generateShareLink} disabled={loadingShare}>
+            <Share2 size={13} /> {loadingShare ? 'Generating…' : 'Generate Public Verification Link'}
+          </button>
+        </div>
+      )}
+    </div>
+
+    <div className="passport-stats">
+      <div><b>{skills.length}</b><span>skills tracked</span></div>
+      <div><b>{skills.filter((s) => s.verified).length}</b><span>verified</span></div>
+      <div><b>{state.evidence.length}</b><span>evidence items</span></div>
+      <div><b>{recent.length}</b><span>new this cycle</span></div>
+    </div>
+
+    <div className="proof-list">
+      {skills.map((s) => (
+        <div key={s.def.id}>
+          <span>
+            <CheckCircle2 size={15} /> {s.def.name}
+            <small>{s.statusLabel} · {s.count} evidence</small>
+          </span>
+          <em>{s.count > 0 ? `${s.score}%` : '—'}</em>
+        </div>
+      ))}
+    </div>
+
+    <button className="primary" onClick={copyTextSummary}><Award size={15}/> Copy passport summary</button>
   </div>;
 }
 export function SettingsView({ state, onExport }: {

@@ -54,3 +54,38 @@ test('bad input is rejected and tampered state falls back to defaults', async ()
     const r = await handleAgentRequest({ question: 'hi', state: { v: 1, evidence: [{ skill: 'sql', score: 9999, confidence: 'x' }], activity: [], requests: [] } }, { model: 'm', fetchImpl: fetch });
     assert.equal(r.status, 200);
 });
+
+test('natural conversation: greeting receives natural reply without forced task proposal', async () => {
+    const r = await handleAgentRequest({ question: 'Hello! Good morning', state: defaultState() }, { model: 'm', fetchImpl: fetch });
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    assert.match(body.answer, /Career Companion/i);
+    assert.equal(body.proposals.length, 0); // No premature assignment for simple greeting!
+});
+
+test('natural conversation: first-year beginner receives foundational encouragement', async () => {
+    const r = await handleAgentRequest({ question: 'Hi, I am a first-year CSE student starting from scratch.', state: defaultState() }, { model: 'm', fetchImpl: fetch });
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    assert.match(body.answer, /first year|beginner/i);
+    assert.equal(body.proposals[0].type, 'start_retest');
+});
+
+test('natural conversation: weak in problem-solving guides structured practice', async () => {
+    const r = await handleAgentRequest({ question: 'I know basic C, but I am weak in problem-solving.', state: defaultState() }, { model: 'm', fetchImpl: fetch });
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    assert.match(body.answer, /problem-solving/i);
+});
+
+test('agent tools: get_career_readiness_summary and prepare_passport_share', () => {
+    const s = defaultState();
+    const r1 = executeTool('get_career_readiness_summary', {}, s);
+    assert.match(r1.result, /computedReadiness/);
+    const r2 = executeTool('prepare_passport_share', {}, s);
+    assert.equal(r2.proposal?.type, 'share_passport');
+});
+

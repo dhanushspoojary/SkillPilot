@@ -181,15 +181,75 @@ try {
   await page.waitForSelector('.page, #main-content', { timeout: 8000 });
   console.log('   Mock interview view loaded.');
 
-  // Step 10: Verify Skill Passport
-  console.log('10. Verifying Skill Passport...');
+  // Step 10: Verify Skill Passport & Public Share Card
+  console.log('10. Verifying Skill Passport & Public Share Card...');
   await page.click('button.nav-item:has-text("Passport")');
   await page.waitForSelector('.passport, .proof-list', { timeout: 8000 });
   const passportTitle = await page.textContent('.passport-top');
   console.log(`   Skill Passport verified: "${passportTitle?.slice(0, 35).replace(/\s+/g, ' ').trim()}"`);
 
-  // Step 11: Responsive Viewport Checks
-  console.log('11. Testing responsive layouts (320px, 375px, 768px, 1024px, 1440px)...');
+  // Generate public verification link
+  const generateBtn = page.locator('button:has-text("Generate Public Verification Link")');
+  if (await generateBtn.isVisible()) {
+    console.log('   Generating public passport share link...');
+    await generateBtn.click();
+    await page.waitForSelector('.share-url-input', { timeout: 8000 });
+  }
+
+  const shareUrl = await page.inputValue('.share-url-input');
+  console.log(`   Generated share URL: ${shareUrl}`);
+
+  // Open public card in unauthenticated context
+  console.log('   Opening public passport card in unauthenticated browser context...');
+  const publicContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const publicPage = await publicContext.newPage();
+  const publicErrors = [];
+  publicPage.on('console', (msg) => {
+    if (msg.type() === 'error') publicErrors.push(msg.text());
+  });
+  publicPage.on('pageerror', (err) => publicErrors.push(err.message));
+
+  await publicPage.goto(shareUrl, { waitUntil: 'networkidle' });
+  await publicPage.waitForSelector('.public-passport-card', { timeout: 10000 });
+  const publicName = await publicPage.textContent('.student-name');
+  console.log(`   Public card loaded for: "${publicName?.trim()}"`);
+  const publicScore = await publicPage.textContent('.score-num');
+  console.log(`   Public card readiness: ${publicScore?.trim()}`);
+
+  const cardErrors = publicErrors.filter(
+    (e) => !e.includes('favicon') && !e.includes('sw.js') && !e.includes('manifest')
+  );
+  if (cardErrors.length > 0) {
+    console.warn('   Public card console errors:', cardErrors);
+  } else {
+    console.log('   Public passport card rendered cleanly with zero console errors!');
+  }
+  await publicContext.close();
+
+  // Step 11: Verify Career Companion conversational intelligence
+  console.log('11. Verifying Career Companion agent...');
+  await page.click('button.nav-item:has-text("Agent")');
+  await page.waitForSelector('#agent-q', { timeout: 8000 });
+
+  console.log('   Sending natural conversation message to agent...');
+  await page.fill('#agent-q', 'Hi! I am a first-year student exploring backend engineering');
+  await page.click('.agent-input-form button.primary');
+
+  // Wait for agent reply
+  await page.waitForFunction(
+    () => document.querySelectorAll('.chat-msg.agent').length >= 2,
+    { timeout: 20000 },
+  );
+  const spinner = page.locator('.chat-msg.agent .spin');
+  if (await spinner.isVisible()) {
+    await spinner.waitFor({ state: 'detached', timeout: 20000 });
+  }
+  const agentMessages = await page.locator('.chat-msg.agent').allTextContents();
+  const latestReply = agentMessages[agentMessages.length - 1];
+  console.log(`   Agent replied: "${latestReply.slice(0, 150).replace(/\s+/g, ' ').trim()}..."`);
+
+  // Step 12: Responsive Viewport Checks
+  console.log('12. Testing responsive layouts (320px, 375px, 768px, 1024px, 1440px)...');
   const viewports = [
     { width: 320, height: 568 },
     { width: 375, height: 667 },
@@ -208,7 +268,7 @@ try {
   }
 
   // Check console errors
-  console.log('12. Inspecting browser console for uncaught errors...');
+  console.log('13. Inspecting browser console for uncaught errors...');
   const criticalErrors = consoleErrors.filter(
     (e) => !e.includes('favicon') && !e.includes('sw.js') && !e.includes('manifest')
   );
