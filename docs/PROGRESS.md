@@ -106,7 +106,40 @@ SkillPilot has been upgraded from an unstable prototype to a robust, accessible,
 
 ---
 
-## 8. Verification Results & Test Summary
+## 8. Friendly Future Visual Identity & Student Capability Onboarding
+
+- **Friendly Future Visual Tokens**:
+  - Main background: `#2D276F` (deep indigo throughout the entire application shell and pages)
+  - Dark navy surface: `#211D52` (cards, sidebars, modals)
+  - Secondary indigo surface: `#38347F` (inner blocks, chips, action items)
+  - Primary action: `#FF7A00` (bold orange action buttons and highlights)
+  - Cyan micro-accent: `#00F0FF` (focus rings, tags, live indicators)
+  - Primary text: `#FFFFFF`, Secondary text: `#D5D5E8`
+- **Minimal Student Dashboard (`Today`)**:
+  - Implemented 4-tier visual hierarchy:
+    1. Header: Greeting, career goal target pill (`Target: Software Engineer`), and calibration trigger (`Calibrate background`).
+    2. Main Action: High-visibility priority action banner with one primary action button (`Start adaptive assessment`) and contextual rationale.
+    3. Next Steps: High-priority learning tasks (`action-card task-row`) displaying time required (~15 mins), prerequisites, and readiness impact (`+10% readiness`).
+    4. Progress Column: Computed readiness progress ring, compact roadmap showing current phase (`Phase 1: Foundation & Core Logic`), and small skill overview with truthful status tags.
+- **Truthful Skill Evidence Statuses**:
+  - Explicit skill states computed strictly from evidence: `not_assessed`, `self_reported`, `demonstrated`, `practical_submitted`, `mentor_verified`.
+  - Unassessed skills (`count === 0`) are explicitly labeled as *"Not yet assessed"* without claiming a 0 score failure or misleading gap message.
+- **Student Capability Onboarding & Migration 007**:
+  - Database Migration `db/migrations/007-student-capability-profiles.sql`: Added `student_capability_profiles` table with foreign key to `users(id)` and JSONB columns.
+  - Interactive calibration modal (`CapabilityOnboarding.tsx`) collecting education level, prior programming experience (including complete beginner options without stigma), career goal, and weekly learning availability.
+  - API endpoints `GET /api/profile` and `PATCH /api/profile` fully integrated with database persistence.
+- **Adaptive Level 1 Assessment Calibration**:
+  - Added beginner-friendly Level 1 questions (variables, simple arithmetic, basic loop counting, output tracing, step-by-step logic) across all 6 skills.
+  - Diagnostic starts at Level 1 for beginner capability profiles, with smooth item-response scaling.
+- **Career Agent Workspace**:
+  - Full conversation history with user message bubbles and agent responses.
+  - Visible tool execution traces showing exact evidence items inspected.
+  - One-click execution for routine tasks and review modal for mentor messages.
+  - Deterministic Career Intelligence badge reflecting verified server evidence.
+
+---
+
+## 9. Verification Results & Test Summary
 
 All automated checks pass cleanly with exit code 0:
 
@@ -114,7 +147,8 @@ All automated checks pass cleanly with exit code 0:
 | :--- | :--- | :--- | :--- |
 | **TypeScript Typecheck** | `npm --prefix apps/web run typecheck` | **PASS** (0 errors) | Strict compilation with TypeScript 5.7.3 |
 | **Node.js Unit Tests** | `npm --prefix apps/web test` | **PASS** (42 / 42 passed) | Engine, auth, security, agent, mailer, config, parser |
-| **Database Integration** | `npm --prefix apps/web run db:integration` | **PASS** | 22 tables, transactions, append-only trigger, isolation |
-| **API Integration** | `npm --prefix apps/web run api:integration` | **PASS** | Auth, profile, assess, mentors, interviews, admin routes |
+| **Database Integration** | `npm --prefix apps/web run db:integration` | **PASS** | 23 tables, transactions, append-only trigger, isolation |
+| **API Integration** | `npm --prefix apps/web run api:integration` | **PASS** | Auth, profile, capability profile, assess, mentors, admin routes |
 | **Production Build** | `npm --prefix apps/web run build` | **PASS** | `next build` compiled 32 dynamic routes, 8 static pages |
-| **Browser E2E Workflow** | `npm --prefix apps/web run test:e2e` | **PASS** | Real Edge browser, 12 assessment questions, roadmap, action, mock interview, passport, 5 viewports (320px–1440px) |
+| **Browser E2E Workflow** | `npm --prefix apps/web run test:e2e` | **PASS** | Real Edge browser, 12 adaptive assessment questions, roadmap, action, mock interview, passport, 5 viewports (320px–1440px) |
+

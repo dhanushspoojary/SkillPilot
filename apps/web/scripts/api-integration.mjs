@@ -32,6 +32,28 @@ const profile = await call('/api/profile', { headers: auth });
 check(profile.status === 200, `profile route failed: ${profile.status}`);
 const agent = await call('/api/agent', { method: 'POST', headers: auth, body: { question: 'What should I do next?' } });
 check(agent.status === 200, `agent route failed: ${agent.status}`);
+// --- capability profile calibration ----------------------------------------------------
+const saveCap = await call('/api/profile', {
+    method: 'PATCH',
+    headers: auth,
+    body: {
+        careerGoal: 'Backend Engineer',
+        capabilityProfile: {
+            educationLevel: 'first_year',
+            programmingExperience: 'beginner',
+            fieldOfStudy: 'computer_science',
+            careerInterests: ['Backend Engineer'],
+            weeklyHours: 5,
+            focusAreas: ['Programming Fundamentals'],
+            onboardingCompleted: true,
+        },
+    },
+});
+check(saveCap.status === 200, `capability profile patch failed: ${saveCap.status}`);
+const checkProfile = await call('/api/profile', { headers: auth });
+check(checkProfile.data.careerGoal === 'Backend Engineer', 'career goal not updated');
+check(checkProfile.data.capabilityProfile?.programmingExperience === 'beginner', 'programmingExperience not persisted');
+check(checkProfile.data.capabilityProfile?.onboardingCompleted === true, 'onboardingCompleted not persisted');
 // --- assessment: start, resume, validation ----------------------------------------------
 const first = await call('/api/assess/start', { method: 'POST', headers: auth, body: {} });
 check(first.status === 201, `assessment start failed: ${first.status}`);

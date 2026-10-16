@@ -4,6 +4,7 @@ import { dbRateLimit } from '../../../../lib/guard';
 import { json, readJsonBody, requireOrigin, safeText } from '../../../../lib/server-security';
 import { QUESTIONS, SKILLS, publicQ } from '../../../../lib/questions';
 import { answeredCount, nextUnanswered, totalQuestions } from '../../../../lib/assessment';
+import { getStudentCapabilityProfile } from '../../../../lib/capability-profile';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const COOLDOWN_MS = 30 * 60000;
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
         const b = await readJsonBody<any>(req, 10000).catch((e) => { if (e instanceof Error && e.message === 'body_too_large')
             throw e; return {}; });
         const focus = safeText(b.focus, 40);
+        const capability = await getStudentCapabilityProfile(u.id);
+        const isBeginner = capability.programmingExperience === 'beginner' || capability.educationLevel === 'first_year';
+        const startingLevel = isBeginner ? 1 : 2;
         const result = await tx(async (c) => {
             // Serialise concurrent starts for the same user (double clicks, StrictMode, two tabs).
             await c.query('select pg_advisory_xact_lock(hashtext($1))', [`assess-start:${u.id}`]);
@@ -53,11 +57,11 @@ export async function POST(req: Request) {
                 order = [focus, ...shuffle(order.filter(x => x !== focus))];
             const selected = order; // Assess all six core skills so the diagnostic is not blind to communication or Git.
             const qs = [] as typeof QUESTIONS;
-            // First question per skill is medium; the next question is chosen adaptively after the answer.
+            // Select starting question tailored to student background (Level 1 for beginners, Level 2 for experienced)
             for (const skill of selected) {
                 const pool = shuffle(QUESTIONS.filter(q => q.skill === skill));
-                const medium = pool.filter(q => q.level === 2);
-                qs.push(medium[Math.floor(Math.random() * medium.length)] ?? pool[0]);
+                const targetQ = pool.find(q => q.level === startingLevel) ?? pool.find(q => q.level === 1) ?? pool[0];
+                qs.push(targetQ);
             }
             const a = (await c.query<any>(`insert into assessments(user_id,kind,version,status) values($1,'adaptive','v5','started') returning id`, [u.id])).rows[0];
             for (const q of qs)

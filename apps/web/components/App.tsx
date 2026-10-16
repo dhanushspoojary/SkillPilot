@@ -7,6 +7,8 @@ import { AgentPanel } from './AgentPanel';
 import type { Proposal } from '../lib/agent';
 import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } from './views';
 import { MockInterview } from './MockInterview';
+import { CapabilityOnboarding } from './CapabilityOnboarding';
+import type { StudentCapabilityProfile } from '../lib/capability-profile';
 const NAV: [
     View,
     string,
@@ -32,6 +34,9 @@ export function App({ user }: {
     const [apiOnline, setApiOnline] = useState<boolean | null>(null);
     const [round, setRound] = useState(0);
     const [syncStatus, setSyncStatus] = useState<'off' | 'loading' | 'synced' | 'offline'>('off');
+    const [capabilityProfile, setCapabilityProfile] = useState<StudentCapabilityProfile | null>(null);
+    const [careerGoal, setCareerGoal] = useState('Software Engineer');
+    const [showCalibration, setShowCalibration] = useState(false);
     useEffect(() => {
         let cancelled = false;
         async function boot() {
@@ -40,6 +45,10 @@ export function App({ user }: {
                 if (!r.ok)
                     throw new Error('profile');
                 const x = await r.json();
+                if (x.careerGoal)
+                    setCareerGoal(x.careerGoal);
+                if (x.capabilityProfile)
+                    setCapabilityProfile(x.capabilityProfile);
                 const remote = x.evidence ? { ...defaultState(), name: x.user?.name ?? user.name, evidence: x.evidence, activity: x.activity ?? [], mentorNoteResolved: (x.activity ?? []).some((a: any) => a.id === 'MENTOR:feedback'), requests: x.requests ?? [], agentRuns: x.agentRuns ?? [], planNote: 'Server evidence loaded. The browser is not authoritative.' } : defaultState();
                 if (!cancelled) {
                     setState(remote);
@@ -100,7 +109,31 @@ export function App({ user }: {
         if (!r.ok)
             throw new Error('profile');
         const x = await r.json();
+        if (x.careerGoal)
+            setCareerGoal(x.careerGoal);
+        if (x.capabilityProfile)
+            setCapabilityProfile(x.capabilityProfile);
         setState(s => { const next = { ...s, name: x.user?.name ?? s.name, evidence: x.evidence ?? s.evidence, requests: x.requests ?? s.requests, agentRuns: x.agentRuns ?? s.agentRuns }; return { ...next, planNote: explainPlan(next) }; });
+    };
+    const saveCalibration = async (profile: StudentCapabilityProfile) => {
+        try {
+            const goal = profile.careerInterests?.[0] || careerGoal;
+            const r = await fetch('/api/profile', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ capabilityProfile: profile, careerGoal: goal }),
+            });
+            if (!r.ok)
+                throw new Error('profile_save_failed');
+            setCapabilityProfile(profile);
+            setCareerGoal(goal);
+            setShowCalibration(false);
+            setToast('Background calibrated. Assessments and roadmap tailored to your starting level.');
+            await refreshProfile();
+        }
+        catch {
+            setToast('Could not save capability calibration.');
+        }
     };
     const onFinish = async () => {
         try {
@@ -180,11 +213,11 @@ export function App({ user }: {
         <div className="top-actions"><button className="icon-button" aria-label="Notifications" onClick={() => setToast(actions[0] ? `Next: ${actions[0].title}` : 'Nothing pending.')}><Bell size={17}/></button></div>
       </header>
       <div className="page">
-        {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running}/>}
+        {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)}/>}
         {view === 'agent' && <AgentPanel state={state} onApprove={onApprove} onAudit={onAudit}/>}
         {view === 'roadmap' && <Roadmap state={state} actions={actions} go={go}/>}
         {view === 'skills' && <Skills state={state}/>}
-        {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} onFinish={onFinish} onDone={() => go('today')}/>}
+        {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} onFinish={onFinish} onDone={() => go('roadmap')}/>}
         {view === 'mentors' && <Mentors state={state} onSend={onSend} selfId={user.id}/>}
         {view === 'interview' && <MockInterview onDone={() => { void refreshProfile().then(() => setToast('Practice evidence saved at reduced confidence.')).catch(() => undefined); }}/>} 
         {view === 'passport' && <Passport state={state} setName={async (name) => {
@@ -201,6 +234,14 @@ export function App({ user }: {
         {view === 'settings' && <SettingsView state={state} onExport={exportData}/>}
       </div>
     </main>
+    {showCalibration && (
+      <CapabilityOnboarding
+        initialProfile={capabilityProfile ?? undefined}
+        onSave={saveCalibration}
+        onClose={() => setShowCalibration(false)}
+        canDismiss={true}
+      />
+    )}
     {toast && <div className="toast" role="status"><CheckCircle2 size={17}/>{toast}</div>}
   </div>;
 }

@@ -47,6 +47,13 @@ export interface Mentor {
   strengths: Record<string, number>;
 }
 
+export type SkillStatus =
+  | 'not_assessed'
+  | 'self_reported'
+  | 'demonstrated'
+  | 'practical_submitted'
+  | 'mentor_verified';
+
 export interface SkillState {
   def: SkillDef;
   score: number;
@@ -54,6 +61,8 @@ export interface SkillState {
   kinds: EvidenceKind[];
   verified: boolean;
   gap: number;
+  status: SkillStatus;
+  statusLabel: string;
 }
 
 export interface PlanAction {

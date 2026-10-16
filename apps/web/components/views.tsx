@@ -7,7 +7,7 @@ import { MeetingLink } from './MeetingLink';
 import { PageIntro, Signal, SkillBar, VerifiedBadge } from './ui';
 export type View = 'today' | 'agent' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
-export function Today({ state, actions, go, onAction, onUndo, runAgent, running }: {
+export function Today({ state, actions, go, onAction, onUndo, runAgent, running, careerGoal = 'Software Engineer', onOpenCalibration }: {
     state: AppState;
     actions: PlanAction[];
     go: (v: View, focus?: string) => void;
@@ -15,59 +15,180 @@ export function Today({ state, actions, go, onAction, onUndo, runAgent, running 
     onUndo: (id: string) => void;
     runAgent: () => void;
     running: boolean;
+    careerGoal?: string;
+    onOpenCalibration?: () => void;
 }) {
     const skills = skillStates(state.evidence);
     const r = readiness(skills);
     const top = actions.slice(0, 3);
-    return <>
-    <section className="welcome">
-      <div>
-        <div className="eyebrow"><span className="live-dot"/> PERSONAL CAREER SYSTEM</div>
+    const stagesProg = STAGES.map((s) => ({ ...s, progress: stageProgress(skills, s.skills) }));
+    const currentStage = stagesProg.find((s) => s.progress < 90) ?? stagesProg[stagesProg.length - 1];
+
+    const primaryAction = top[0];
+    const primaryTitle = primaryAction ? primaryAction.title : 'Take Adaptive Baseline Assessment';
+    const primaryReason = state.evidence.length === 0
+      ? 'Calibrate your initial baseline across foundational software engineering competencies.'
+      : primaryAction
+        ? `Closing the gap in ${skillName(primaryAction.skill)} will yield the highest readiness impact.`
+        : 'All targets for your current path are met. Retest periodically to maintain verified proof.';
+
+    return <div className="today-dashboard">
+    <section className="welcome dashboard-header">
+      <div className="greeting-col">
+        <div className="eyebrow"><span className="live-dot" /> PERSONAL CAREER SYSTEM</div>
         <h1>Know what to do <em>next.</em></h1>
-        <p>SkillPilot measures what you can prove, finds the gap to your target role, and turns it into a small set of actions.</p>
-        <div className="hero-actions">
-          <button className="primary" onClick={() => go('assess')}><Zap size={16}/> Start adaptive assessment</button>
-          <button className="ghost" onClick={() => go('roadmap')}>Open roadmap <ArrowRight size={15}/></button>
-        </div>
+        <p>SkillPilot measures verified evidence, maps skill gaps to your target role, and guides high-impact actions.</p>
       </div>
-      <div className="readiness"><ProgressRing value={r}/><div className="readiness-copy"><small>CAREER READINESS</small><b>{r}%</b><span>Computed from evidence</span></div></div>
+      <div className="goal-badge-wrap">
+        <div className="goal-pill">
+          <Target size={14} />
+          <span>Target: <b>{careerGoal}</b></span>
+        </div>
+        {onOpenCalibration && (
+          <button type="button" className="calibrate-btn" onClick={onOpenCalibration}>
+            <Sparkles size={13} /> Calibrate background
+          </button>
+        )}
+      </div>
     </section>
-    <div className="signal-row">
-      <Signal icon={<Target />} label="Target" value="Software Engineer" note={`${skills.length} skills tracked`}/>
-      <Signal icon={<Compass />} label="Top gap" value={top[0] ? skillName(top[0].skill) : 'None'} note="largest weighted gap"/>
-      <Signal icon={<Trophy />} label="Evidence" value={`${state.evidence.length} signals`} note="stored on the server"/>
-      <Signal icon={<ShieldCheck />} label="Verified" value={`${skills.filter((s) => s.verified).length} of ${skills.length}`} note="3+ signals, 2+ source types"/>
-    </div>
-    <section className="section-block">
-      <div className="section-title"><div><span className="kicker">TODAY</span><h2>Your next moves.</h2></div><button className="link" onClick={() => go('roadmap')}>See full plan <ArrowRight size={14}/></button></div>
-      <div className="today-grid">
-        <div className="action-stack">
+
+    <section className="priority-card">
+      <div className="priority-copy">
+        <div className="priority-eyebrow">
+          <Zap size={14} /> RECOMMENDED NEXT STEP
+        </div>
+        <h2>{primaryTitle}</h2>
+        <p>{primaryReason}</p>
+      </div>
+      <button
+        className="primary priority-action-btn"
+        onClick={() => go('assess', primaryAction?.skill)}
+      >
+        <Zap size={16} /> Start adaptive assessment
+      </button>
+    </section>
+
+    <div className="dashboard-grid">
+      <div className="panel-block">
+        <div className="panel-head">
+          <div>
+            <span className="kicker">NEXT STEPS</span>
+            <h3>High-Priority Learning Tasks</h3>
+          </div>
+          <button className="link" onClick={() => go('roadmap')}>
+            See full plan <ArrowRight size={14} />
+          </button>
+        </div>
+        <div className="action-stack task-list">
           {top.length === 0 && <p className="muted">Nothing left to do for this target role.</p>}
-          {top.map((a, i) => (<button className="action-card" key={a.id} onClick={() => onAction(a)} aria-label={`${a.title}. ${a.detail}`}>
-              <span className="number">0{i + 1}</span>
-              <span className="action-icon">{a.kind === 'PROVE' ? <Crosshair /> : a.kind === 'BUILD' ? <Zap /> : <MessageCircle />}</span>
-              <span className="action-copy"><b>{a.title}</b><small>{a.detail} · {a.kind === 'PROVE' ? 'opens assessment' : 'mark done when finished'}</small></span>
-              <span className="impact">up to +{a.upTo}</span>
-            </button>))}
-          {state.activity.length > 0 && <div className="done-strip"><small>DONE THIS CYCLE</small>{state.activity.map((a) => <span key={a.id}><Check size={13}/> {a.id.split(':')[0] === 'MENTOR' ? 'Mentor feedback' : skillName(a.skill)} <button className="link" onClick={() => onUndo(a.id)}>Undo</button></span>)}</div>}
+          {top.map((a, i) => (
+            <button
+              className="action-card task-row"
+              key={a.id}
+              onClick={() => onAction(a)}
+              aria-label={`${a.title}. ${a.detail}`}
+            >
+              <span className="task-index">0{i + 1}</span>
+              <span className="action-icon">
+                {a.kind === 'PROVE' ? <Crosshair size={18} /> : a.kind === 'BUILD' ? <Zap size={18} /> : <MessageCircle size={18} />}
+              </span>
+              <span className="task-info">
+                <b>{a.title}</b>
+                <small>{a.detail} · ~15 mins · Prereq: None · {a.kind === 'PROVE' ? 'starts quiz' : 'mark complete'}</small>
+              </span>
+              <span className="task-impact">+{a.upTo}% readiness</span>
+            </button>
+          ))}
+          {state.activity.length > 0 && (
+            <div className="done-strip">
+              <small>DONE THIS CYCLE</small>
+              {state.activity.map((a) => (
+                <span key={a.id}>
+                  <Check size={13} /> {a.id.split(':')[0] === 'MENTOR' ? 'Mentor feedback' : skillName(a.skill)}{' '}
+                  <button className="link" onClick={() => onUndo(a.id)}>Undo</button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="agent-note">
-          <div className="agent-icon"><BrainCircuit /></div><span className="kicker">CAREER AGENT · DETERMINISTIC</span>
+
+        <div className="agent-note" style={{ marginTop: '20px' }}>
+          <div className="agent-icon"><BrainCircuit /></div>
+          <span className="kicker">DETERMINISTIC CAREER INTELLIGENCE · VERIFIED SERVER EVIDENCE</span>
           <h3>{state.planNote}</h3>
-          <p>Recommendations come from your evidence with fixed rules. The agent can propose and reorder work; it cannot invent scores or send anything without your approval.</p>
-          <button onClick={runAgent} disabled={running}>{running ? <><RefreshCcw className="spin" size={14}/> Re-evaluating…</> : <>Re-evaluate my plan <ArrowRight size={14}/></>}</button>
+          <p>Recommendations are derived strictly from your verified evidence using deterministic rules. The agent proposes actions; it cannot invent scores.</p>
+          <button onClick={runAgent} disabled={running}>
+            {running ? <><RefreshCcw className="spin" size={14} /> Re-evaluating…</> : <>Re-evaluate my plan <ArrowRight size={14} /></>}
+          </button>
         </div>
       </div>
-    </section>
-    <section className="section-block split">
-      <div><div className="section-title"><div><span className="kicker">SKILL SIGNAL</span><h2>Proof, not just percentages.</h2></div><button className="link" onClick={() => go('skills')}>Skill graph <ArrowRight size={14}/></button></div>
-        <div className="skill-list">{[...skills].sort((a, b) => b.gap - a.gap).slice(0, 4).map((s) => <SkillBar key={s.def.id} s={s}/>)}</div></div>
-      <div className="career-card"><span className="kicker">TARGET ROLE</span><h3>Software Engineer</h3>
-        <p>{top[0] ? `${skillName(top[0].skill)} is the current bottleneck.` : 'All targets are met.'} Closing it moves readiness the most.</p>
-        <div className="mini-track"><i style={{ width: `${r}%` }}/></div><small>{r}% of the target profile demonstrated</small>
-        <button onClick={() => go('passport')}>View career proof <ArrowRight size={14}/></button></div>
-    </section>
-  </>;
+
+      <div className="dashboard-sidebar-col">
+        <div className="panel-block">
+          <div className="panel-head">
+            <h3>Career Readiness</h3>
+            <span className="badge-cyan">{state.evidence.length} evidence</span>
+          </div>
+          <div className="readiness" style={{ marginBottom: '16px' }}>
+            <ProgressRing value={r} />
+            <div className="readiness-copy">
+              <small>COMPUTED READINESS</small>
+              <b>{r}%</b>
+              <span>{skills.filter((s) => s.verified).length} of {skills.length} verified</span>
+            </div>
+          </div>
+
+          <div className="panel-head" style={{ marginTop: '20px', marginBottom: '10px' }}>
+            <div>
+              <span className="kicker">COMPACT ROADMAP</span>
+              <h4 style={{ margin: 0, fontSize: '14px', color: '#FFF' }}>Current: {currentStage.name}</h4>
+            </div>
+            <button className="link" onClick={() => go('roadmap')}>Roadmap <ArrowRight size={12} /></button>
+          </div>
+          <div className="compact-roadmap">
+            {stagesProg.map((st) => (
+              <div key={st.n} className="stage-item">
+                <div className="stage-label">
+                  <span>Phase {st.n}: <b>{st.name}</b></span>
+                  <span>{st.progress}%</span>
+                </div>
+                <div className="stage-bar-track">
+                  <div className="stage-bar-fill" style={{ width: `${st.progress}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel-block">
+          <div className="panel-head">
+            <div>
+              <span className="kicker">VERIFIED SKILLS</span>
+              <h3>Truthful Skill Status</h3>
+            </div>
+            <button className="link" onClick={() => go('skills')}>
+              Graph <ArrowRight size={12} />
+            </button>
+          </div>
+          <div className="skill-pills-list">
+            {skills.map((s) => (
+              <div key={s.def.id} className="skill-row-compact">
+                <div className="skill-title-area">
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFF' }}>{s.def.name}</span>
+                  <span className={`skill-status-tag ${s.status}`}>
+                    {s.statusLabel}
+                  </span>
+                </div>
+                <b style={{ fontSize: '13px', color: s.count > 0 ? '#00F0FF' : 'var(--text-secondary)' }}>
+                  {s.count > 0 ? `${s.score}%` : '—'}
+                </b>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>;
 }
 export function Roadmap({ state, actions, go }: {
     state: AppState;
@@ -96,9 +217,9 @@ export function Skills({ state }: {
     return <div className="wide">
     <PageIntro kicker="SKILL GRAPH" title="Know what you can prove." text="Scores are signals. A skill is verified only with 3+ evidence items from at least two source types."/>
     <div className="skills-grid">{skills.map((s) => (<div className="skill-tile" key={s.def.id}>
-        <div className="tile-top"><span>{s.def.name}</span><b>{s.score}%</b></div>
+        <div className="tile-top"><span>{s.def.name}</span><b>{s.count > 0 ? `${s.score}%` : 'Unassessed'}</b></div>
         <div className="bar" role="img" aria-label={`${s.def.name} ${s.score} percent`}><i style={{ width: `${s.score}%` }}/></div>
-        <div className="tile-meta"><span><VerifiedBadge verified={s.verified}/></span><span>{s.count} evidence</span></div>
+        <div className="tile-meta"><span><VerifiedBadge verified={s.verified}/></span><span className={`skill-status-tag ${s.status}`}>{s.statusLabel}</span><span>{s.count} evidence</span></div>
         <small>Target {s.def.target}% · sources: {s.kinds.join(', ') || 'none'}</small>
       </div>))}</div>
     <div className="skill-principle"><CircleHelp /><div><b>Skill confidence is not a self-claim.</b><p>Quiz results carry less weight than projects or mentor review, so one lucky test cannot permanently inflate a profile.</p></div></div>

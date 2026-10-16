@@ -25,7 +25,25 @@ export function skillStates(rawEvidence: Evidence[]): SkillState[] {
         const score = weight > 0 ? Math.round(items.reduce((s, e) => s + e.score * e.confidence, 0) / weight) : 0;
         const kinds = [...new Set(items.map((e) => e.kind))];
         const verified = items.length >= 3 && kinds.length >= 2;
-        return { def, score, count: items.length, kinds, verified, gap: Math.max(0, def.target - score) };
+        let status: import('./types.ts').SkillStatus = 'not_assessed';
+        let statusLabel = 'Not yet assessed';
+        if (items.length === 0) {
+            status = 'not_assessed';
+            statusLabel = 'Not yet assessed';
+        } else if (verified) {
+            status = 'mentor_verified';
+            statusLabel = 'Verified practical ability';
+        } else if (kinds.includes('project')) {
+            status = 'practical_submitted';
+            statusLabel = 'Practical evidence submitted';
+        } else if (kinds.includes('assessment')) {
+            status = 'demonstrated';
+            statusLabel = `Demonstrated assessment (${score}%)`;
+        } else {
+            status = 'demonstrated';
+            statusLabel = 'In progress';
+        }
+        return { def, score, count: items.length, kinds, verified, gap: Math.max(0, def.target - score), status, statusLabel };
     });
 }
 function credit(s: SkillState): number {
@@ -150,7 +168,10 @@ export function planActions(state: AppState, roleName?: string): PlanAction[] {
 
         const priority = s.def.weight * (s.gap + unverifiedGap) + prereqBoost;
         const upTo = Math.max(1, Math.round((s.def.weight * (s.gap / s.def.target) * 100) / total));
-        const facts = `${s.def.name} is ${s.gap} points below target (${s.score} vs ${s.def.target}) with ${s.count} evidence item${s.count === 1 ? '' : 's'}${s.verified ? '' : ', not yet verified'}.`;
+        const isAssessed = s.count > 0;
+        const facts = isAssessed
+            ? `${s.def.name} demonstrated score is ${s.score}% (target: ${s.def.target}%)${s.verified ? ', verified by evidence' : ', not yet verified'}.`
+            : `${s.def.name} ability has not yet been measured. Complete practice tasks or a diagnostic to establish your baseline.`;
         if (s.def.assessable && hasPendingWork(state, s.def.id)) {
             out.push({ id: `PROVE:${s.def.id}`, kind: 'PROVE', skill: s.def.id, title: `Retest ${s.def.name}`, detail: 'Adaptive check · 4 min', reason: `You did the work; a retest turns it into evidence. ${facts}`, upTo, priority: priority + 1000, route: 'assess' });
         }

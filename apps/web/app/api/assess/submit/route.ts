@@ -62,10 +62,11 @@ export async function POST(req: Request) {
             const answeredCount = countAnswered(answered.rows); // includes the answer just stored
             const totalQuestions = countTotal(answered.rows);
             const skill = item.rows[0].skill_slug;
-            // Adaptive second question: correct -> hard, incorrect -> easy, with a random variant.
+            // Adaptive second question: scales difficulty smoothly based on current question level and response
             const skillAnswered = answered.rows.filter((r: any) => r.skill_slug === skill);
             if (skillAnswered.length === 1) {
-                const desiredLevel = correct ? 3 : 1;
+                const currentLevel = Number(q.level ?? 2);
+                const desiredLevel = correct ? Math.min(3, currentLevel + 1) : Math.max(1, currentLevel - 1);
                 const used = new Set(answered.rows.map((r: any) => r.question_id));
                 const pool = QUESTIONS.filter(x => x.skill === skill && x.level === desiredLevel && !used.has(x.id));
                 const next = pool[Math.floor(Math.random() * pool.length)] ?? QUESTIONS.find(x => x.skill === skill && !used.has(x.id));
