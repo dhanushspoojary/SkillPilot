@@ -69,7 +69,7 @@ export function AdminWorkspace({ user, onLogout }: {
             setError(e instanceof Error ? e.message : 'Update failed');
         }
     }
-    return <main className="workspace">
+    return <main id="main-content" className="workspace">
     <header className="workspace-top">
       <div className="brand"><span className="brand-mark">S</span><span>SkillPilot Admin</span></div>
       <div className="workspace-user">

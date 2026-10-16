@@ -9,6 +9,7 @@
     "test:web": "npm --prefix apps/web test",
     "db:integration": "npm --prefix apps/web run db:integration",
     "api:integration": "npm --prefix apps/web run api:integration",
+    "test:e2e": "npm --prefix apps/web run test:e2e",
     "load:smoke": "npm --prefix apps/web run load:smoke",
     "check": "npm --prefix apps/web run typecheck && npm --prefix apps/web test && npm --prefix apps/web run build",
     "bootstrap-admin": "npm --prefix apps/web run bootstrap-admin",

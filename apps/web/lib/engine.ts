@@ -43,16 +43,112 @@ function hasPendingWork(state: AppState, skill: string): boolean {
     const since = lastAssessmentAt(state.evidence, skill) ?? '';
     return state.activity.some((a) => a.skill === skill && a.kind === 'BUILD' && a.at > since);
 }
+export const SKILL_PREREQUISITES: Record<string, string[]> = {
+    'rest-apis': ['javascript'],
+    'sql': [],
+    'problem-solving': [],
+    'javascript': [],
+    'git': [],
+    'communication': [],
+};
+
+export interface CareerGoalDef {
+    role: string;
+    requiredSkills: string[];
+    targetOverrides?: Record<string, number>;
+}
+
+export const CAREER_GOALS: Record<string, CareerGoalDef> = {
+    'Software Engineer': {
+        role: 'Software Engineer',
+        requiredSkills: ['javascript', 'problem-solving', 'sql', 'rest-apis', 'communication', 'git'],
+    },
+    'Frontend Engineer': {
+        role: 'Frontend Engineer',
+        requiredSkills: ['javascript', 'problem-solving', 'communication', 'git', 'rest-apis'],
+        targetOverrides: { javascript: 85, 'rest-apis': 75 },
+    },
+    'Backend Engineer': {
+        role: 'Backend Engineer',
+        requiredSkills: ['rest-apis', 'sql', 'problem-solving', 'git', 'communication'],
+        targetOverrides: { 'rest-apis': 85, sql: 80 },
+    },
+    'Full Stack Engineer': {
+        role: 'Full Stack Engineer',
+        requiredSkills: ['javascript', 'rest-apis', 'sql', 'problem-solving', 'communication', 'git'],
+        targetOverrides: { javascript: 85, 'rest-apis': 80, sql: 75 },
+    },
+};
+
+export const DEFAULT_CAREER_GOAL = 'Software Engineer';
+
+export function getCareerGoal(roleName?: string): CareerGoalDef {
+    if (!roleName || !CAREER_GOALS[roleName]) {
+        return CAREER_GOALS[DEFAULT_CAREER_GOAL];
+    }
+    return CAREER_GOALS[roleName];
+}
+
+/**
+ * Safely resolves skill dependency ordering with circular dependency protection
+ * and missing prerequisite handling.
+ */
+export function resolveSkillOrder(
+    skills: string[],
+    prerequisites: Record<string, string[]> = SKILL_PREREQUISITES
+): string[] {
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    const result: string[] = [];
+
+    function visit(skill: string) {
+        if (visited.has(skill)) return;
+        if (visiting.has(skill)) {
+            // Cycle detected! Break cycle gracefully to prevent infinite recursion
+            return;
+        }
+        visiting.add(skill);
+        const deps = prerequisites[skill] || [];
+        for (const dep of deps) {
+            if (skills.includes(dep)) {
+                visit(dep);
+            }
+        }
+        visiting.delete(skill);
+        visited.add(skill);
+        if (!result.includes(skill)) {
+            result.push(skill);
+        }
+    }
+
+    for (const s of skills) {
+        visit(s);
+    }
+    return result;
+}
+
 /** Deterministic next actions, highest priority first. Never invents scores. */
-export function planActions(state: AppState): PlanAction[] {
-    const skills = skillStates(state.evidence);
+export function planActions(state: AppState, roleName?: string): PlanAction[] {
+    const goal = getCareerGoal(roleName);
+    const skills = skillStates(state.evidence).filter(s => goal.requiredSkills.includes(s.def.id));
     const total = skills.reduce((s, k) => s + k.def.weight, 0);
     const out: PlanAction[] = [];
+    const gapsBySkill = new Map(skills.map(s => [s.def.id, s.gap]));
+
     for (const s of skills) {
         const unverifiedGap = s.verified ? 0 : 8;
         if (s.gap <= 0 && s.verified)
             continue;
-        const priority = s.def.weight * (s.gap + unverifiedGap);
+        
+        // Prerequisite ordering boost: if this skill is a prerequisite for another skill with an unmet gap, boost its priority
+        let prereqBoost = 0;
+        for (const [dependent, deps] of Object.entries(SKILL_PREREQUISITES)) {
+            if (deps.includes(s.def.id) && (gapsBySkill.get(dependent) ?? 0) > 0) {
+                prereqBoost += 25;
+            }
+        }
+
+        const priority = s.def.weight * (s.gap + unverifiedGap) + prereqBoost;
         const upTo = Math.max(1, Math.round((s.def.weight * (s.gap / s.def.target) * 100) / total));
         const facts = `${s.def.name} is ${s.gap} points below target (${s.score} vs ${s.def.target}) with ${s.count} evidence item${s.count === 1 ? '' : 's'}${s.verified ? '' : ', not yet verified'}.`;
         if (s.def.assessable && hasPendingWork(state, s.def.id)) {

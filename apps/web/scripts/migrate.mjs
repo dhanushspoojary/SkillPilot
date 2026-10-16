@@ -1,6 +1,17 @@
 import pg from 'pg';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
+
+if (!process.env.DATABASE_URL) {
+    for (const f of ['.env.local', '../.env.local', '.env', '../.env']) {
+        if (fsSync.existsSync(f)) {
+            try { process.loadEnvFile(f); } catch {}
+            if (process.env.DATABASE_URL) break;
+        }
+    }
+}
+
 const { Pool } = pg;
 const root = process.env.SKILLPILOT_MIGRATION_DIR || path.resolve(process.cwd(), '../../db/migrations');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, password: process.env.PGPASSWORD || undefined });

@@ -31,8 +31,28 @@ export async function POST(req: Request) {
             const item = await c.query<any>(`select id,question_id,skill_slug,response from assessment_items where assessment_id=$1 and question_id=$2 for update`, [aid, qid]);
             if (!item.rowCount)
                 throw new Error('question');
-            if (item.rows[0].response)
+            if (item.rows[0].response) {
+                let prevChoice: number | null = null;
+                try {
+                    const parsed = typeof item.rows[0].response === 'string' ? JSON.parse(item.rows[0].response) : item.rows[0].response;
+                    prevChoice = parsed?.choice;
+                } catch {}
+                if (prevChoice === choice) {
+                    const answered = await c.query<any>(`select question_id,skill_slug,prompt,response,score from assessment_items where assessment_id=$1 order by position`, [aid]);
+                    const answeredCount = countAnswered(answered.rows);
+                    const totalQuestions = countTotal(answered.rows);
+                    const remaining = await c.query<any>(`select question_id,skill_slug,prompt from assessment_items where assessment_id=$1 and response is null order by position limit 1`, [aid]);
+                    if (remaining.rowCount) {
+                        const promptObj = typeof remaining.rows[0].prompt === 'string' ? JSON.parse(remaining.rows[0].prompt) : remaining.rows[0].prompt;
+                        return { recorded: true, done: false, index: answeredCount, total: totalQuestions, question: promptObj };
+                    }
+                    const comp = await c.query<any>(`select server_score from assessments where id=$1 and status='completed'`, [aid]);
+                    if (comp.rowCount) {
+                        return { recorded: true, done: true, overall: comp.rows[0].server_score };
+                    }
+                }
                 throw new Error('answered');
+            }
             const q = QUESTIONS.find(x => x.id === qid);
             if (!q)
                 throw new Error('question');
@@ -55,8 +75,10 @@ export async function POST(req: Request) {
                 }
             }
             const remaining = await c.query<any>(`select question_id,skill_slug,prompt from assessment_items where assessment_id=$1 and response is null order by position limit 1`, [aid]);
-            if (remaining.rowCount)
-                return { recorded: true, done: false, index: answeredCount, total: totalQuestions, question: remaining.rows[0].prompt };
+            if (remaining.rowCount) {
+                const promptObj = typeof remaining.rows[0].prompt === 'string' ? JSON.parse(remaining.rows[0].prompt) : remaining.rows[0].prompt;
+                return { recorded: true, done: false, index: answeredCount, total: totalQuestions, question: promptObj };
+            }
             const rows = await c.query<any>(`select skill_slug,position,prompt,score from assessment_items where assessment_id=$1 order by position`, [aid]);
             const bySkill = new Map<string, any[]>();
             for (const r of rows.rows) {

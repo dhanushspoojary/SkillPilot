@@ -32,15 +32,17 @@ export async function POST(req: Request) {
             // Abandoned attempts cannot remain open forever.
             await c.query(`update assessments set status='abandoned' where user_id=$1 and status='started' and started_at < now()-interval '30 minutes'`, [u.id]);
             // Resume an in-progress assessment instead of locking the student out for 30 minutes.
-            const active = await c.query<any>(`select id from assessments where user_id=$1 and status='started' limit 1`, [u.id]);
+            const active = await c.query<any>(`select id from assessments where user_id=$1 and status='started' order by started_at desc limit 1`, [u.id]);
             if (active.rowCount) {
                 const items = await c.query<any>(`select skill_slug,prompt,response from assessment_items where assessment_id=$1 order by position`, [active.rows[0].id]);
                 const next = nextUnanswered(items.rows);
-                if (next)
-                    return { id: active.rows[0].id, question: next.prompt, total: totalQuestions(items.rows), index: answeredCount(items.rows), resumed: true };
+                if (next) {
+                    const parsedQ = typeof next.prompt === 'string' ? JSON.parse(next.prompt) : next.prompt;
+                    return { id: active.rows[0].id, question: parsedQ, total: totalQuestions(items.rows), index: answeredCount(items.rows), resumed: true };
+                }
                 await c.query(`update assessments set status='abandoned' where id=$1`, [active.rows[0].id]);
             }
-            if (!(await dbRateLimit(`assess-start:user:${u.id}`, 3, 3600000)))
+            if (!(await dbRateLimit(`assess-start:user:${u.id}`, 10, 3600000, Date.now(), c)))
                 throw new Error('rate_limit');
             const recent = await c.query(`select 1 from assessments where user_id=$1 and status='completed' and completed_at > now()-interval '30 minutes' limit 1`, [u.id]);
             if (recent.rowCount)

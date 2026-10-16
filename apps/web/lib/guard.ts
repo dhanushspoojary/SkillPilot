@@ -77,14 +77,18 @@ export function originOk(method: string, origin: string | null, allowed: string 
 export const CLIENT_ID_RE = /^[A-Za-z0-9_-]{16,80}$/;
 /** Database-backed limiter for production deployments with multiple web instances. */
 let lastRateLimitPrune = 0;
-export async function dbRateLimit(key: string, max: number, windowMs: number, now = Date.now()): Promise<boolean> {
+interface QueryRunner {
+    query<T extends Record<string, any> = Record<string, any>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
+}
+export async function dbRateLimit(key: string, max: number, windowMs: number, now = Date.now(), client?: QueryRunner): Promise<boolean> {
     const { db } = await import('./db');
-    if (now - lastRateLimitPrune > 5 * 60000) {
+    const runner: QueryRunner = client || db();
+    if (now - lastRateLimitPrune > 5 * 60000 && !client) {
         lastRateLimitPrune = now;
-        await db().query(`delete from rate_limits where updated_at < now() - interval '2 days'`).catch(() => undefined);
+        await runner.query(`delete from rate_limits where updated_at < now() - interval '2 days'`).catch(() => undefined);
     }
     const start = new Date(Math.floor(now / windowMs) * windowMs);
-    const result = await db().query<{
+    const result = await runner.query<{
         count: number;
     }>(`insert into rate_limits(key,window_start,count,updated_at)
      values($1,$2,1,now())

@@ -1,106 +1,492 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, RefreshCcw, ShieldCheck } from 'lucide-react';
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  RefreshCcw,
+  ShieldCheck,
+  AlertTriangle,
+  Loader2,
+  BookmarkCheck,
+  ChevronRight,
+  Sparkles,
+} from 'lucide-react';
 import type { Evidence } from '../lib/types';
-const names: Record<string, string> = { 'rest-apis': 'REST APIs', sql: 'SQL', 'problem-solving': 'Problem solving' };
-type Q = {
-    id: string;
-    skill: string;
-    level: number;
-    q: string;
-    options: string[];
+
+const SKILL_NAMES: Record<string, string> = {
+  'rest-apis': 'REST APIs',
+  sql: 'SQL',
+  'problem-solving': 'Problem solving',
+  javascript: 'JavaScript',
+  git: 'Git & GitHub',
+  communication: 'Communication',
 };
-export function Assess({ evidence, focus, onFinish, onDone }: {
-    evidence: Evidence[];
-    focus?: string;
-    onFinish: (r?: any[]) => Promise<void> | void;
-    onDone: () => void;
+
+type Q = {
+  id: string;
+  skill: string;
+  level: number;
+  q: string;
+  options: string[];
+};
+
+type ResultItem = {
+  skill: string;
+  asked: number;
+  correct: number;
+  score: number;
+};
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 2,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      return res;
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Network error');
+}
+
+function friendlyErrorMessage(err: unknown, fallback: string): string {
+  if (!err) return fallback;
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ECONNREFUSED')) {
+    return 'Unable to connect to the SkillPilot server. Please verify your connection or ensure the server is running, then try again.';
+  }
+  if (msg.includes('rate_limit') || msg.includes('429')) {
+    return 'Assessment limit reached for this hour. Please wait a few moments before trying again.';
+  }
+  if (msg.includes('cooldown')) {
+    return 'You recently completed an assessment. Please wait before starting a new diagnostic.';
+  }
+  return msg || fallback;
+}
+
+export function Assess({
+  evidence,
+  focus,
+  onFinish,
+  onDone,
+}: {
+  evidence: Evidence[];
+  focus?: string;
+  onFinish: (r?: any[]) => Promise<void> | void;
+  onDone: () => void;
 }) {
-    const [assessmentId, setAssessmentId] = useState('');
-    const [q, setQ] = useState<Q | null>(null);
-    const [picked, setPicked] = useState<number | null>(null);
-    const [feedback, setFeedback] = useState<string | null>(null);
-    const [index, setIndex] = useState(0);
-    const [total, setTotal] = useState(0);
-    const [results, setResults] = useState<any[] | null>(null);
-    const [busy, setBusy] = useState(true);
-    const [error, setError] = useState('');
-    async function start() {
-        setBusy(true);
-        setError('');
-        setPicked(null);
-        setFeedback(null);
-        setResults(null);
-        try {
-            const r = await fetch('/api/assess/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ focus }) });
-            let x: any = {};
-            try {
-                x = await r.json();
-            }
-            catch {
-                /* non-JSON response */
-            }
-            if (!r.ok)
-                throw new Error(x.error || (r.status === 429 ? 'Assessment rate limit reached. Try again later.' : 'Could not start assessment'));
-            setAssessmentId(x.assessmentId);
-            setQ(x.question);
-            setTotal(x.total);
-            setIndex(x.index ?? 0);
-        }
-        catch (e) {
-            setError(e instanceof Error ? e.message : 'Could not start assessment');
-        }
-        finally {
-            setBusy(false);
-        }
+  const [assessmentId, setAssessmentId] = useState('');
+  const [q, setQ] = useState<Q | null>(null);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [index, setIndex] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [isResumed, setIsResumed] = useState(false);
+  const [results, setResults] = useState<ResultItem[] | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [busyMessage, setBusyMessage] = useState('Preparing your diagnostic…');
+  const [startError, setStartError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const start = useCallback(async () => {
+    setBusy(true);
+    setBusyMessage('Preparing your diagnostic…');
+    setStartError('');
+    setSubmitError('');
+    setPicked(null);
+    setFeedback(null);
+    setResults(null);
+
+    try {
+      const r = await fetchWithRetry('/api/assess/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ focus }),
+      });
+
+      let data: any = {};
+      try {
+        data = await r.json();
+      } catch {
+        /* Non-JSON response */
+      }
+
+      if (!r.ok) {
+        throw new Error(
+          data.error ||
+            (r.status === 429
+              ? 'Assessment rate limit reached. Please try again shortly.'
+              : 'Could not start diagnostic'),
+        );
+      }
+
+      if (!isMountedRef.current) return;
+
+      const rawQ = data.question;
+      const parsedQ: Q = typeof rawQ === 'string' ? JSON.parse(rawQ) : rawQ;
+
+      setAssessmentId(data.assessmentId);
+      setQ(parsedQ);
+      setTotal(data.total || 12);
+      setIndex(data.index ?? 0);
+      setIsResumed(Boolean(data.resumed));
+    } catch (e) {
+      if (!isMountedRef.current) return;
+      setStartError(friendlyErrorMessage(e, 'Could not start diagnostic'));
+    } finally {
+      if (isMountedRef.current) {
+        setBusy(false);
+      }
     }
-    useEffect(() => { void start(); }, [focus]);
-    async function submit() {
-        if (!q || picked === null || !assessmentId || busy)
-            return;
-        setBusy(true);
-        setError('');
-        try {
-            const r = await fetch('/api/assess/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assessmentId, questionId: q.id, choice: picked }) });
-            let x: any = {};
-            try {
-                x = await r.json();
-            }
-            catch {
-                /* non-JSON response */
-            }
-            if (!r.ok)
-                throw new Error(x.error || 'Could not score answer');
-            setFeedback(x.done ? 'Assessment complete.' : 'Answer recorded. The next question has been selected from your current performance.');
-            if (x.done) {
-                setResults(x.results);
-                await onFinish(x.results);
-            }
-            else {
-                window.setTimeout(() => {
-                    setQ(x.question);
-                    setIndex(typeof x.index === 'number' ? x.index : index + 1);
-                    if (x.total)
-                        setTotal(x.total);
-                    setPicked(null);
-                    setFeedback(null);
-                    setBusy(false);
-                }, 350);
-            }
-        }
-        catch (e) {
-            setError(e instanceof Error ? e.message : 'Could not submit answer');
-            setBusy(false);
-        }
+  }, [focus]);
+
+  useEffect(() => {
+    void start();
+  }, [start]);
+
+  const submit = useCallback(async () => {
+    if (!q || picked === null || !assessmentId || busy) return;
+
+    setBusy(true);
+    setBusyMessage('Recording and scoring answer…');
+    setSubmitError('');
+
+    try {
+      const r = await fetchWithRetry('/api/assess/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assessmentId,
+          questionId: q.id,
+          choice: picked,
+        }),
+      });
+
+      let data: any = {};
+      try {
+        data = await r.json();
+      } catch {
+        /* Non-JSON response */
+      }
+
+      if (!r.ok) {
+        throw new Error(data.error || 'Could not record your answer');
+      }
+
+      if (!isMountedRef.current) return;
+
+      if (data.done) {
+        setFeedback('Assessment complete! Computing your authoritative results…');
+        setResults(data.results);
+        await onFinish(data.results);
+      } else {
+        setFeedback('Answer recorded. Next adaptive question selected.');
+        window.setTimeout(() => {
+          if (!isMountedRef.current) return;
+          const nextQ =
+            typeof data.question === 'string'
+              ? JSON.parse(data.question)
+              : data.question;
+          setQ(nextQ);
+          setIndex(typeof data.index === 'number' ? data.index : index + 1);
+          if (data.total) setTotal(data.total);
+          setPicked(null);
+          setFeedback(null);
+          setBusy(false);
+        }, 300);
+      }
+    } catch (e) {
+      if (!isMountedRef.current) return;
+      // Preserve picked answer and question, display inline retry
+      setSubmitError(friendlyErrorMessage(e, 'Could not submit your answer. Please retry.'));
+      setBusy(false);
     }
-    if (error)
-        return <div className="assessment-shell"><div className="result"><ShieldCheck /><span className="kicker">SERVER CHECK FAILED</span><h2>Your evidence was not changed.</h2><p>{error}</p><button className="primary" onClick={start}>Try again</button></div></div>;
-    if (results)
-        return <div className="assessment-shell"><div className="result"><div className="result-icon"><CheckCircle2 /></div><span className="kicker">SERVER-SCORED DIAGNOSTIC COMPLETE</span><h2>{Math.round(results.reduce((s, r) => s + r.score, 0) / Math.max(1, results.length))}%</h2><p>The answer key stayed on the server. The result above is now authoritative evidence tied to your account.</p><ul className="result-list">{results.map(r => <li key={r.skill}><b>{names[r.skill] || r.skill}</b> {r.correct}/{r.asked} correct · signal {r.score}%</li>)}</ul><div className="result-actions"><button className="primary" onClick={onDone}>See updated plan <ArrowRight size={15}/></button><button className="ghost" onClick={start}><RefreshCcw size={15}/> Retake</button></div></div></div>;
-    if (busy && !q)
-        return <div className="assessment-shell"><div className="result"><ShieldCheck /><span className="kicker">SECURE ASSESSMENT</span><h2>Preparing your diagnostic…</h2><p>Questions are selected server-side and scored on the server.</p></div></div>;
-    if (!q)
-        return null;
-    const answered = picked !== null;
-    return <div className="assessment-shell"><div className="assessment-top"><span>ADAPTIVE DIAGNOSTIC · {index + 1}/{total}</span><b>{names[q.skill] || q.skill} · level {q.level}</b></div><h2>{q.q}</h2><div className="options" role="group" aria-label="Answer options">{q.options.map((option, i) => <button key={option} className={feedback ? 'selected-answer' : ''} aria-pressed={picked === i} onClick={() => !answered && !busy && setPicked(i)} disabled={answered || busy}><span>{String.fromCharCode(65 + i)}</span>{option}</button>)}</div>{feedback && <p className="explain" role="status"><b>{feedback}</b></p>}<div className="assessment-foot"><span><ShieldCheck size={13}/> Answer key never leaves the server.</span><button className="primary" onClick={submit} disabled={!answered || busy}>{busy ? 'Scoring…' : index + 1 === total ? 'Finish' : 'Next'} <ArrowRight size={14}/></button></div></div>;
+  }, [q, picked, assessmentId, busy, index, onFinish]);
+
+  // Keyboard navigation: A/B/C/D or 1/2/3/4 and Enter
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (busy || !q || feedback || results) return;
+      const key = e.key.toUpperCase();
+      const num = parseInt(e.key, 10);
+
+      if (['A', 'B', 'C', 'D'].includes(key)) {
+        const optionIndex = key.charCodeAt(0) - 65;
+        if (optionIndex < (q.options?.length ?? 0)) {
+          setPicked(optionIndex);
+          setSubmitError('');
+        }
+      } else if (!isNaN(num) && num >= 1 && num <= (q.options?.length ?? 0)) {
+        setPicked(num - 1);
+        setSubmitError('');
+      } else if (e.key === 'Enter' && picked !== null) {
+        e.preventDefault();
+        void submit();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [busy, q, feedback, results, picked, submit]);
+
+  // Full start error view (server unreachable before assessment started)
+  if (startError) {
+    return (
+      <div className="assessment-shell">
+        <div className="result">
+          <div className="result-icon-alert" role="img" aria-label="Error">
+            <AlertTriangle size={32} />
+          </div>
+          <span className="kicker">DIAGNOSTIC SERVICE NOTICE</span>
+          <h2>Unable to Start Diagnostic</h2>
+          <p className="error-desc">{startError}</p>
+          <div className="result-actions">
+            <button className="primary" onClick={start} disabled={busy}>
+              {busy ? <Loader2 size={16} className="spin" /> : <RefreshCcw size={16} />}
+              Retry Connection
+            </button>
+            <button className="ghost" onClick={onDone}>
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Completed results view
+  if (results) {
+    const avgScore = Math.round(
+      results.reduce((s, r) => s + r.score, 0) / Math.max(1, results.length),
+    );
+    const strengths = results.filter((r) => r.score >= 70);
+    const gaps = results.filter((r) => r.score < 70);
+
+    return (
+      <div className="assessment-shell">
+        <div className="result">
+          <div className="result-icon">
+            <CheckCircle2 size={36} />
+          </div>
+          <span className="kicker">SERVER-SCORED DIAGNOSTIC COMPLETE</span>
+          <h2 className="score-headline">{avgScore}%</h2>
+          <p className="score-sub">
+            All questions were scored on the server. Your evidence has been
+            authoritatively recorded in your profile.
+          </p>
+
+          <div className="results-breakdown">
+            <div className="results-col">
+              <span className="breakdown-title">
+                <BookmarkCheck size={14} /> Strengths Demonstrated
+              </span>
+              {strengths.length > 0 ? (
+                <ul className="result-list">
+                  {strengths.map((r) => (
+                    <li key={r.skill}>
+                      <div>
+                        <b>{SKILL_NAMES[r.skill] || r.skill}</b>
+                        <small>{r.correct}/{r.asked} correct</small>
+                      </div>
+                      <span className="score-tag green">{r.score}%</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted-italic">Focus on fundamentals across all skills.</p>
+              )}
+            </div>
+
+            <div className="results-col">
+              <span className="breakdown-title">
+                <Sparkles size={14} /> Priority Skill Gaps
+              </span>
+              {gaps.length > 0 ? (
+                <ul className="result-list">
+                  {gaps.map((r) => (
+                    <li key={r.skill}>
+                      <div>
+                        <b>{SKILL_NAMES[r.skill] || r.skill}</b>
+                        <small>{r.correct}/{r.asked} correct</small>
+                      </div>
+                      <span className="score-tag orange">{r.score}%</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted-italic">Excellent work! All assessed skills meet targets.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="result-actions">
+            <button className="primary" onClick={onDone}>
+              See Updated Roadmap <ArrowRight size={15} />
+            </button>
+            <button className="ghost" onClick={start}>
+              <RefreshCcw size={15} /> Retake Diagnostic
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Initial loading state
+  if (busy && !q) {
+    return (
+      <div className="assessment-shell">
+        <div className="result">
+          <div className="loading-spinner">
+            <Loader2 size={36} className="spin text-primary" />
+          </div>
+          <span className="kicker">SECURE DIAGNOSTIC</span>
+          <h2>{busyMessage}</h2>
+          <p>
+            Questions are generated and scored exclusively on the server. Answer
+            keys never touch your device.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!q) return null;
+
+  const answered = picked !== null;
+  const progressPercent = total > 0 ? Math.round(((index + (answered ? 1 : 0)) / total) * 100) : 0;
+
+  return (
+    <div className="assessment-shell">
+      {/* Resume Banner */}
+      {isResumed && (
+        <div className="resume-banner" role="status">
+          <BookmarkCheck size={16} />
+          <span>
+            Resumed assessment in progress. Continuing from question {index + 1} of {total}.
+          </span>
+        </div>
+      )}
+
+      {/* Progress Header */}
+      <div className="assessment-top">
+        <div className="progress-info">
+          <span className="kicker">
+            QUESTION {index + 1} OF {total}
+          </span>
+          <div className="progress-bar-track" aria-hidden="true">
+            <div
+              className="progress-bar-fill"
+              style={{ width: `${Math.min(100, progressPercent)}%` }}
+            />
+          </div>
+        </div>
+        <div className="skill-pill">
+          <b>{SKILL_NAMES[q.skill] || q.skill}</b>
+          <span>Level {q.level}</span>
+        </div>
+      </div>
+
+      <h2 className="question-text">{q.q}</h2>
+
+      {/* Answer Options */}
+      <div className="options" role="group" aria-label="Answer options">
+        {q.options.map((option, i) => {
+          const isSelected = picked === i;
+          return (
+            <button
+              key={option}
+              type="button"
+              className={`option-btn ${isSelected ? 'selected-answer' : ''}`}
+              aria-pressed={isSelected}
+              onClick={() => {
+                if (!busy && !feedback) {
+                  setPicked(i);
+                  setSubmitError('');
+                }
+              }}
+              disabled={busy || feedback !== null}
+            >
+              <span className="option-letter">{String.fromCharCode(65 + i)}</span>
+              <span className="option-content">{option}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Submit Inline Error */}
+      {submitError && (
+        <div className="inline-alert error" role="alert">
+          <AlertTriangle size={16} />
+          <div className="inline-alert-body">
+            <span>{submitError}</span>
+            <button
+              type="button"
+              className="retry-inline-btn"
+              onClick={submit}
+              disabled={busy}
+            >
+              Retry Submission
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Active feedback */}
+      {feedback && (
+        <div className="inline-alert success" role="status">
+          <CheckCircle2 size={16} />
+          <span>{feedback}</span>
+        </div>
+      )}
+
+      {/* Footer Actions */}
+      <div className="assessment-foot">
+        <span className="security-notice">
+          <ShieldCheck size={14} /> Server-scored · Anti-tamper verified
+        </span>
+
+        <button
+          type="button"
+          className="primary submit-btn"
+          onClick={submit}
+          disabled={!answered || busy || feedback !== null}
+        >
+          {busy ? (
+            <>
+              <Loader2 size={14} className="spin" />
+              <span>Scoring…</span>
+            </>
+          ) : index + 1 === total ? (
+            <>
+              <span>Finish Diagnostic</span>
+              <CheckCircle2 size={14} />
+            </>
+          ) : (
+            <>
+              <span>Next Question</span>
+              <ArrowRight size={14} />
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
 }

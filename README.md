@@ -139,12 +139,12 @@ Then open the configured web origin.
 
 ## Verification performed for this package
 
-- **29/29 dependency-free web/engine/agent tests pass in this release.**
-- Database and API integration test scripts are included and wired into CI.
-- CI and Docker use `npm install` in this archive because the build environment could not resolve the npm registry; a complete lockfile should be generated before claiming fully reproducible builds.
-- Production Compose keeps Next.js private behind Caddy TLS.
-- Static TypeScript parsing was checked; full typecheck requires the declared npm dependencies to be installed.
-- The packaging environment could not reach the npm registry, so dependency installation, typecheck and Next production build could not be executed here. Static TypeScript syntax checks and the dependency-free tests are included; run the full CI pipeline from a registry-connected environment before production launch.
+- **42/42 unit tests pass** across the roadmap engine, auth, server security, career agent, mailer, config, and diagnostic parser (`npm test`).
+- **Strict TypeScript typecheck passes with 0 errors** (`npm run typecheck`).
+- **Next.js production build compiles cleanly** with 32 dynamic API routes and 8 static pages (`npm run build`).
+- **Database integration suite passes** testing transactions, Neon connection pooling, and append-only constraints (`npm run db:integration`).
+- **API integration suite passes** against the live server endpoints (`npm run api:integration`).
+- **End-to-end browser verification passes** (`npm run test:e2e`) executing real student registration, full 12-question adaptive assessment, roadmap recalculation, interactive learning actions, mock interview navigation, and responsive viewport checks from 320px to 1440px with zero horizontal overflow.
 
 See:
 

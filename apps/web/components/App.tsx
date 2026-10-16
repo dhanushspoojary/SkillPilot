@@ -173,7 +173,7 @@ export function App({ user }: {
       <div className="side-profile"><div className="mini-avatar">{(state.name.trim()[0] ?? 'S').toUpperCase()}</div>
         <div><b>{state.name.trim() || 'Student'}</b><small>Software Engineer path · API {apiOnline === null ? 'unchecked' : apiOnline ? 'reachable' : 'offline'} · {syncStatus === 'off' ? 'Local only' : `Server ${syncStatus}`}</small></div><ChevronRight size={15}/></div>
     </aside>
-    <main className="main">
+    <main id="main-content" className="main">
       <header className="topbar">
         <button className="mobile-menu" onClick={() => setMenu((v) => !v)} aria-label={menu ? 'Close navigation' : 'Open navigation'}>{menu ? <X /> : <Menu />}</button>
         <div className="crumb"><span>SkillPilot</span><ChevronRight size={14}/><b>{NAV.find((n) => n[0] === view)?.[1]}</b></div>

@@ -11,6 +11,7 @@
     "migrate": "node scripts/migrate.mjs",
     "db:integration": "node scripts/db-integration.mjs",
     "api:integration": "node scripts/api-integration.mjs",
+    "test:e2e": "node scripts/e2e-workflow.mjs",
     "load:smoke": "node scripts/load-smoke.mjs",
     "prune": "node scripts/prune.mjs"
   },
@@ -28,6 +29,7 @@
     "@types/pg": "8.15.5",
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",
+    "playwright": "^1.64.1",
     "typescript": "5.7.3"
   },
   "type": "module"
