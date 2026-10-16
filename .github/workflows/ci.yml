@@ -1,0 +1,71 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: skillpilot
+          POSTGRES_USER: skillpilot
+          POSTGRES_PASSWORD: ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skillpilot -d skillpilot"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: if [ -f package-lock.json ]; then npm ci --ignore-scripts --no-audit --no-fund; else npm install --ignore-scripts --no-audit --no-fund; fi
+        working-directory: apps/web
+      - run: npm run typecheck
+        working-directory: apps/web
+      - run: npm test
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web
+      - run: npm run db:integration
+        working-directory: apps/web
+        env:
+          DATABASE_URL: postgresql://skillpilot:ci-password@localhost:5432/skillpilot
+      - run: npm run migrate
+        working-directory: apps/web
+        env:
+          DATABASE_URL: postgresql://skillpilot:ci-password@localhost:5432/skillpilot
+      - run: npm start > /tmp/skillpilot.log 2>&1 &
+        working-directory: apps/web
+        env:
+          DATABASE_URL: postgresql://skillpilot:ci-password@localhost:5432/skillpilot
+          SKILLPILOT_ALLOWED_ORIGIN: http://127.0.0.1:3000
+          SKILLPILOT_SECURE_COOKIES: 'false'
+          SKILLPILOT_TRUST_PROXY: 'false'
+          SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'false'
+          CI: 'true'
+          SKILLPILOT_HASH_SECRET: ci-only-hash-secret-0123456789abcdef
+      - run: node -e "const f=async()=>{for(let i=0;i<30;i++){try{if((await fetch('http://127.0.0.1:3000/api/health')).ok)process.exit(0)}catch{} await new Promise(r=>setTimeout(r,1000))}process.exit(1)};f()"
+      - run: npm run api:integration
+        working-directory: apps/web
+        env:
+          DATABASE_URL: postgresql://skillpilot:ci-password@localhost:5432/skillpilot
+          SKILLPILOT_ALLOWED_ORIGIN: http://127.0.0.1:3000
+          SKILLPILOT_SECURE_COOKIES: 'false'
+          SKILLPILOT_TRUST_PROXY: 'false'
+          SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'false'
+          CI: 'true'
+      - run: npm run load:smoke
+        working-directory: apps/web
+        env:
+          SMOKE_URL: http://127.0.0.1:3000
+      - run: pg_dump postgresql://skillpilot:ci-password@localhost:5432/skillpilot --format=custom --file=/tmp/skillpilot.dump
+      - run: psql postgresql://skillpilot:ci-password@localhost:5432/postgres -v ON_ERROR_STOP=1 -c "create database restore_smoke"
+      - run: pg_restore --exit-on-error --dbname=postgresql://skillpilot:ci-password@localhost:5432/restore_smoke /tmp/skillpilot.dump
+      - run: psql postgresql://skillpilot:ci-password@localhost:5432/restore_smoke -v ON_ERROR_STOP=1 -c "select count(*) from users"
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: apps/web

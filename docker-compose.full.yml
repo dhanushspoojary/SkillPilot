@@ -1,0 +1,86 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: skillpilot
+      POSTGRES_USER: skillpilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD}
+    volumes:
+      - skillpilot_pg:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U skillpilot -d skillpilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD}
+      SKILLPILOT_DB_APP_PASSWORD: ${SKILLPILOT_DB_APP_PASSWORD:?Set SKILLPILOT_DB_APP_PASSWORD}
+    volumes:
+      - ./db/migrations:/migrations:ro
+      - ./scripts/migrate.sh:/migrate.sh:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["sh", "/migrate.sh"]
+    restart: "no"
+
+
+  web:
+    build: ./apps/web
+    expose: ["3000"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://skillpilot_app:${SKILLPILOT_DB_APP_PASSWORD}@db:5432/skillpilot
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_SSL: "false"
+      SKILLPILOT_ALLOWED_ORIGIN: ${SKILLPILOT_ALLOWED_ORIGIN:?Set SKILLPILOT_ALLOWED_ORIGIN}
+      SKILLPILOT_TRUST_PROXY: ${SKILLPILOT_TRUST_PROXY:-true}
+      SKILLPILOT_SECURE_COOKIES: "true"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
+      SKILLPILOT_AGENT_HOURLY_CAP: ${SKILLPILOT_AGENT_HOURLY_CAP:-200}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: ${SKILLPILOT_REQUIRE_EMAIL_VERIFICATION:-true}
+      SKILLPILOT_RETENTION_AGENT_DAYS: ${SKILLPILOT_RETENTION_AGENT_DAYS:-90}
+      SKILLPILOT_RETENTION_EVENTS_DAYS: ${SKILLPILOT_RETENTION_EVENTS_DAYS:-90}
+      SKILLPILOT_HASH_SECRET: ${SKILLPILOT_HASH_SECRET:?Set SKILLPILOT_HASH_SECRET (openssl rand -hex 32)}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL","wget -q -O - http://127.0.0.1:3000/api/health >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  skillpilot_pg:
+  caddy_data:
+  caddy_config:

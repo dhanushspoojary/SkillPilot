@@ -1,0 +1,17 @@
+{
+  "name": "skillpilot",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix apps/web run dev",
+    "build": "npm --prefix apps/web run build",
+    "typecheck": "npm --prefix apps/web run typecheck",
+    "test": "npm --prefix apps/web test",
+    "test:web": "npm --prefix apps/web test",
+    "db:integration": "npm --prefix apps/web run db:integration",
+    "api:integration": "npm --prefix apps/web run api:integration",
+    "load:smoke": "npm --prefix apps/web run load:smoke",
+    "check": "npm --prefix apps/web run typecheck && npm --prefix apps/web test && npm --prefix apps/web run build",
+    "bootstrap-admin": "npm --prefix apps/web run bootstrap-admin",
+    "migrate": "npm --prefix apps/web run migrate"
+  }
+}

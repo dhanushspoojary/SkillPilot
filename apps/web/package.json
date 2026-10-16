@@ -1,0 +1,34 @@
+{
+  "name": "skillpilot-web",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test lib/*.test.ts",
+    "bootstrap-admin": "node scripts/bootstrap-admin.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "db:integration": "node scripts/db-integration.mjs",
+    "api:integration": "node scripts/api-integration.mjs",
+    "load:smoke": "node scripts/load-smoke.mjs",
+    "prune": "node scripts/prune.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "2.4.3",
+    "lucide-react": "0.474.0",
+    "next": "15.5.27",
+    "pg": "8.16.3",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "22.10.5",
+    "@types/pg": "8.15.5",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "typescript": "5.7.3"
+  },
+  "type": "module"
+}

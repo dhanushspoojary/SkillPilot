@@ -1,0 +1,7 @@
+node_modules
+.next
+.skillpilot-data
+.env*
+!.env.example
+Dockerfile
+*.log
