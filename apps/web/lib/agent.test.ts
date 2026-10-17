@@ -253,5 +253,44 @@ test('deterministic career intelligence: practical project inquiry and learning 
     assert.match(body2.answer, /3-phase learning plan/i);
 });
 
+test('multi-step scenario: 30 minutes daily C pointers inquiry retrieves context, gaps, plan, and proposal', async () => {
+    const r = await handleAgentRequest(
+        { question: 'I have 30 minutes each day and want to improve my C programming. I struggle with pointers.', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    // 1. Tool execution steps
+    assert.ok(body.steps.some((s: any) => s.tool === 'get_student_context'));
+    assert.ok(body.steps.some((s: any) => s.tool === 'get_my_skill_gaps'));
+    assert.ok(body.steps.some((s: any) => s.tool === 'generate_learning_plan'));
+    // 2. Realistic 30-min plan and Socratic explanation
+    assert.match(body.answer, /30-minute daily schedule/i);
+    assert.match(body.answer, /street address/i);
+    assert.match(body.answer, /Comprehension Check/i);
+    // 3. Actionable proposal with student approval permission
+    assert.equal(body.proposals.length, 1);
+    assert.equal(body.proposals[0].permission, 'approval_required');
+    assert.equal(body.proposals[0].skill, 'problem-solving');
+});
+
+test('comprehension check evaluation: evaluates student answer and emits evaluatedPractice', async () => {
+    const r = await handleAgentRequest(
+        { question: 'The value of a is 20 because *p dereferences the address and directly mutates the value', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    assert.ok(body.steps.some((s: any) => s.tool === 'evaluate_submission'));
+    assert.match(body.answer, /Verification Succeeded: 100% Correct/i);
+    assert.ok(body.evaluatedPractice);
+    assert.equal(body.evaluatedPractice.passed, true);
+    assert.equal(body.evaluatedPractice.skillId, 'problem-solving');
+    assert.equal(body.proposals.length, 1);
+    assert.equal(body.proposals[0].label, 'Continue to Array Pointer Tracing');
+});
+
 
 

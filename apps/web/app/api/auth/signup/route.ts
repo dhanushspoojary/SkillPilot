@@ -12,7 +12,8 @@ export async function POST(req: Request) {
     if (!requireOrigin(req))
         return json({ error: 'Origin not allowed' }, 403);
     const ip = networkKey(req.headers, process.env.SKILLPILOT_TRUST_PROXY === 'true');
-    if (!(await dbRateLimit(`signup:${ip}`, 5, 3600000)))
+    const signupLimit = process.env.NODE_ENV === 'production' && !process.env.SKILLPILOT_TEST_MODE ? 5 : 60;
+    if (!(await dbRateLimit(`signup:${ip}`, signupLimit, 3600000)))
         return json({ error: 'Signup rate limit reached. Try again later.' }, 429);
     try {
         const b = await readJsonBody<any>(req, 10000);

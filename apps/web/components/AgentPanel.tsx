@@ -822,6 +822,24 @@ export function AgentPanel({
                     </div>
                   )}
 
+                  {m.sender === 'agent' && (
+                    <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 11, color: 'var(--muted)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const idx = messages.findIndex((msg) => msg.id === m.id);
+                          const prevStudent = messages.slice(0, idx).reverse().find((msg) => msg.sender === 'student');
+                          if (prevStudent) {
+                            ask(prevStudent.text);
+                          }
+                        }}
+                        style={{ background: 'none', border: 'none', color: 'var(--cyan)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <RotateCcw size={11} /> Regenerate response
+                      </button>
+                    </div>
+                  )}
+
                   {/* Trace Box */}
                   {m.replyData?.steps && m.replyData.steps.length > 0 && (
                     <div className="trace-box" style={{ marginTop: 10 }}>

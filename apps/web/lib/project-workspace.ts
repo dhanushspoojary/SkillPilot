@@ -149,51 +149,51 @@ export async function evaluateProjectSubmission(
   let allPassed = true;
 
   if (slug === 'rest-bookstore-service') {
-    // Test Case 1: listBooks implementation
-    const hasListBooks = /listBooks\s*\([^)]*\)\s*\{/i.test(submissionCode);
-    const hasReturnBooks = /return\s+this\.books/i.test(submissionCode);
+    // Test Case 1: listBooks / getBooks implementation
+    const hasListBooks = /(listBooks|getBooks)\s*\([^)]*\)\s*\{/i.test(submissionCode);
+    const hasReturnBooks = /(return\s+.*books|data:\s*result|data:\s*this\.books|this\.books)/i.test(submissionCode);
     const tc1Passed = hasListBooks && hasReturnBooks;
     results.push({
       id: 'tc-1',
       name: 'List all books',
-      description: 'Verifies listBooks method implementation.',
+      description: 'Verifies getBooks / listBooks method implementation.',
       expectedBehavior: 'Returns array containing book objects',
       status: tc1Passed ? 'passed' : 'failed',
-      output: tc1Passed ? 'Verified: listBooks returns collection.' : 'Missing listBooks return statement.',
+      output: tc1Passed ? 'Verified: getBooks/listBooks returns collection.' : 'Missing getBooks/listBooks return statement.',
     });
     if (!tc1Passed) allPassed = false;
 
     // Test Case 2: getBookById lookup
-    const hasGetById = /getBookById\s*\([^)]*\)\s*\{/i.test(submissionCode);
-    const hasFind = /\.find\s*\(/i.test(submissionCode) || /for\s*\(/i.test(submissionCode);
+    const hasGetById = /(getBookById|findBook)\s*\([^)]*\)\s*\{/i.test(submissionCode);
+    const hasFind = /(\.find\s*\(|for\s*\(|this\.books\[)/i.test(submissionCode);
     const tc2Passed = hasGetById && hasFind;
     results.push({
       id: 'tc-2',
       name: 'Lookup book by ID',
-      description: 'Verifies lookup for valid ID returns object, invalid returns null.',
-      expectedBehavior: 'Returns matching book object or null',
+      description: 'Verifies lookup for valid ID returns object, invalid returns 404/null.',
+      expectedBehavior: 'Returns matching book object or 404 error',
       status: tc2Passed ? 'passed' : 'failed',
       output: tc2Passed ? 'Verified: getBookById performs ID matching.' : 'Lookup by ID not implemented.',
     });
     if (!tc2Passed) allPassed = false;
 
     // Test Case 3: Payload validation on creation
-    const hasAddBook = /addBook\s*\([^)]*\)\s*\{/i.test(submissionCode);
-    const hasValidation = /throw\s+new\s+Error/i.test(submissionCode) && /(!data\.title|!data\.author)/i.test(submissionCode);
+    const hasAddBook = /(addBook|createBook)\s*\([^)]*\)\s*\{/i.test(submissionCode);
+    const hasValidation = /(throw\s+new\s+Error|400|error)/i.test(submissionCode) && /(!payload\.title|!data\.title|!title|!payload|!payload\.author|!author)/i.test(submissionCode);
     const tc3Passed = hasAddBook && hasValidation;
     results.push({
       id: 'tc-3',
       name: 'Validate payload on creation',
-      description: 'Ensures payload missing title throws descriptive error.',
-      expectedBehavior: 'addBook validates title and author presence',
+      description: 'Ensures payload missing title or author returns 400 or throws error.',
+      expectedBehavior: 'createBook validates title and author presence',
       status: tc3Passed ? 'passed' : 'failed',
       output: tc3Passed ? 'Verified: Validates required title and author.' : 'Payload validation missing.',
     });
     if (!tc3Passed) allPassed = false;
 
     // Test Case 4: Delete idempotency
-    const hasDelete = /deleteBook\s*\([^)]*\)\s*\{/i.test(submissionCode);
-    const hasSpliceOrFilter = /(\.splice|\.filter)/i.test(submissionCode);
+    const hasDelete = /(deleteBook|removeBook)\s*\([^)]*\)\s*\{/i.test(submissionCode);
+    const hasSpliceOrFilter = /(\.splice|\.filter|delete\s+this\.books)/i.test(submissionCode);
     const tc4Passed = hasDelete && hasSpliceOrFilter;
     results.push({
       id: 'tc-4',

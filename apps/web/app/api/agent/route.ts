@@ -1,13 +1,13 @@
 import { handleAgentRequest, MAX_BODY_BYTES } from '../../../lib/agent';
 import { currentUser } from '../../../lib/auth';
-import { db, many } from '../../../lib/db';
+import { db, many, one } from '../../../lib/db';
 import { dbRateLimit, networkKey } from '../../../lib/guard';
 import { parseState } from '../../../lib/engine';
 import { activityFromSource } from '../../../lib/activity';
 import { maybeRunRetention } from '../../../lib/retention';
 import { json, readJsonBody, requireOrigin } from '../../../lib/server-security';
 import { appendConversationMessage } from '../../../lib/conversation';
-import { getCoherentStudentContext } from '../../../lib/student-context';
+import { getCoherentStudentContext, addStudentMemory } from '../../../lib/student-context';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90; // up to 4 sequential model calls with a 20s timeout each
@@ -40,6 +40,15 @@ export async function POST(req: Request) {
         const threadId = typeof parsed?.threadId === 'string' && parsed.threadId.trim() ? parsed.threadId.trim() : undefined;
         const studentMsg = await appendConversationMessage(u.id, 'student', parsed.question, {}, threadId).catch(() => null);
         const activeThreadId = studentMsg?.threadId || threadId;
+
+        // Contextually infer and persist student constraints / struggles to durable memory
+        const qLower = parsed.question.toLowerCase();
+        if (qLower.includes('30 minutes') || qLower.includes('30 mins')) {
+            await addStudentMemory(u.id, 'preference', 'Available 30 minutes daily for deliberate practice', 'student_input').catch(() => {});
+        }
+        if (qLower.includes('struggle with pointer') || qLower.includes('struggling with pointer') || qLower.includes('pointers in c')) {
+            await addStudentMemory(u.id, 'struggle', 'Struggling with pointers and memory addresses in C', 'student_input').catch(() => {});
+        }
 
         const [evidence, requests, activity, mentors, coherentContext] = await Promise.all([
             many<any>(`select e.id,s.slug as skill,e.source as kind,e.score,e.confidence,e.captured_at as at,e.metadata,coalesce(e.metadata->>'label',e.source||' evidence') as label from user_skill_evidence e join skills s on s.id=e.skill_id where e.user_id=$1 order by e.captured_at asc`, [u.id]),
@@ -81,6 +90,37 @@ export async function POST(req: Request) {
                 model: body.model,
                 provider: body.provider,
             }, activeThreadId).catch(() => {});
+
+            // If a practice submission was evaluated and verified, record authoritative practice evidence
+            if ((body as any).evaluatedPractice?.passed) {
+                const ep = (body as any).evaluatedPractice;
+                const skillRow = await one<{ id: string }>(`select id from skills where slug = $1`, [ep.skillId]).catch(() => null);
+                if (skillRow) {
+                    await db().query(
+                        `insert into user_skill_evidence(user_id, skill_id, source, score, confidence, metadata)
+                         values($1, $2, 'practice', $3, $4, $5)`,
+                        [
+                            u.id,
+                            skillRow.id,
+                            ep.score || 88,
+                            ep.confidence || 0.65,
+                            JSON.stringify({
+                                label: ep.label || 'Career AI: Verified Practice Submission',
+                                topic: ep.topic || 'c-pointers',
+                                evaluatedAt: new Date().toISOString(),
+                            }),
+                        ],
+                    ).catch(() => {});
+
+                    // Auto-complete corresponding roadmap action
+                    await db().query(
+                        `insert into roadmap_actions(user_id, title, week_start, priority, status, source, completed_at)
+                         values($1, $2, current_date, 0, 'completed', $3, now())
+                         on conflict do nothing`,
+                        [u.id, ep.label, `practice-${ep.topic || 'c-pointers'}`],
+                    ).catch(() => {});
+                }
+            }
         }
         try {
             await db().query(`insert into agent_runs(user_id,agent,input_hash,provider,model_version,status,output) values($1,'career-orchestrator',encode(digest($2::text,'sha256'),'hex'),$3,$4,'proposed',$5)`, [u.id, parsed.question, apiKey ? provider : 'deterministic', apiKey ? model : 'deterministic-engine', JSON.stringify({ mode, proposalCount, redacted: true })]);

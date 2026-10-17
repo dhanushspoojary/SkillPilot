@@ -114,8 +114,10 @@ export async function DELETE(req: Request) {
   }
 
   try {
+    const url = new URL(req.url);
+    const queryThreadId = url.searchParams.get('threadId') || undefined;
     const body = await readJsonBody<any>(req, 10000).catch(() => ({}));
-    const threadId = typeof body?.threadId === 'string' ? body.threadId : undefined;
+    const threadId = queryThreadId || (typeof body?.threadId === 'string' ? body.threadId : undefined);
 
     if (threadId) {
       const deleted = await deleteConversationThread(u.id, threadId);

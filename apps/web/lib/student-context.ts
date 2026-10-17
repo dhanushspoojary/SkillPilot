@@ -19,7 +19,7 @@ export interface StudentMemory {
 export interface SkillCompetencyClassification {
   skillId: string;
   name: string;
-  classification: 'self_reported' | 'assessed' | 'demonstrated' | 'verified' | 'unassessed';
+  classification: 'self_reported' | 'assessed' | 'demonstrated' | 'mentor_reviewed' | 'verified' | 'unassessed';
   score: number;
   target: number;
   gap: number;
@@ -103,6 +103,8 @@ export async function getCoherentStudentContext(userId: string): Promise<Coheren
     let classification: SkillCompetencyClassification['classification'] = 'unassessed';
     if (s.verified) {
       classification = 'verified';
+    } else if (s.kinds.includes('mentor')) {
+      classification = 'mentor_reviewed';
     } else if (s.kinds.includes('project')) {
       classification = 'demonstrated';
     } else if (s.kinds.includes('assessment')) {
