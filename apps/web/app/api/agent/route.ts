@@ -6,6 +6,7 @@ import { parseState } from '../../../lib/engine';
 import { activityFromSource } from '../../../lib/activity';
 import { maybeRunRetention } from '../../../lib/retention';
 import { json, readJsonBody, requireOrigin } from '../../../lib/server-security';
+import { appendConversationMessage } from '../../../lib/conversation';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90; // up to 4 sequential model calls with a 20s timeout each
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
     if (typeof parsed?.question !== 'string' || !parsed.question.trim() || parsed.question.length > 500)
         return json({ error: 'Question must be 1-500 characters' }, 400);
     try {
+        await appendConversationMessage(u.id, 'student', parsed.question).catch(() => {});
         const evidence = await many<any>(`select e.id,s.slug as skill,e.source as kind,e.score,e.confidence,e.captured_at as at,e.metadata,coalesce(e.metadata->>'label',e.source||' evidence') as label from user_skill_evidence e join skills s on s.id=e.skill_id where e.user_id=$1 order by e.captured_at asc`, [u.id]);
         const requests = await many<any>(`select id, mentor_id as "mentorId",message,status,created_at as at from mentor_requests where student_id=$1 order by created_at desc limit 30`, [u.id]);
         const activity = await many<any>(`select source as id, completed_at as at from roadmap_actions where user_id=$1 and status='completed' and completed_at is not null order by completed_at asc`, [u.id]);
@@ -61,6 +63,16 @@ export async function POST(req: Request) {
         const isReply = body && !('error' in body);
         const mode = isReply ? body.mode : 'unknown';
         const proposalCount = isReply && Array.isArray(body.proposals) ? body.proposals.length : 0;
+        if (isReply) {
+            await appendConversationMessage(u.id, 'agent', body.answer, {
+                mode: body.mode,
+                steps: body.steps,
+                proposals: body.proposals,
+                fallbackReason: body.fallbackReason,
+                model: body.model,
+                provider: body.provider,
+            }).catch(() => {});
+        }
         try {
             await db().query(`insert into agent_runs(user_id,agent,input_hash,provider,model_version,status,output) values($1,'career-orchestrator',encode(digest($2::text,'sha256'),'hex'),$3,$4,'proposed',$5)`, [u.id, parsed.question, apiKey ? provider : 'deterministic', apiKey ? model : 'deterministic-engine', JSON.stringify({ mode, proposalCount, redacted: true })]);
         }

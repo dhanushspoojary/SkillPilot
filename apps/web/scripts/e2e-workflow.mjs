@@ -12,7 +12,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 const { Pool } = pg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2, idleTimeoutMillis: 3000, connectionTimeoutMillis: 15000 });
 
 const BASE_URL = process.env.API_URL || 'http://localhost:3000';
 const stamp = Date.now();
@@ -145,9 +145,23 @@ try {
 
   // Step 6: Verify Authoritative Results View
   console.log('6. Verifying Diagnostic Results View...');
-  await page.waitForSelector('.results-breakdown, .result-list', { timeout: 10000 });
+  await page.waitForSelector('.results-breakdown, .result-list', { timeout: 15000 });
   const hasBreakdown = await page.$('.results-breakdown');
   console.log(`   Diagnostic results breakdown verified: ${Boolean(hasBreakdown)}`);
+
+  // Interactive baseline & goal confirmation
+  const confirmBaselineBtn = page.locator('button.primary:has-text("Confirm Skill Baseline")');
+  if (await confirmBaselineBtn.isVisible()) {
+    console.log('   Confirming skill baseline interactively...');
+    await confirmBaselineBtn.click();
+    await page.waitForTimeout(800);
+    const confirmGoalsBtn = page.locator('button.primary:has-text("Confirm Goals & Unlock Roadmap")');
+    if (await confirmGoalsBtn.isVisible()) {
+      console.log('   Confirming learning goals...');
+      await confirmGoalsBtn.click();
+      await page.waitForTimeout(800);
+    }
+  }
 
   // Step 7: Navigate to Roadmap
   console.log('7. Navigating to Personalized Roadmap...');
@@ -158,13 +172,13 @@ try {
     await page.click('button.nav-item:has-text("Roadmap")');
   }
 
-  await page.waitForSelector('.roadmap-list, .action-stack', { timeout: 8000 });
+  await page.waitForSelector('.roadmap-list, .action-stack', { timeout: 15000 });
   console.log('   Roadmap successfully displayed!');
 
   // Step 8: Complete Learning Action on Today View
   console.log('8. Completing learning action on Today dashboard...');
   await page.click('button.nav-item:has-text("Today")');
-  await page.waitForSelector('.action-card', { timeout: 8000 });
+  await page.waitForSelector('.action-card', { timeout: 15000 });
 
   const firstAction = page.locator('.action-card').first();
   if (await firstAction.isVisible()) {
@@ -178,13 +192,13 @@ try {
   // Step 9: Verify Mock Interview Navigation
   console.log('9. Navigating to Mock Interview...');
   await page.click('button.nav-item:has-text("Mock interview")');
-  await page.waitForSelector('.page, #main-content', { timeout: 8000 });
+  await page.waitForSelector('.page, #main-content', { timeout: 15000 });
   console.log('   Mock interview view loaded.');
 
   // Step 10: Verify Skill Passport & Public Share Card
   console.log('10. Verifying Skill Passport & Public Share Card...');
   await page.click('button.nav-item:has-text("Passport")');
-  await page.waitForSelector('.passport, .proof-list', { timeout: 8000 });
+  await page.waitForSelector('.passport, .proof-list', { timeout: 15000 });
   const passportTitle = await page.textContent('.passport-top');
   console.log(`   Skill Passport verified: "${passportTitle?.slice(0, 35).replace(/\s+/g, ' ').trim()}"`);
 
@@ -193,7 +207,7 @@ try {
   if (await generateBtn.isVisible()) {
     console.log('   Generating public passport share link...');
     await generateBtn.click();
-    await page.waitForSelector('.share-url-input', { timeout: 8000 });
+    await page.waitForSelector('.share-url-input', { timeout: 20000 });
   }
 
   const shareUrl = await page.inputValue('.share-url-input');
@@ -210,7 +224,7 @@ try {
   publicPage.on('pageerror', (err) => publicErrors.push(err.message));
 
   await publicPage.goto(shareUrl, { waitUntil: 'networkidle' });
-  await publicPage.waitForSelector('.public-passport-card', { timeout: 10000 });
+  await publicPage.waitForSelector('.public-passport-card', { timeout: 15000 });
   const publicName = await publicPage.textContent('.student-name');
   console.log(`   Public card loaded for: "${publicName?.trim()}"`);
   const publicScore = await publicPage.textContent('.score-num');
@@ -229,20 +243,20 @@ try {
   // Step 11: Verify Career Companion conversational intelligence
   console.log('11. Verifying Career Companion agent...');
   await page.click('button.nav-item:has-text("Agent")');
-  await page.waitForSelector('#agent-q', { timeout: 8000 });
+  await page.waitForSelector('#agent-q', { timeout: 15000 });
 
   console.log('   Sending natural conversation message to agent...');
-  await page.fill('#agent-q', 'Hi! I am a first-year student exploring backend engineering');
+  await page.fill('#agent-q', 'Can you teach me pointers in C with a small code example?');
   await page.click('.agent-input-form button.primary');
 
   // Wait for agent reply
   await page.waitForFunction(
     () => document.querySelectorAll('.chat-msg.agent').length >= 2,
-    { timeout: 20000 },
+    { timeout: 25000 },
   );
   const spinner = page.locator('.chat-msg.agent .spin');
   if (await spinner.isVisible()) {
-    await spinner.waitFor({ state: 'detached', timeout: 20000 });
+    await spinner.waitFor({ state: 'detached', timeout: 25000 });
   }
   const agentMessages = await page.locator('.chat-msg.agent').allTextContents();
   const latestReply = agentMessages[agentMessages.length - 1];

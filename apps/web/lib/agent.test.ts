@@ -89,3 +89,86 @@ test('agent tools: get_career_readiness_summary and prepare_passport_share', () 
     assert.equal(r2.proposal?.type, 'share_passport');
 });
 
+test('teaching AI: explains C programming from scratch', async () => {
+    const r = await handleAgentRequest({ question: 'Teach me C from scratch.', state: defaultState() }, { model: 'm', fetchImpl: fetch });
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    assert.match(body.answer, /#include <stdio\.h>/);
+    assert.match(body.answer, /int main\(\)/);
+    assert.equal(body.proposals.length, 0); // Pure teaching does not modify roadmap!
+});
+
+test('teaching AI: explains pointers with simple addresses and dereference', async () => {
+    const r = await handleAgentRequest({ question: 'Explain pointers in simple words.', state: defaultState() }, { model: 'm', fetchImpl: fetch });
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    assert.match(body.answer, /address/i);
+    assert.match(body.answer, /dereference|\*ptr/i);
+    assert.equal(body.proposals.length, 0);
+});
+
+test('teaching AI: explains arrays with zero-indexing and contiguous memory', async () => {
+    const r = await handleAgentRequest({ question: 'I don\'t understand arrays.', state: defaultState() }, { model: 'm', fetchImpl: fetch });
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    assert.match(body.answer, /zero-index|contiguous/i);
+    assert.equal(body.proposals.length, 0);
+});
+
+test('system capabilities: explains what SkillPilot can do without unsolicited tasks', async () => {
+    const r = await handleAgentRequest({ question: 'What can you do?', state: defaultState() }, { model: 'm', fetchImpl: fetch });
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'fallback');
+    assert.match(body.answer, /core capabilities|Concept Teaching|Adaptive Diagnostics/i);
+    assert.equal(body.proposals.length, 0);
+});
+
+test('extended agent tools: inspects verified skills, skill gaps, and next step', () => {
+    const s = defaultState();
+    const r1 = executeTool('get_my_verified_skills', {}, s);
+    assert.match(r1.summary, /verified skills/i);
+    const r2 = executeTool('get_my_skill_gaps', {}, s);
+    assert.match(r2.summary, /skill gaps/i);
+    const r3 = executeTool('get_my_next_step', {}, s);
+    assert.match(r3.result, /nextAction/);
+    const r4 = executeTool('get_current_roadmap', {}, s);
+    assert.match(r4.summary, /roadmap items/i);
+});
+
+test('multi-provider: OpenAI integration adapter', async () => {
+    const mockOpenAiFetch = (async () => new Response(JSON.stringify({
+        choices: [{ message: { content: 'OpenAI teaching response.' } }],
+    }), { status: 200 })) as typeof fetch;
+
+    const r = await handleAgentRequest(
+        { question: 'Help me understand recursion.', state: defaultState() },
+        { apiKey: 'sk-proj-test1234', provider: 'openai', model: 'gpt-4o', fetchImpl: mockOpenAiFetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'ai');
+    assert.equal(body.provider, 'openai');
+    assert.equal(body.answer, 'OpenAI teaching response.');
+});
+
+test('multi-provider: Gemini integration adapter', async () => {
+    const mockGeminiFetch = (async () => new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Gemini career guidance response.' }] } }],
+    }), { status: 200 })) as typeof fetch;
+
+    const r = await handleAgentRequest(
+        { question: 'How do I start backend engineering?', state: defaultState() },
+        { apiKey: 'AIzaSyTest1234', provider: 'gemini', model: 'gemini-1.5-flash', fetchImpl: mockGeminiFetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.equal(body.mode, 'ai');
+    assert.equal(body.provider, 'gemini');
+    assert.equal(body.answer, 'Gemini career guidance response.');
+});
+
+

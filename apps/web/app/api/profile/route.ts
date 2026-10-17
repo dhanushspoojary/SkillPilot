@@ -4,6 +4,7 @@ import { json, requireOrigin, safeText, readJsonBody } from '../../../lib/server
 import { SKILLS } from '../../../lib/questions';
 import { activityFromSource } from '../../../lib/activity';
 import { getStudentCapabilityProfile, saveStudentCapabilityProfile } from '../../../lib/capability-profile';
+import { getOrComputeWorkflowState } from '../../../lib/workflow';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -70,6 +71,8 @@ export async function GET() {
   );
   const careerGoal = careerGoalRow?.role_name || capabilityProfile.careerInterests[0] || 'Software Engineer';
 
+  const workflow = await getOrComputeWorkflowState(u.id);
+
   return json({
     user: u,
     evidence: ev,
@@ -79,6 +82,7 @@ export async function GET() {
     skills: SKILLS.map((s) => ({ id: s.id, name: s.name, target: s.target, weight: s.weight })),
     capabilityProfile,
     careerGoal,
+    workflow,
   });
 }
 

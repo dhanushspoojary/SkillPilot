@@ -104,7 +104,13 @@ export async function POST(req: Request) {
                     await c.query(`insert into user_skill_evidence(user_id,skill_id,source,score,confidence,metadata) values($1,$2,'assessment',$3,.55,$4)`, [u.id, skill.id, r.score, JSON.stringify({ label: 'Server-scored adaptive assessment', assessmentId: aid })]);
             }
             await c.query(`update assessments set status='completed',completed_at=now(),server_score=$1 where id=$2`, [overall, aid]);
-            return { recorded: true, done: true, results, overall };
+            await c.query(
+                `insert into student_workflow_states(user_id, stage, updated_at)
+                 values($1, 'SKILL_BASELINE_REVIEW', now())
+                 on conflict(user_id) do update set stage = 'SKILL_BASELINE_REVIEW', updated_at = now()`,
+                [u.id],
+            );
+            return { recorded: true, done: true, results, overall, workflowStage: 'SKILL_BASELINE_REVIEW' };
         });
         return json(out);
     }

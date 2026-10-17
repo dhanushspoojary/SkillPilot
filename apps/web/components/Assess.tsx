@@ -76,11 +76,13 @@ function friendlyErrorMessage(err: unknown, fallback: string): string {
 export function Assess({
   evidence,
   focus,
+  careerGoal = 'Software Engineer',
   onFinish,
   onDone,
 }: {
   evidence: Evidence[];
   focus?: string;
+  careerGoal?: string;
   onFinish: (r?: any[]) => Promise<void> | void;
   onDone: () => void;
 }) {
@@ -92,6 +94,9 @@ export function Assess({
   const [total, setTotal] = useState(0);
   const [isResumed, setIsResumed] = useState(false);
   const [results, setResults] = useState<ResultItem[] | null>(null);
+  const [confirmationStep, setConfirmationStep] = useState<'review' | 'skills_confirmed' | 'all_confirmed'>('review');
+  const [selectedGoal, setSelectedGoal] = useState(careerGoal);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
   const [busy, setBusy] = useState(true);
   const [busyMessage, setBusyMessage] = useState('Preparing your diagnostic…');
   const [startError, setStartError] = useState('');
@@ -279,6 +284,65 @@ export function Assess({
     const strengths = results.filter((r) => r.score >= 70);
     const gaps = results.filter((r) => r.score < 70);
 
+    const handleConfirmSkills = async () => {
+      setWorkflowBusy(true);
+      try {
+        await fetch('/api/workflow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'confirm_skills',
+            confirmedSkills: results.map((r) => ({ skill: r.skill, score: r.score })),
+          }),
+        });
+        setConfirmationStep('skills_confirmed');
+      } finally {
+        setWorkflowBusy(false);
+      }
+    };
+
+    const handleConfirmGoals = async () => {
+      setWorkflowBusy(true);
+      try {
+        await fetch('/api/workflow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'confirm_goals',
+            goals: [selectedGoal],
+          }),
+        });
+        setConfirmationStep('all_confirmed');
+        await onFinish(results);
+      } finally {
+        setWorkflowBusy(false);
+      }
+    };
+
+    const handleDoneClick = async () => {
+      if (confirmationStep !== 'all_confirmed') {
+        // Automatically confirm in background if not already confirmed
+        await fetch('/api/workflow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'confirm_skills',
+            confirmedSkills: results.map((r) => ({ skill: r.skill, score: r.score })),
+          }),
+        }).catch(() => {});
+        await fetch('/api/workflow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'confirm_goals',
+            goals: [selectedGoal],
+          }),
+        }).catch(() => {});
+        await onFinish(results);
+      }
+      onDone();
+    };
+
     return (
       <div className="assessment-shell">
         <div className="result">
@@ -336,8 +400,90 @@ export function Assess({
             </div>
           </div>
 
-          <div className="result-actions">
-            <button className="primary" onClick={onDone}>
+          {/* Workflow Calibration & Baseline Confirmation Section */}
+          <div style={{ width: '100%', background: 'var(--surface-navy)', border: '1px solid var(--cyan-border)', borderRadius: 12, padding: 20, textAlign: 'left', marginTop: 8 }}>
+            {confirmationStep === 'review' && (
+              <div>
+                <span className="kicker" style={{ color: 'var(--cyan)' }}>STEP 1: CONFIRM SKILL BASELINE</span>
+                <h3 style={{ margin: '4px 0 8px 0', fontSize: 16, color: '#FFFFFF' }}>Review & Acknowledge Your Baseline</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                  SkillPilot requires you to confirm this baseline before generating your roadmap. Acknowledging realistic scores ensures your milestones start at your true level without penalty.
+                </p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    className="primary"
+                    onClick={handleConfirmSkills}
+                    disabled={workflowBusy}
+                    style={{ minHeight: 40, padding: '0 18px', fontSize: 13 }}
+                  >
+                    {workflowBusy ? <Loader2 size={15} className="spin" /> : <ShieldCheck size={15} />}
+                    Confirm Skill Baseline
+                  </button>
+                  {gaps.length > 0 && (
+                    <button
+                      className="ghost"
+                      onClick={() => {
+                        // Start diagnostic focused on first gap
+                        focus = gaps[0].skill;
+                        void start();
+                      }}
+                      disabled={workflowBusy}
+                      style={{ minHeight: 40, padding: '0 14px', fontSize: 13 }}
+                    >
+                      <RefreshCcw size={14} /> Retest {SKILL_NAMES[gaps[0].skill] || gaps[0].skill}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {confirmationStep === 'skills_confirmed' && (
+              <div>
+                <span className="kicker" style={{ color: 'var(--success)' }}>STEP 2: CONFIRM LEARNING GOALS</span>
+                <h3 style={{ margin: '4px 0 8px 0', fontSize: 16, color: '#FFFFFF' }}>Baseline Confirmed · Calibrate Career Target</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 14px 0', lineHeight: 1.5 }}>
+                  Select or confirm your primary career target to tailor your 12-week roadmap milestones:
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {['Software Engineer', 'Backend Engineer', 'Frontend Engineer', 'Full Stack Engineer'].map((role) => (
+                    <button
+                      key={role}
+                      type="button"
+                      className={`chip-card small ${selectedGoal === role ? 'active' : ''}`}
+                      onClick={() => setSelectedGoal(role)}
+                      style={{ background: 'var(--surface-indigo)', padding: '8px 14px' }}
+                    >
+                      <b>{role}</b>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="primary"
+                  onClick={handleConfirmGoals}
+                  disabled={workflowBusy}
+                  style={{ minHeight: 40, padding: '0 18px', fontSize: 13 }}
+                >
+                  {workflowBusy ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
+                  Confirm Goals & Unlock Roadmap
+                </button>
+              </div>
+            )}
+
+            {confirmationStep === 'all_confirmed' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--success-light)', color: '#6EE7B7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckCircle2 size={22} />
+                </div>
+                <div>
+                  <b style={{ color: '#FFFFFF', fontSize: 15, display: 'block' }}>Baseline & Goals Confirmed</b>
+                  <span style={{ color: 'var(--cyan)', fontSize: 12 }}>Roadmap unlocked! Your 12-week milestones reflect your confirmed baseline.</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="result-actions" style={{ marginTop: 20 }}>
+            <button className="primary" onClick={handleDoneClick}>
               See Updated Roadmap <ArrowRight size={15} />
             </button>
             <button className="ghost" onClick={start}>

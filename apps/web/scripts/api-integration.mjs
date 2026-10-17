@@ -126,5 +126,56 @@ check(shareRevoke.status === 200 && shareRevoke.data.revoked === true, `passport
 const publicRevoked = await call(`/api/passport/${token}`);
 check(publicRevoked.status === 404, `revoked passport should return 404, got ${publicRevoked.status}`);
 
+// --- workflow & dynamic onboarding --------------------------------------------------------
+const wfState = await call('/api/workflow', { headers: auth });
+check(wfState.status === 200, `workflow get failed: ${wfState.status}`);
+check(wfState.data.state?.stage, 'workflow state missing stage');
+
+// Test onboarding turn
+const turnRes = await call('/api/workflow/onboarding', {
+    method: 'POST',
+    headers: auth,
+    body: { answer: '1st Year Student' },
+});
+check(turnRes.status === 200, `onboarding turn failed: ${turnRes.status}`);
+
+// Test skill baseline confirmation
+const confirmSkills = await call('/api/workflow', {
+    method: 'POST',
+    headers: auth,
+    body: {
+        action: 'confirm_skills',
+        confirmedSkills: [{ skill: 'sql', score: 65 }, { skill: 'javascript', score: 70 }],
+    },
+});
+check(confirmSkills.status === 200, `confirm skills failed: ${confirmSkills.status}`);
+check(confirmSkills.data.state?.stage === 'SKILLS_CONFIRMED', 'stage should be SKILLS_CONFIRMED');
+
+// Test goals confirmation
+const confirmGoals = await call('/api/workflow', {
+    method: 'POST',
+    headers: auth,
+    body: {
+        action: 'confirm_goals',
+        goals: ['Backend Engineer'],
+    },
+});
+check(confirmGoals.status === 200, `confirm goals failed: ${confirmGoals.status}`);
+check(confirmGoals.data.state?.stage === 'ROADMAP_READY', 'stage should be ROADMAP_READY');
+check(confirmGoals.data.guidance?.featuresLocked?.roadmap === false, 'roadmap should be unlocked after goals confirmed');
+
+// --- conversation persistence -------------------------------------------------------------
+const convList = await call('/api/conversations', { headers: auth });
+check(convList.status === 200, `conversations get failed: ${convList.status}`);
+check(Array.isArray(convList.data.messages), 'conversations must return messages array');
+check(convList.data.messages.length >= 2, 'agent interaction should have recorded messages');
+
+// Clear conversation
+const clearConv = await call('/api/conversations', { method: 'DELETE', headers: auth });
+check(clearConv.status === 200 && clearConv.data.deleted === true, 'clear conversations failed');
+const convAfterClear = await call('/api/conversations', { headers: auth });
+check(convAfterClear.data.messages.length === 0, 'conversation should be empty after clear');
+
 await call('/api/auth/logout', { method: 'POST', headers: auth });
 console.log('api integration: PASS');
+

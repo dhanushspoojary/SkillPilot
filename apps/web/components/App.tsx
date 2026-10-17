@@ -36,6 +36,7 @@ export function App({ user }: {
     const [syncStatus, setSyncStatus] = useState<'off' | 'loading' | 'synced' | 'offline'>('off');
     const [capabilityProfile, setCapabilityProfile] = useState<StudentCapabilityProfile | null>(null);
     const [careerGoal, setCareerGoal] = useState('Software Engineer');
+    const [workflow, setWorkflow] = useState<any>(null);
     const [showCalibration, setShowCalibration] = useState(false);
     useEffect(() => {
         let cancelled = false;
@@ -49,6 +50,8 @@ export function App({ user }: {
                     setCareerGoal(x.careerGoal);
                 if (x.capabilityProfile)
                     setCapabilityProfile(x.capabilityProfile);
+                if (x.workflow)
+                    setWorkflow(x.workflow);
                 const remote = x.evidence ? { ...defaultState(), name: x.user?.name ?? user.name, evidence: x.evidence, activity: x.activity ?? [], mentorNoteResolved: (x.activity ?? []).some((a: any) => a.id === 'MENTOR:feedback'), requests: x.requests ?? [], agentRuns: x.agentRuns ?? [], planNote: 'Server evidence loaded. The browser is not authoritative.' } : defaultState();
                 if (!cancelled) {
                     setState(remote);
@@ -113,6 +116,8 @@ export function App({ user }: {
             setCareerGoal(x.careerGoal);
         if (x.capabilityProfile)
             setCapabilityProfile(x.capabilityProfile);
+        if (x.workflow)
+            setWorkflow(x.workflow);
         setState(s => { const next = { ...s, name: x.user?.name ?? s.name, evidence: x.evidence ?? s.evidence, requests: x.requests ?? s.requests, agentRuns: x.agentRuns ?? s.agentRuns }; return { ...next, planNote: explainPlan(next) }; });
     };
     const saveCalibration = async (profile: StudentCapabilityProfile) => {
@@ -215,11 +220,11 @@ export function App({ user }: {
         <div className="top-actions"><button className="icon-button" aria-label="Notifications" onClick={() => setToast(actions[0] ? `Next: ${actions[0].title}` : 'Nothing pending.')}><Bell size={17}/></button></div>
       </header>
       <div className="page">
-        {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)}/>}
-        {view === 'agent' && <AgentPanel state={state} onApprove={onApprove} onAudit={onAudit}/>}
-        {view === 'roadmap' && <Roadmap state={state} actions={actions} go={go}/>}
+        {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)} workflow={workflow}/>}
+        {view === 'agent' && <AgentPanel state={state} onApprove={onApprove} onAudit={onAudit} workflow={workflow}/>}
+        {view === 'roadmap' && <Roadmap state={state} actions={actions} go={go} workflow={workflow}/>}
         {view === 'skills' && <Skills state={state}/>}
-        {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} onFinish={onFinish} onDone={() => go('roadmap')}/>}
+        {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} careerGoal={careerGoal} onFinish={onFinish} onDone={() => go('roadmap')}/>}
         {view === 'mentors' && <Mentors state={state} onSend={onSend} selfId={user.id}/>}
         {view === 'interview' && <MockInterview onDone={() => { void refreshProfile().then(() => setToast('Practice evidence saved at reduced confidence.')).catch(() => undefined); }}/>} 
         {view === 'passport' && <Passport state={state} setName={async (name) => {

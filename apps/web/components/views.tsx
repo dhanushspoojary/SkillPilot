@@ -7,7 +7,7 @@ import { MeetingLink } from './MeetingLink';
 import { PageIntro, Signal, SkillBar, VerifiedBadge } from './ui';
 export type View = 'today' | 'agent' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
-export function Today({ state, actions, go, onAction, onUndo, runAgent, running, careerGoal = 'Software Engineer', onOpenCalibration }: {
+export function Today({ state, actions, go, onAction, onUndo, runAgent, running, careerGoal = 'Software Engineer', onOpenCalibration, workflow }: {
     state: AppState;
     actions: PlanAction[];
     go: (v: View, focus?: string) => void;
@@ -17,6 +17,7 @@ export function Today({ state, actions, go, onAction, onUndo, runAgent, running,
     running: boolean;
     careerGoal?: string;
     onOpenCalibration?: () => void;
+    workflow?: any;
 }) {
     const skills = skillStates(state.evidence);
     const r = readiness(skills);
@@ -25,12 +26,13 @@ export function Today({ state, actions, go, onAction, onUndo, runAgent, running,
     const currentStage = stagesProg.find((s) => s.progress < 90) ?? stagesProg[stagesProg.length - 1];
 
     const primaryAction = top[0];
-    const primaryTitle = primaryAction ? primaryAction.title : 'Take Adaptive Baseline Assessment';
-    const primaryReason = state.evidence.length === 0
+    const wfAction = workflow?.nextRecommendedAction;
+    const primaryTitle = wfAction?.title || (primaryAction ? primaryAction.title : 'Take Adaptive Baseline Assessment');
+    const primaryReason = wfAction?.reason || (state.evidence.length === 0
       ? 'Calibrate your initial baseline across foundational software engineering competencies.'
       : primaryAction
         ? `Closing the gap in ${skillName(primaryAction.skill)} will yield the highest readiness impact.`
-        : 'All targets for your current path are met. Retest periodically to maintain verified proof.';
+        : 'All targets for your current path are met. Retest periodically to maintain verified proof.');
 
     return <div className="today-dashboard">
     <section className="welcome dashboard-header">
@@ -190,17 +192,44 @@ export function Today({ state, actions, go, onAction, onUndo, runAgent, running,
     </div>
   </div>;
 }
-export function Roadmap({ state, actions, go }: {
+export function Roadmap({ state, actions, go, workflow }: {
     state: AppState;
     actions: PlanAction[];
     go: (v: View, focus?: string) => void;
+    workflow?: any;
 }) {
     const skills = skillStates(state.evidence);
     const prog = STAGES.map((s) => stageProgress(skills, s.skills));
     const current = prog.findIndex((p) => p < 90);
     const top = actions[0];
+    const isLocked = Boolean(workflow?.featuresLocked?.roadmap);
+
     return <div className="wide">
     <PageIntro kicker="LIVING ROADMAP" title="A plan that moves when you do." text="Stage progress is computed from the skills each stage needs. New evidence can change the plan without losing your history."/>
+
+    {isLocked && (
+      <div style={{ background: 'var(--surface-navy)', border: '1px solid var(--cyan-border)', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--cyan)', marginBottom: 8 }}>
+          <Sparkles size={18} />
+          <b style={{ fontSize: 13, letterSpacing: '0.05em' }}>CALIBRATION REQUIRED TO UNLOCK ROADMAP</b>
+        </div>
+        <h3 style={{ fontSize: 20, color: '#FFFFFF', margin: '0 0 8px 0' }}>Personalized Roadmap Calibration Pending</h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 18px 0', lineHeight: 1.5, maxWidth: 640 }}>
+          {workflow?.featuresLocked?.roadmapReason || 'Your step-by-step career roadmap is personalized to your confirmed skill baseline. Complete your initial diagnostic assessment to unlock your roadmap.'}
+        </p>
+        <button
+          className="primary"
+          onClick={() => go('assess')}
+          style={{ minHeight: 40, padding: '0 20px', fontSize: 13 }}
+        >
+          {workflow?.stage === 'SKILL_BASELINE_REVIEW' || workflow?.stage === 'SKILLS_CONFIRMED'
+            ? 'Review & Confirm Skill Baseline'
+            : 'Start Diagnostic Assessment'}
+          <ArrowRight size={14} style={{ marginLeft: 6 }} />
+        </button>
+      </div>
+    )}
+
     <div className="roadmap-meta"><span><b>12 weeks</b> current cycle</span><span><b>{readiness(skills)}%</b> readiness</span><span><b>{actions.length}</b> open actions</span></div>
     <div className="roadmap-list">{STAGES.map((s, i) => (<div className={i === current ? 'roadmap-row current' : 'roadmap-row'} key={s.n}>
         <span className="road-num">{s.n}</span><div><small>{s.weeks}</small><h3>{s.name}</h3><p>{s.blurb}</p></div>
