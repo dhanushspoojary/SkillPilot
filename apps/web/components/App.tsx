@@ -1,9 +1,10 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BrainCircuit, Bell, CheckCircle2, ChevronRight, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic } from 'lucide-react';
+import { BrainCircuit, Bell, CheckCircle2, ChevronRight, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2 } from 'lucide-react';
 import { defaultState, explainPlan, planActions, toggleActivity, type AppState, type PlanAction, } from '../lib/engine';
 import { Assess } from './Assess';
 import { AgentPanel } from './AgentPanel';
+import { ProjectWorkspace } from './ProjectWorkspace';
 import type { Proposal } from '../lib/agent';
 import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } from './views';
 import { MockInterview } from './MockInterview';
@@ -14,7 +15,7 @@ const NAV: [
     string,
     typeof Gauge
 ][] = [
-    ['today', 'Today', LayoutDashboard], ['agent', 'Agent', BrainCircuit], ['roadmap', 'Roadmap', Activity], ['skills', 'Skills', Gauge],
+    ['today', 'Today', LayoutDashboard], ['agent', 'Agent', BrainCircuit], ['projects', 'Projects', Code2], ['roadmap', 'Roadmap', Activity], ['skills', 'Skills', Gauge],
     ['assess', 'Assess', Crosshair], ['mentors', 'Mentors', Users], ['interview', 'Mock interview', Mic], ['passport', 'Passport', Award], ['settings', 'Settings', Settings],
 ];
 export function App({ user }: {
@@ -170,6 +171,8 @@ export function App({ user }: {
             return onSend(p.mentorId, p.message);
         if (p.type === 'share_passport')
             return go('passport');
+        if (p.type === 'start_project')
+            return go('projects', (p.metadata?.projectSlug as string) || undefined);
         const a = actions.find((x) => x.id === p.actionId);
         if (a)
             onAction(a);
@@ -222,6 +225,18 @@ export function App({ user }: {
       <div className="page">
         {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)} workflow={workflow}/>}
         {view === 'agent' && <AgentPanel state={state} onApprove={onApprove} onAudit={onAudit} workflow={workflow}/>}
+        {view === 'projects' && (
+          <ProjectWorkspace
+            initialSlug={focus}
+            onVerified={async () => {
+              await refreshProfile();
+              setToast('Project verified! Authentic evidence recorded in your passport ledger.');
+            }}
+            onAskAgent={() => {
+              go('agent');
+            }}
+          />
+        )}
         {view === 'roadmap' && <Roadmap state={state} actions={actions} go={go} workflow={workflow}/>}
         {view === 'skills' && <Skills state={state}/>}
         {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} careerGoal={careerGoal} onFinish={onFinish} onDone={() => go('roadmap')}/>}

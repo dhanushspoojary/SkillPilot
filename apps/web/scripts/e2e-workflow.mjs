@@ -262,6 +262,18 @@ try {
   const latestReply = agentMessages[agentMessages.length - 1];
   console.log(`   Agent replied: "${latestReply.slice(0, 150).replace(/\s+/g, ' ').trim()}..."`);
 
+  // Step 11.5: Verify Practical Project Workspace in Browser
+  console.log('11.5. Navigating to Practical Project Workspace...');
+  await page.click('button.nav-item:has-text("Projects")');
+  await page.waitForSelector('button:has-text("Run Tests & Verify")', { timeout: 15000 });
+  console.log('   Project workspace and code editor loaded successfully.');
+
+  console.log('   Running automated test assertion suite in browser...');
+  const runTestsBtn = page.locator('button:has-text("Run Tests & Verify")');
+  await runTestsBtn.click();
+  await page.waitForTimeout(1500);
+  console.log('   Test suite evaluation completed in browser!');
+
   // Step 12: Responsive Viewport Checks
   console.log('12. Testing responsive layouts (320px, 375px, 768px, 1024px, 1440px)...');
   const viewports = [

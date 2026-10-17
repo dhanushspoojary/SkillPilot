@@ -171,4 +171,87 @@ test('multi-provider: Gemini integration adapter', async () => {
     assert.equal(body.answer, 'Gemini career guidance response.');
 });
 
+test('intelligent learning tools: learning plan, practice questions, and code evaluation', () => {
+    const s = defaultState();
+    
+    // 1. Learning Plan
+    const r1 = executeTool('generate_learning_plan', { skill_id: 'rest-apis', target_hours: 12 }, s);
+    assert.match(r1.summary, /12h learning plan/i);
+    const plan = JSON.parse(r1.result);
+    assert.equal(plan.skill, 'REST APIs');
+    assert.equal(plan.milestones.length, 3);
+
+    // 2. Practice Questions
+    const r2 = executeTool('generate_practice_questions', { skill_id: 'problem-solving', difficulty: 'beginner' }, s);
+    assert.match(r2.summary, /practice questions/i);
+    const qData = JSON.parse(r2.result);
+    assert.ok(qData.questions.length >= 1);
+    assert.ok(qData.questions[0].snippet);
+
+    // 3. Evaluate Submission
+    const r3 = executeTool('evaluate_submission', { skill_id: 'problem-solving', submission: 'int *p = &x; if (p != NULL) { *p = 5; }' }, s);
+    assert.match(r3.summary, /Evaluated code submission/i);
+    const evalData = JSON.parse(r3.result);
+    assert.ok(evalData.comprehensionCheck);
+
+    // 4. Learning Resources
+    const r4 = executeTool('search_learning_resources', { query: 'pointers' }, s);
+    assert.match(r4.summary, /curated resources/i);
+});
+
+test('practical project tools: project plan generation and submission verification', () => {
+    const s = defaultState();
+
+    // 1. Project Plan
+    const r1 = executeTool('generate_project_plan', { project_slug: 'rest-bookstore-service' }, s);
+    assert.match(r1.summary, /Authenticated RESTful Bookstore API/i);
+    assert.equal(r1.proposal?.type, 'start_project');
+
+    // 2. Verify Project Submission (valid starter/working implementation)
+    const validCode = `
+      class BookstoreService {
+        constructor() { this.books = [{ id: "1", title: "Clean Code", author: "Martin" }]; }
+        listBooks() { return this.books; }
+        getBookById(id) { return this.books.find(b => b.id === id) || null; }
+        addBook(data) {
+          if (!data.title || !data.author) throw new Error("Invalid payload");
+          this.books.push(data);
+          return data;
+        }
+        deleteBook(id) {
+          const idx = this.books.findIndex(b => b.id === id);
+          if (idx >= 0) { this.books.splice(idx, 1); return true; }
+          return false;
+        }
+      }
+    `;
+    const r2 = executeTool('verify_project_submission', { project_slug: 'rest-bookstore-service', code: validCode }, s);
+    assert.match(r2.summary, /checks passed/i);
+    const verifyData = JSON.parse(r2.result);
+    assert.equal(verifyData.verified, true);
+    assert.equal(verifyData.passedCount, 4);
+});
+
+test('deterministic career intelligence: practical project inquiry and learning plan', async () => {
+    // 1. Practical Project Query
+    const r1 = await handleAgentRequest(
+        { question: 'Tell me about the practical projects I can build.', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r1.status, 200);
+    const body1 = r1.body as any;
+    assert.match(body1.answer, /Practical Projects/i);
+    assert.equal(body1.proposals[0].type, 'start_project');
+
+    // 2. Learning Plan Query
+    const r2 = await handleAgentRequest(
+        { question: 'Create a learning plan for REST APIs', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r2.status, 200);
+    const body2 = r2.body as any;
+    assert.match(body2.answer, /3-phase learning plan/i);
+});
+
+
 

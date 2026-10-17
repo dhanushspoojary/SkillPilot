@@ -5,7 +5,7 @@ import { ProgressRing } from './ProgressRing';
 import { ChatPanel } from './ChatPanel';
 import { MeetingLink } from './MeetingLink';
 import { PageIntro, Signal, SkillBar, VerifiedBadge } from './ui';
-export type View = 'today' | 'agent' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
+export type View = 'today' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
 export function Today({ state, actions, go, onAction, onUndo, runAgent, running, careerGoal = 'Software Engineer', onOpenCalibration, workflow }: {
     state: AppState;

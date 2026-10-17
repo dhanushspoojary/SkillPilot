@@ -7,6 +7,7 @@ import { activityFromSource } from '../../../lib/activity';
 import { maybeRunRetention } from '../../../lib/retention';
 import { json, readJsonBody, requireOrigin } from '../../../lib/server-security';
 import { appendConversationMessage } from '../../../lib/conversation';
+import { getCoherentStudentContext } from '../../../lib/student-context';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90; // up to 4 sequential model calls with a 20s timeout each
@@ -36,11 +37,18 @@ export async function POST(req: Request) {
     if (typeof parsed?.question !== 'string' || !parsed.question.trim() || parsed.question.length > 500)
         return json({ error: 'Question must be 1-500 characters' }, 400);
     try {
-        await appendConversationMessage(u.id, 'student', parsed.question).catch(() => {});
-        const evidence = await many<any>(`select e.id,s.slug as skill,e.source as kind,e.score,e.confidence,e.captured_at as at,e.metadata,coalesce(e.metadata->>'label',e.source||' evidence') as label from user_skill_evidence e join skills s on s.id=e.skill_id where e.user_id=$1 order by e.captured_at asc`, [u.id]);
-        const requests = await many<any>(`select id, mentor_id as "mentorId",message,status,created_at as at from mentor_requests where student_id=$1 order by created_at desc limit 30`, [u.id]);
-        const activity = await many<any>(`select source as id, completed_at as at from roadmap_actions where user_id=$1 and status='completed' and completed_at is not null order by completed_at asc`, [u.id]);
-        const mentors = await many<any>(`select u.id,u.name,mp.focus from users u join mentor_profiles mp on mp.user_id=u.id where u.role='mentor' and u.status='active' and mp.status='approved' order by mp.approved_at desc limit 20`);
+        const threadId = typeof parsed?.threadId === 'string' && parsed.threadId.trim() ? parsed.threadId.trim() : undefined;
+        const studentMsg = await appendConversationMessage(u.id, 'student', parsed.question, {}, threadId).catch(() => null);
+        const activeThreadId = studentMsg?.threadId || threadId;
+
+        const [evidence, requests, activity, mentors, coherentContext] = await Promise.all([
+            many<any>(`select e.id,s.slug as skill,e.source as kind,e.score,e.confidence,e.captured_at as at,e.metadata,coalesce(e.metadata->>'label',e.source||' evidence') as label from user_skill_evidence e join skills s on s.id=e.skill_id where e.user_id=$1 order by e.captured_at asc`, [u.id]),
+            many<any>(`select id, mentor_id as "mentorId",message,status,created_at as at from mentor_requests where student_id=$1 order by created_at desc limit 30`, [u.id]),
+            many<any>(`select source as id, completed_at as at from roadmap_actions where user_id=$1 and status='completed' and completed_at is not null order by completed_at asc`, [u.id]),
+            many<any>(`select u.id,u.name,mp.focus from users u join mentor_profiles mp on mp.user_id=u.id where u.role='mentor' and u.status='active' and mp.status='approved' order by mp.approved_at desc limit 20`),
+            getCoherentStudentContext(u.id).catch(() => undefined),
+        ]);
+
         // Evidence, requests and activity come from the database only. Nothing from the browser is trusted.
         const state = parseState(JSON.stringify({
             v: 2, name: u.name, evidence, requests,
@@ -58,6 +66,7 @@ export async function POST(req: Request) {
             model,
             fetchImpl: fetch,
             state,
+            studentContext: coherentContext,
             mentors: mentors.map((m) => ({ id: m.id, name: m.name, initials: m.name.split(' ').map((x: string) => x[0]).join('').slice(0, 2), focus: m.focus || 'Career mentor', strengths: {} })),
         });
         const isReply = body && !('error' in body);
@@ -71,7 +80,7 @@ export async function POST(req: Request) {
                 fallbackReason: body.fallbackReason,
                 model: body.model,
                 provider: body.provider,
-            }).catch(() => {});
+            }, activeThreadId).catch(() => {});
         }
         try {
             await db().query(`insert into agent_runs(user_id,agent,input_hash,provider,model_version,status,output) values($1,'career-orchestrator',encode(digest($2::text,'sha256'),'hex'),$3,$4,'proposed',$5)`, [u.id, parsed.question, apiKey ? provider : 'deterministic', apiKey ? model : 'deterministic-engine', JSON.stringify({ mode, proposalCount, redacted: true })]);
@@ -80,7 +89,8 @@ export async function POST(req: Request) {
             console.error('agent audit failed', e);
         }
         void maybeRunRetention();
-        return json(body, status);
+        const responseData = isReply && activeThreadId ? { ...body, threadId: activeThreadId } : body;
+        return json(responseData, status);
     }
     catch (e) {
         console.error('agent route failed', e);

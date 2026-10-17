@@ -170,6 +170,134 @@ check(convList.status === 200, `conversations get failed: ${convList.status}`);
 check(Array.isArray(convList.data.messages), 'conversations must return messages array');
 check(convList.data.messages.length >= 2, 'agent interaction should have recorded messages');
 
+// --- multi-threaded conversations ---------------------------------------------------------
+const threadCreate = await call('/api/conversations', {
+    method: 'POST',
+    headers: auth,
+    body: { title: 'Systems Architecture Thread' },
+});
+check(threadCreate.status === 201, `thread creation failed: ${threadCreate.status}`);
+check(threadCreate.data.thread?.id, 'thread creation response missing id');
+const newThreadId = threadCreate.data.thread.id;
+
+const threadList = await call('/api/conversations?threads=true', { headers: auth });
+check(threadList.status === 200, `threads list failed: ${threadList.status}`);
+check(threadList.data.threads.some((t) => t.id === newThreadId), 'created thread missing from threads list');
+
+const threadRename = await call('/api/conversations', {
+    method: 'PATCH',
+    headers: auth,
+    body: { threadId: newThreadId, title: 'Distributed Systems & DB Architecture' },
+});
+check(threadRename.status === 200, `thread rename failed: ${threadRename.status}`);
+check(threadRename.data.thread?.title === 'Distributed Systems & DB Architecture', 'thread title was not updated');
+
+const agentInThread = await call('/api/agent', {
+    method: 'POST',
+    headers: auth,
+    body: { question: 'Explain pointers in simple words', threadId: newThreadId },
+});
+check(agentInThread.status === 200, `agent in thread failed: ${agentInThread.status}`);
+check(agentInThread.data.threadId === newThreadId, 'agent reply threadId mismatch');
+
+const threadMessages = await call(`/api/conversations?threadId=${newThreadId}`, { headers: auth });
+check(threadMessages.status === 200, `thread messages fetch failed: ${threadMessages.status}`);
+check(threadMessages.data.messages.length >= 2, 'thread should contain student and agent messages');
+
+const threadDelete = await call(`/api/conversations?threadId=${newThreadId}`, {
+    method: 'DELETE',
+    headers: auth,
+});
+check(threadDelete.status === 200, `thread delete failed: ${threadDelete.status}`);
+
+// --- durable student memories -------------------------------------------------------------
+const memoryCreate = await call('/api/agent/memories', {
+    method: 'POST',
+    headers: auth,
+    body: { category: 'goal', fact: 'Targeting summer 2027 systems engineering internship' },
+});
+check(memoryCreate.status === 201, `memory creation failed: ${memoryCreate.status}`);
+check(memoryCreate.data.memory?.id, 'created memory missing id');
+const memoryId = memoryCreate.data.memory.id;
+
+const memoryList = await call('/api/agent/memories', { headers: auth });
+check(memoryList.status === 200, `memories list failed: ${memoryList.status}`);
+check(memoryList.data.memories.some((m) => m.id === memoryId), 'new memory missing from memories list');
+
+const memoryDelete = await call(`/api/agent/memories?id=${memoryId}`, {
+    method: 'DELETE',
+    headers: auth,
+});
+check(memoryDelete.status === 200, `memory delete failed: ${memoryDelete.status}`);
+
+// --- practical project workspace & evaluation --------------------------------------------
+const projectGet = await call('/api/projects?slug=rest-bookstore-service', { headers: auth });
+check(projectGet.status === 200, `project get failed: ${projectGet.status}`);
+check(projectGet.data.catalog?.length >= 2, 'project catalog missing items');
+check(projectGet.data.studentProject?.slug === 'rest-bookstore-service', 'active project slug mismatch');
+
+const workingBookstoreCode = `
+class BookstoreService {
+  constructor() {
+    this.books = [
+      { id: "1", title: "Clean Code", author: "Robert Martin", year: 2008, inStock: true },
+      { id: "2", title: "The Pragmatic Programmer", author: "David Thomas", year: 1999, inStock: true }
+    ];
+  }
+
+  listBooks(filter = {}) {
+    return this.books;
+  }
+
+  getBookById(id) {
+    return this.books.find(b => b.id === id) || null;
+  }
+
+  addBook(data) {
+    if (!data.title || !data.author) {
+      throw new Error("Invalid payload: title and author are required");
+    }
+    const newBook = {
+      id: String(this.books.length + 1),
+      title: data.title.trim(),
+      author: data.author.trim(),
+      year: Number(data.year) || 2026,
+      inStock: Boolean(data.inStock ?? true)
+    };
+    this.books.push(newBook);
+    return newBook;
+  }
+
+  deleteBook(id) {
+    const idx = this.books.findIndex(b => b.id === id);
+    if (idx >= 0) {
+      this.books.splice(idx, 1);
+      return true;
+    }
+    return false;
+  }
+}
+module.exports = { BookstoreService };
+`;
+
+const projectEval = await call('/api/projects', {
+    method: 'POST',
+    headers: auth,
+    body: {
+        slug: 'rest-bookstore-service',
+        code: workingBookstoreCode,
+    },
+});
+check(projectEval.status === 200, `project evaluation failed: ${projectEval.status}`);
+check(projectEval.data.passed === true, 'working bookstore solution should pass tests');
+check(projectEval.data.project?.status === 'verified', 'project status should be verified');
+check(projectEval.data.testResults?.every((t) => t.status === 'passed'), 'all test cases should pass');
+
+// Verify project evidence recorded on student profile
+const updatedProf = await call('/api/profile', { headers: auth });
+const projectEvidence = updatedProf.data.evidence.filter((e) => e.kind === 'project');
+check(projectEvidence.length > 0, 'practical project verified evidence missing from profile ledger');
+
 // Clear conversation
 const clearConv = await call('/api/conversations', { method: 'DELETE', headers: auth });
 check(clearConv.status === 200 && clearConv.data.deleted === true, 'clear conversations failed');
