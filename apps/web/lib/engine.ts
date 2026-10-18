@@ -62,12 +62,12 @@ function hasPendingWork(state: AppState, skill: string): boolean {
     return state.activity.some((a) => a.skill === skill && a.kind === 'BUILD' && a.at > since);
 }
 export const SKILL_PREREQUISITES: Record<string, string[]> = {
-    'rest-apis': ['javascript'],
-    'sql': [],
     'problem-solving': [],
-    'javascript': [],
+    'javascript': ['problem-solving'],
+    'sql': ['problem-solving'],
     'git': [],
     'communication': [],
+    'rest-apis': ['javascript', 'problem-solving'],
 };
 
 export interface CareerGoalDef {
@@ -149,7 +149,16 @@ export function resolveSkillOrder(
 export function planActions(
     state: AppState,
     roleName?: string,
-    capabilityProfile?: { programmingExperience?: string; educationLevel?: string; focusAreas?: string[]; careerInterests?: string[] }
+    capabilityProfile?: {
+        programmingExperience?: string;
+        educationLevel?: string;
+        focusAreas?: string[];
+        careerInterests?: string[];
+        preferredPace?: string;
+        difficultyPreference?: string;
+        primaryFocusSkill?: string;
+        dailyMinutes?: number;
+    }
 ): PlanAction[] {
     const goal = getCareerGoal(roleName);
     const skills = skillStates(state.evidence).filter(s => goal.requiredSkills.includes(s.def.id));
@@ -160,6 +169,10 @@ export function planActions(
     const isBeginner = capabilityProfile?.programmingExperience === 'beginner' ||
         capabilityProfile?.educationLevel === 'first_year' ||
         (Array.isArray(capabilityProfile?.focusAreas) && capabilityProfile.focusAreas.some((f: string) => /fundamentals|problem solving|c programming/i.test(f)));
+
+    const primaryFocus = capabilityProfile?.primaryFocusSkill || (isBeginner ? 'problem-solving' : undefined);
+    const timeMinutes = capabilityProfile?.dailyMinutes || 30;
+    const diffPref = capabilityProfile?.difficultyPreference || 'standard';
 
     for (const s of skills) {
         const unverifiedGap = s.verified ? 0 : 8;
@@ -179,21 +192,92 @@ export function planActions(
             prereqBoost += 200;
         }
 
+        // Primary focus boost
+        if (primaryFocus && s.def.id === primaryFocus) {
+            prereqBoost += 150;
+        }
+
         const priority = s.def.weight * (s.gap + unverifiedGap) + prereqBoost;
         const upTo = Math.max(1, Math.round((s.def.weight * (s.gap / s.def.target) * 100) / total));
         const isAssessed = s.count > 0;
         const facts = isAssessed
             ? `${s.def.name} demonstrated score is ${s.score}% (target: ${s.def.target}%)${s.verified ? ', verified by evidence' : ', not yet verified'}.`
             : `${s.def.name} ability has not yet been measured. Complete practice tasks or a diagnostic to establish your baseline.`;
+
+        const actionDifficulty: PlanAction['difficulty'] = diffPref === 'simpler_explanations'
+            ? 'foundational'
+            : diffPref === 'harder_challenge'
+            ? 'advanced'
+            : s.score === 0 ? 'introductory' : s.score < 60 ? 'foundational' : s.score < 85 ? 'intermediate' : 'advanced';
+
+        const prerequisites = SKILL_PREREQUISITES[s.def.id] || [];
+
         if (s.def.assessable && hasPendingWork(state, s.def.id)) {
-            out.push({ id: `PROVE:${s.def.id}`, kind: 'PROVE', skill: s.def.id, title: `Retest ${s.def.name}`, detail: 'Adaptive check · 4 min', reason: `You did the work; a retest turns it into evidence. ${facts}`, upTo, priority: priority + 1000, route: 'assess' });
+            out.push({
+                id: `PROVE:${s.def.id}`,
+                kind: 'PROVE',
+                skill: s.def.id,
+                title: `Retest ${s.def.name}`,
+                detail: `Adaptive check · ${Math.min(timeMinutes, 10)} min`,
+                reason: `You did the work; a retest turns it into evidence. ${facts}`,
+                upTo,
+                priority: priority + 1000,
+                route: 'assess',
+                outcome: `Prove improved capability on ${s.def.name} and convert completed practice into verified evidence.`,
+                prerequisites,
+                time: `${Math.min(timeMinutes, 10)} min`,
+                difficulty: actionDifficulty,
+                resourceActivity: `Adaptive diagnostic check on ${s.def.name}`,
+                completionCriteria: 'Complete adaptive check with score >= 70% to register fresh signal.',
+                evidenceToCollect: 'Automated assessment evidence signal in user_skill_evidence',
+                status: 'pending',
+                nextAction: `Review score results and unlock dependent milestones.`,
+            });
         }
         else if (s.gap >= 15 || !s.def.assessable) {
             if (s.gap > 0)
-                out.push({ id: `BUILD:${s.def.id}`, kind: 'BUILD', skill: s.def.id, title: s.def.task.title, detail: s.def.task.detail, reason: facts, upTo, priority, route: 'complete' });
+                out.push({
+                    id: `BUILD:${s.def.id}`,
+                    kind: 'BUILD',
+                    skill: s.def.id,
+                    title: s.def.task.title,
+                    detail: s.def.task.detail,
+                    reason: facts,
+                    upTo,
+                    priority,
+                    route: 'complete',
+                    outcome: `Build practical hands-on experience in ${s.def.name} through applied tasks.`,
+                    prerequisites,
+                    time: `${timeMinutes} min`,
+                    difficulty: actionDifficulty,
+                    resourceActivity: s.def.task.detail,
+                    completionCriteria: 'Complete the task checklist and record working code or documentation.',
+                    evidenceToCollect: 'Demonstrated practice or practical build evidence',
+                    status: 'pending',
+                    nextAction: `Retest ${s.def.name} once build tasks are finished.`,
+                });
         }
         else if (s.def.assessable) {
-            out.push({ id: `PROVE:${s.def.id}`, kind: 'PROVE', skill: s.def.id, title: `Prove ${s.def.name}`, detail: 'Adaptive check · 4 min', reason: facts, upTo, priority, route: 'assess' });
+            out.push({
+                id: `PROVE:${s.def.id}`,
+                kind: 'PROVE',
+                skill: s.def.id,
+                title: `Prove ${s.def.name}`,
+                detail: `Adaptive check · ${Math.min(timeMinutes, 10)} min`,
+                reason: facts,
+                upTo,
+                priority,
+                route: 'assess',
+                outcome: `Calibrate baseline capability on ${s.def.name}.`,
+                prerequisites,
+                time: `${Math.min(timeMinutes, 10)} min`,
+                difficulty: actionDifficulty,
+                resourceActivity: `Adaptive diagnostic check on ${s.def.name}`,
+                completionCriteria: 'Answer adaptive questions to establish verified score.',
+                evidenceToCollect: 'Diagnostic evidence signal in user_skill_evidence',
+                status: 'pending',
+                nextAction: `Advance to practice and practical projects.`,
+            });
         }
     }
 
@@ -204,17 +288,45 @@ export function planActions(
             kind: 'PROVE',
             skill: 'problem-solving',
             title: 'Start Baseline Diagnostic: Problem Solving',
-            detail: 'Adaptive check · 4 min',
+            detail: `Adaptive check · ${Math.min(timeMinutes, 10)} min`,
             reason: 'Calibrate your initial logic and code-tracing baseline to personalize your learning roadmap.',
             upTo: 25,
             priority: 2500,
             route: 'assess',
+            outcome: 'Establish baseline capability on Problem Solving without prerequisites.',
+            prerequisites: [],
+            time: `${Math.min(timeMinutes, 10)} min`,
+            difficulty: 'introductory',
+            resourceActivity: 'Introductory diagnostic on memory, loops, and logic',
+            completionCriteria: 'Complete 2-4 adaptive questions.',
+            evidenceToCollect: 'Initial baseline evidence signal in user_skill_evidence',
+            status: 'pending',
+            nextAction: 'Personalized roadmap generation based on verified baseline.',
         });
     }
     // Mentor feedback is only shown when a real mentor request is awaiting review.
     const hasOpenMentorWork = state.requests.some((r) => ['accepted'].includes(r.status));
     if (!state.mentorNoteResolved && hasOpenMentorWork) {
-        out.push({ id: 'MENTOR:feedback', kind: 'MENTOR', skill: 'communication', title: 'Review mentor feedback', detail: 'Open mentor session', reason: 'An active mentor session can change your next action.', upTo: 1, priority: 15, route: 'complete' });
+        out.push({
+            id: 'MENTOR:feedback',
+            kind: 'MENTOR',
+            skill: 'communication',
+            title: 'Review mentor feedback',
+            detail: 'Open mentor session',
+            reason: 'An active mentor session can change your next action.',
+            upTo: 1,
+            priority: 15,
+            route: 'complete',
+            outcome: 'Incorporate senior engineer review into current roadmap items.',
+            prerequisites: [],
+            time: '15 min',
+            difficulty: 'intermediate',
+            resourceActivity: 'Mentor review notes and suggested improvements',
+            completionCriteria: 'Read mentor feedback and mark action item resolved.',
+            evidenceToCollect: 'Mentor review signal in user_skill_evidence',
+            status: 'pending',
+            nextAction: 'Apply suggested refinements to current project code.',
+        });
     }
     const done = new Set(state.activity.map((a) => a.id));
     return out.filter((a) => a.kind === 'PROVE' || !done.has(a.id)).sort((a, b) => b.priority - a.priority);

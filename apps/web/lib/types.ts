@@ -81,6 +81,15 @@ export interface PlanAction {
   upTo: number; // estimated maximum readiness points
   priority: number;
   route: 'complete' | 'assess';
+  outcome?: string;
+  prerequisites?: string[];
+  time?: string;
+  difficulty?: 'introductory' | 'foundational' | 'intermediate' | 'advanced';
+  resourceActivity?: string;
+  completionCriteria?: string;
+  evidenceToCollect?: string;
+  status?: 'pending' | 'in_progress' | 'completed';
+  nextAction?: string;
 }
 
 export interface MentorRequest {

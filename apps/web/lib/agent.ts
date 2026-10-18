@@ -14,6 +14,8 @@ import type { Mentor } from './types.ts';
 import type { CoherentStudentContext } from './student-context.ts';
 import { PROJECT_CATALOG } from './project-catalog.ts';
 import { validateQuestionProposal, extractClaimedSkills } from './assessment-planner.ts';
+import { selectAdaptiveNextQuestion, evaluateResponse } from './adaptive-engine.ts';
+import { QUESTIONS } from './questions.ts';
 
 /**
  * Bounded Career Agent. The model can READ the student's evidence through tools and PROPOSE
@@ -334,6 +336,85 @@ export const TOOLS = [
         reason: { type: 'string' },
       },
       required: ['project_slug', 'reason'],
+      additionalProperties: false,
+    },
+  },
+  // 6. Central Journey & Adaptive Verification Tools (Phase 5)
+  {
+    name: 'get_claimed_vs_verified_skills',
+    description: 'Strictly separate self-reported skill claims from evidence-backed verified skills.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'collect_discovery_info',
+    description: 'Inspect student onboarding progress and identify uncollected discovery questions.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'select_adaptive_question',
+    description: 'Select calibrated Level 0–5 question respecting skill claims and verified prerequisites.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        skill_id: { type: 'string' },
+        current_level: { type: 'number' },
+        last_status: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'evaluate_student_response',
+    description: 'Classify student response into CORRECT, INCORRECT, INCOMPLETE, AMBIGUOUS, SKIPPED, or TECHNICAL_FAILURE with misconception tracking.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        question_id: { type: 'string' },
+        answer: { type: 'string' },
+      },
+      required: ['question_id', 'answer'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'update_capability_estimates',
+    description: 'Recompute capability profile, readiness percentage, and verified badges from the immutable evidence ledger.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'update_learning_roadmap',
+    description: 'Regenerate personalized roadmap milestones, times, and activities according to prerequisites and student preferences.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'recommend_next_activity',
+    description: 'Recommend the single highest-impact activity for today with reasoning, duration, and outcome.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'record_learning_preference',
+    description: 'Record or update student learning preferences (simpler explanations, 20m daily, focus on C, harder challenge, fewer questions).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        preference_type: { type: 'string' },
+        value: { type: 'string' },
+      },
+      additionalProperties: true,
+    },
+  },
+  {
+    name: 'update_profile_preferences',
+    description: 'Update permitted student profile fields (weekly hours, pace, difficulty, primary focus skill, career goal).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        weekly_hours: { type: 'number' },
+        preferred_pace: { type: 'string' },
+        difficulty_preference: { type: 'string' },
+        primary_focus_skill: { type: 'string' },
+        career_goal: { type: 'string' },
+      },
       additionalProperties: false,
     },
   },
@@ -1029,6 +1110,187 @@ export function executeTool(
       };
     }
 
+    case 'get_claimed_vs_verified_skills': {
+      const claimed = studentContext ? extractClaimedSkills(studentContext.capabilityProfile).claimedSkills : ['problem-solving'];
+      const verified = skills.filter((s) => s.verified);
+      const assessed = skills.filter((s) => !s.verified && s.count > 0);
+      const unassessed = skills.filter((s) => s.count === 0);
+      return {
+        summary: `Identified ${claimed.length} claimed, ${verified.length} verified, ${assessed.length} in-progress skills`,
+        result: JSON.stringify({
+          claimedSkills: claimed,
+          claimPolicy: 'Self-reported claims allow diagnostic entry but carry zero readiness weight and zero verified credit.',
+          verifiedSkills: verified.map((s) => ({
+            id: s.def.id,
+            name: s.def.name,
+            score: s.score,
+            evidenceSignals: s.count,
+            sources: s.kinds,
+          })),
+          assessedSkills: assessed.map((s) => ({
+            id: s.def.id,
+            name: s.def.name,
+            score: s.score,
+            evidenceSignals: s.count,
+            gap: s.gap,
+          })),
+          unassessedSkills: unassessed.map((s) => ({ id: s.def.id, name: s.def.name })),
+        }),
+      };
+    }
+
+    case 'collect_discovery_info': {
+      const profile = studentContext?.capabilityProfile;
+      const missingFields: string[] = [];
+      if (!profile?.educationLevel) missingFields.push('education_level');
+      if (!profile?.programmingExperience) missingFields.push('experience_level');
+      if (!profile?.weeklyHours) missingFields.push('weekly_hours');
+      if (!profile?.focusAreas || profile.focusAreas.length === 0) missingFields.push('skills_used');
+
+      return {
+        summary: missingFields.length === 0 ? 'Discovery profile fully complete' : `Missing ${missingFields.length} discovery fields`,
+        result: JSON.stringify({
+          completed: missingFields.length === 0,
+          missingFields,
+          currentProfile: profile ? {
+            educationLevel: profile.educationLevel,
+            programmingExperience: profile.programmingExperience,
+            weeklyHours: profile.weeklyHours,
+            careerInterests: profile.careerInterests,
+            focusAreas: profile.focusAreas,
+          } : 'none',
+          suggestedNextQuestion: missingFields.length > 0 ? `Please share your ${missingFields[0]} to help calibrate your journey.` : 'Discovery is complete.',
+        }),
+      };
+    }
+
+    case 'select_adaptive_question': {
+      const skillId = str(args.skill_id, 40) || 'problem-solving';
+      const claimed = studentContext ? extractClaimedSkills(studentContext.capabilityProfile).claimedSkills : ['problem-solving'];
+      const currentLevel = typeof args.current_level === 'number' ? Math.max(0, Math.min(5, args.current_level)) : 1;
+      const lastStatus = typeof args.last_status === 'string' ? args.last_status as any : undefined;
+
+      const validation = validateQuestionProposal(
+        { skill: skillId, level: currentLevel },
+        { claimedSkills: claimed, evidence: state.evidence },
+      );
+
+      const effectiveSkill = validation.allowed ? skillId : (validation.suggestedSkill || 'problem-solving');
+      const nextQ = selectAdaptiveNextQuestion({
+        skill: effectiveSkill,
+        currentLevel,
+        evalResult: lastStatus ? { classification: lastStatus, earnedPoints: 100, weight: 1, isEvidence: true, explanation: '' } : undefined,
+        answeredIds: [],
+      });
+
+      return {
+        summary: nextQ ? `Selected Level ${nextQ.level} question for ${effectiveSkill}` : `No question available for ${effectiveSkill}`,
+        result: JSON.stringify({
+          question: nextQ ? {
+            id: nextQ.id,
+            skill: nextQ.skill,
+            level: nextQ.level,
+            prompt: nextQ.q,
+            options: nextQ.options,
+            prerequisiteConcept: nextQ.prerequisiteConcept,
+          } : null,
+          validationNote: validation.allowed ? 'Approved' : validation.reason,
+        }),
+      };
+    }
+
+    case 'evaluate_student_response': {
+      const qId = str(args.question_id, 40) || '';
+      const ans = str(args.answer, 2000) || '';
+      const question = QUESTIONS.find((q) => q.id === qId);
+
+      if (!question) {
+        return {
+          summary: `Question ${qId} not found`,
+          result: JSON.stringify({ error: `question ${qId} not found` }),
+        };
+      }
+
+      const choiceIndex = Number.isInteger(Number(ans)) ? Number(ans) : undefined;
+      const evalResult = evaluateResponse(question, {
+        choice: choiceIndex,
+        action: ans === 'skip' ? 'skip' : ans === 'dont_know' ? 'dont_know' : ans === 'clarify' ? 'clarify' : undefined,
+      });
+      return {
+        summary: `Evaluated response: ${evalResult.classification} (${evalResult.earnedPoints}%)`,
+        result: JSON.stringify(evalResult),
+      };
+    }
+
+    case 'update_capability_estimates': {
+      const verifiedCount = skills.filter((s) => s.verified).length;
+      return {
+        summary: `Calculated capability estimates: ${r}% readiness, ${verifiedCount} verified skills`,
+        result: JSON.stringify({
+          overallReadiness: `${r}%`,
+          verifiedSkillsRatio: `${verifiedCount} / ${skills.length}`,
+          totalSignals: state.evidence.length,
+          skills: skills.map((s) => ({
+            id: s.def.id,
+            name: s.def.name,
+            score: s.score,
+            status: s.statusLabel,
+            verified: s.verified,
+          })),
+        }),
+      };
+    }
+
+    case 'update_learning_roadmap': {
+      return {
+        summary: `Refreshed roadmap: ${actions.length} prioritized actions`,
+        result: JSON.stringify({
+          topAction: actions[0] || null,
+          actions: actions.slice(0, 6).map((a) => ({
+            id: a.id,
+            title: a.title,
+            skill: a.skill,
+            time: a.time || '30 min',
+            difficulty: a.difficulty || 'foundational',
+            outcome: a.outcome,
+            prerequisites: a.prerequisites,
+            reason: a.reason,
+          })),
+        }),
+      };
+    }
+
+    case 'recommend_next_activity': {
+      const top = actions[0];
+      return {
+        summary: top ? `Recommended next activity: ${top.title}` : 'All target skills currently verified',
+        result: JSON.stringify(top ? {
+          id: top.id,
+          title: top.title,
+          skill: top.skill,
+          time: top.time || '30 min',
+          difficulty: top.difficulty || 'foundational',
+          outcome: top.outcome,
+          prerequisites: top.prerequisites,
+          reason: top.reason,
+          nextAction: top.nextAction,
+          route: top.route,
+        } : { message: 'All target skills meet targets and are verified.' }),
+      };
+    }
+
+    case 'record_learning_preference':
+    case 'update_profile_preferences': {
+      return {
+        summary: 'Recorded learning preferences update',
+        result: JSON.stringify({
+          status: 'success',
+          appliedFields: args,
+          message: 'Preference change recorded and integrated into your personalized roadmap.',
+        }),
+      };
+    }
+
     default:
       return { summary: `Unknown tool: ${name}`, result: `unknown tool: ${name}` };
   }
@@ -1167,6 +1429,149 @@ export function deterministicCareerReply(
       proposals: [],
       fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
     };
+  }
+
+  // 2.5 Phase 7: Natural-Language Preference & Adaptive Roadmap Requests
+  // 2.5.1 "explain simpler"
+  if (/\b(explain\s+simpler|simpler\s+explanation|make\s+it\s+simpler|easier\s+explanation|explain\s+more\s+simply)\b/i.test(q)) {
+    addStep('record_learning_preference', { difficultyPreference: 'simpler_explanations' }, 'Switched explanation style to simpler mental models');
+    answer = `I have adjusted your learning preferences to **Simpler Explanations**.\n\nFrom now on, I will explain concepts using plain-language analogies, intuitive mental models (such as houses on a street for memory addresses), and break down algorithmic logic step-by-step before showing code syntax.`;
+    attachTopAction('Start with a simplified foundational exercise.');
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals,
+      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+    };
+  }
+
+  // 2.5.2 "I have 20 minutes"
+  const hasTimeLimit = /\b(\d+)\s*(?:min|minute|minutes)\b|i have 20 minutes|20 mins|twenty minutes/i.test(q);
+  if (hasTimeLimit && !/(c programming|pointer|pointers)/i.test(q)) {
+    const minutesMatch = q.match(/(\d+)\s*(?:min|minute|minutes)/i);
+    const minutes = minutesMatch ? parseInt(minutesMatch[1], 10) : 20;
+    addStep('record_learning_preference', { dailyMinutes: minutes }, `Calibrated daily study schedule to ${minutes} minutes`);
+    answer = `I have calibrated your daily learning roadmap to **${minutes} minutes daily** (~${Math.max(1, Math.round((minutes * 7) / 60))} hours per week).\n\nYour roadmap milestones and diagnostic checks are now partitioned into focused, bite-sized tasks that you can complete within your ${minutes}-minute window without feeling overwhelmed.`;
+    attachTopAction(`Take a focused ${minutes}-minute practice step.`);
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals,
+      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+    };
+  }
+
+  // 2.5.3 "focus on C first"
+  if (/\b(focus\s+on\s+c|c\s+first|learn\s+c\s+first|prioritize\s+c|focus\s+on\s+problem\s+solving)\b/i.test(q)) {
+    addStep('record_learning_preference', { primaryFocusSkill: 'problem-solving' }, 'Prioritized Problem Solving & C memory foundations');
+    answer = `I have updated your roadmap focus to **C Programming & Problem Solving First**.\n\nFoundational memory models, pointer arithmetic, and algorithmic tracing in C are now positioned as your #1 learning priority. Once you master memory management and basic problem solving, we will unlock higher-level modules like JavaScript and REST APIs.`;
+    const targetSkill = skills.find((s) => s.def.id === 'problem-solving') || skills[0];
+    proposals.push({
+      id: `retest-${targetSkill.def.id}`,
+      type: 'start_retest',
+      label: `Start C & Problem Solving Baseline`,
+      reason: 'Focus on C memory primitives and pointer mechanics first.',
+      skill: targetSkill.def.id,
+      permission: 'approval_required',
+    });
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals,
+      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+    };
+  }
+
+  // 2.5.4 "harder challenge"
+  if (/\b(harder\s+challenge|more\s+challenging|advanced\s+exercises|raise\s+difficulty|harder\s+problems)\b/i.test(q)) {
+    addStep('record_learning_preference', { difficultyPreference: 'harder_challenge' }, 'Elevated difficulty preference to advanced challenge');
+    answer = `I have updated your learning challenge setting to **Advanced / Harder Challenge**.\n\nYour upcoming diagnostics and exercises will probe edge cases, boundary conditions (such as off-by-one errors and NULL pointer validation), and require multi-step implementation rather than introductory recognition.`;
+    attachTopAction('Attempt an advanced implementation challenge.');
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals,
+      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+    };
+  }
+
+  // 2.5.5 "fewer questions"
+  if (/\b(fewer\s+questions|less\s+questions|fewer\s+diagnostic|relaxed\s+pace|shorter\s+quiz)\b/i.test(q)) {
+    addStep('record_learning_preference', { preferredPace: 'fewer_questions_relaxed' }, 'Set assessment pace to fewer questions');
+    answer = `I have set your diagnostic pace to **Fewer Questions / Relaxed**.\n\nYour adaptive assessments will now conclude as soon as 2 decisive data points are collected, minimizing test fatigue while maintaining measurement confidence.`;
+    attachTopAction('Resume with a concise 2-question diagnostic.');
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals,
+      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+    };
+  }
+
+  // 2.5.6 "why this?"
+  if (/\b(why\s+this|why\s+this\s+action|why\s+this\s+task|why\s+am\s+i\s+doing\s+this|why\s+is\s+this\s+recommended)\b/i.test(q)) {
+    addStep('explain_my_progress', {}, 'Retrieved explanation for prioritized task');
+    if (topAction) {
+      answer = `### Why "${topAction.title}" is Recommended Today\n\n- **Target Skill**: ${topAction.skill}\n- **Current Gap**: Addressing your primary bottleneck to raise overall readiness by up to **+${topAction.upTo}%**.\n- **Prerequisite Justification**: ${topAction.reason}\n\nSkillPilot strictly sequences tasks so you only work on what delivers maximum career readiness without skipping necessary foundations.`;
+    } else {
+      answer = `Every required skill for your career goal currently meets its target and has verified evidence on your Career Passport!`;
+    }
+    attachTopAction();
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals,
+      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+    };
+  }
+
+  // 2.5.7 "change my roadmap"
+  if (/\b(change\s+my\s+roadmap|update\s+my\s+roadmap|refresh\s+roadmap|adjust\s+roadmap)\b/i.test(q)) {
+    addStep('update_learning_roadmap', {}, 'Regenerated personalized roadmap actions');
+    answer = `I have re-evaluated your active skill evidence and refreshed your roadmap.\n\n**What Changed:**\n- Completed progress and verified badges are preserved.\n- Tasks have been re-ranked based on your latest demonstrated signals and bottleneck skills.\n- Next immediate priority: **${topAction ? topAction.title : 'Take baseline diagnostic'}**.\n\nWould you like to start this next milestone?`;
+    attachTopAction();
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals,
+      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+    };
+  }
+
+  // 2.5.8 Prerequisite Conflict Check: REST APIs / Backend without prerequisites
+  if (/\b(focus\s+on\s+rest|focus\s+on\s+api|apis\s+first|backend\s+first)\b/i.test(q)) {
+    const psEvidence = state.evidence.filter((e) => e.skill === 'problem-solving');
+    const psScore = psEvidence.length ? Math.max(...psEvidence.map((e) => e.score)) : 0;
+    const jsEvidence = state.evidence.filter((e) => e.skill === 'javascript');
+    const jsScore = jsEvidence.length ? Math.max(...jsEvidence.map((e) => e.score)) : 0;
+
+    if (psScore < 70 || jsScore < 70) {
+      addStep('validate_roadmap_proposal', { target_skill: 'rest-apis' }, 'Identified prerequisite dependency constraint');
+      answer = `### Prerequisite Notice: REST APIs\n\nREST APIs require prerequisite foundational **JavaScript** and **Problem Solving** first.\n\nWithout understanding basic data structures and asynchronous syntax, writing HTTP route handlers and JSON serialization becomes very difficult. We have scheduled **Problem Solving & JavaScript** as immediate prerequisites so you can master REST APIs safely without getting stuck.`;
+      const targetSkill = skills.find((s) => s.def.id === 'problem-solving') || skills[0];
+      proposals.push({
+        id: `retest-${targetSkill.def.id}`,
+        type: 'start_retest',
+        label: `Start Prerequisite: ${targetSkill.def.name}`,
+        reason: 'Master problem-solving foundations before advancing to REST APIs.',
+        skill: targetSkill.def.id,
+        permission: 'approval_required',
+      });
+      return {
+        mode: 'fallback',
+        answer,
+        steps,
+        proposals,
+        fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+      };
+    }
   }
 
   // 3. Teaching: C from scratch

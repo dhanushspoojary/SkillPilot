@@ -118,24 +118,29 @@ export function evaluateResponse(
  */
 export function selectAdaptiveNextQuestion(params: {
   skill: string;
-  currentQuestion: Question;
-  evalResult: EvaluatedItemResult;
-  usedQuestionIds: Set<string>;
+  currentQuestion?: Question;
+  currentLevel?: number;
+  evalResult?: EvaluatedItemResult;
+  usedQuestionIds?: Set<string>;
+  answeredIds?: string[];
 }): Question | null {
-  const { skill, currentQuestion, evalResult, usedQuestionIds } = params;
-  const currentLevel = currentQuestion.level;
+  const { skill, currentQuestion, evalResult } = params;
+  const usedQuestionIds = params.usedQuestionIds || new Set(params.answeredIds || []);
+  const currentLevel = currentQuestion?.level ?? params.currentLevel ?? 1;
 
-  let targetLevel: number;
+  let targetLevel: number = currentLevel;
 
-  if (evalResult.classification === 'CORRECT') {
-    // Raise difficulty only on positive evidence (up to level 5)
-    targetLevel = Math.min(5, currentLevel + 1);
-  } else if (evalResult.classification === 'INCORRECT') {
-    // Simplify on struggle and step down to probe prerequisite
-    targetLevel = Math.max(0, currentLevel - 1);
-  } else {
-    // Skipped / Ambiguous: present same or slightly simpler concept
-    targetLevel = Math.max(0, currentLevel - 1);
+  if (evalResult) {
+    if (evalResult.classification === 'CORRECT') {
+      // Raise difficulty only on positive evidence (up to level 5)
+      targetLevel = Math.min(5, currentLevel + 1);
+    } else if (evalResult.classification === 'INCORRECT') {
+      // Simplify on struggle and step down to probe prerequisite
+      targetLevel = Math.max(0, currentLevel - 1);
+    } else {
+      // Skipped / Ambiguous: present same or slightly simpler concept
+      targetLevel = Math.max(0, currentLevel - 1);
+    }
   }
 
   const skillQuestions = QUESTIONS.filter(
@@ -149,7 +154,7 @@ export function selectAdaptiveNextQuestion(params: {
   if (exactMatch) return exactMatch;
 
   // If struggling, find lowest available level
-  if (evalResult.classification !== 'CORRECT') {
+  if (evalResult && evalResult.classification !== 'CORRECT') {
     return (
       skillQuestions.find((q) => q.level < currentLevel) ||
       skillQuestions.find((q) => q.level === currentLevel) ||
@@ -157,7 +162,7 @@ export function selectAdaptiveNextQuestion(params: {
     );
   }
 
-  // If correct, find next higher level
+  // If correct or initial probe, find next higher level
   return (
     skillQuestions.find((q) => q.level > currentLevel) ||
     skillQuestions.find((q) => q.level === currentLevel) ||

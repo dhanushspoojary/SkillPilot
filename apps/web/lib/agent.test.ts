@@ -292,5 +292,92 @@ test('comprehension check evaluation: evaluates student answer and emits evaluat
     assert.equal(body.proposals[0].label, 'Continue to Array Pointer Tracing');
 });
 
+test('Phase 5 agent tools: executeTool executes get_claimed_vs_verified_skills', () => {
+    const s = defaultState();
+    const res = executeTool('get_claimed_vs_verified_skills', {}, s);
+    assert.ok(res.summary.includes('claimed'));
+    const parsed = JSON.parse(res.result);
+    assert.ok(Array.isArray(parsed.claimedSkills));
+    assert.ok(Array.isArray(parsed.verifiedSkills));
+    assert.equal(parsed.verifiedSkills.length, 0); // No evidence yet
+    assert.ok(parsed.claimPolicy.includes('zero readiness weight'));
+});
+
+test('Phase 5 agent tools: executeTool executes collect_discovery_info and select_adaptive_question', () => {
+    const s = defaultState();
+    const disc = executeTool('collect_discovery_info', {}, s);
+    const parsedDisc = JSON.parse(disc.result);
+    assert.ok('completed' in parsedDisc);
+
+    const sel = executeTool('select_adaptive_question', { skill_id: 'problem-solving', current_level: 1 }, s);
+    const parsedSel = JSON.parse(sel.result);
+    assert.ok(parsedSel.question !== null);
+    assert.equal(parsedSel.question.skill, 'problem-solving');
+});
+
+test('Phase 5 agent tools: evaluate_student_response evaluates correct answer', () => {
+    const s = defaultState();
+    const res = executeTool('evaluate_student_response', { question_id: 'ps-1a', answer: '0' }, s);
+    const parsed = JSON.parse(res.result);
+    assert.equal(parsed.classification, 'CORRECT');
+    assert.equal(parsed.earnedPoints, 100);
+});
+
+test('Phase 7 natural language: "explain simpler" adjusts explanation mode', async () => {
+    const r = await handleAgentRequest(
+        { question: 'Please explain simpler to me', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.match(body.answer, /Simpler Explanations/i);
+    assert.ok(body.steps.some((st: any) => st.tool === 'record_learning_preference'));
+});
+
+test('Phase 7 natural language: "I have 20 minutes" calibrates schedule', async () => {
+    const r = await handleAgentRequest(
+        { question: 'I have 20 minutes daily', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.match(body.answer, /20 minutes daily/i);
+    assert.ok(body.steps.some((st: any) => st.tool === 'record_learning_preference'));
+});
+
+test('Phase 7 natural language: "focus on C first" prioritizes C baseline', async () => {
+    const r = await handleAgentRequest(
+        { question: 'I want to focus on C first', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.match(body.answer, /C Programming & Problem Solving First/i);
+    assert.equal(body.proposals[0].skill, 'problem-solving');
+});
+
+test('Phase 7 natural language: "why this?" explains prerequisite and gap rationale', async () => {
+    const r = await handleAgentRequest(
+        { question: 'Why this action?', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.match(body.answer, /Why/i);
+    assert.match(body.answer, /Prerequisite Justification/i);
+});
+
+test('Phase 7 natural language: REST APIs request without prerequisites triggers conflict explanation', async () => {
+    const r = await handleAgentRequest(
+        { question: 'I want to focus on REST APIs first', state: defaultState() },
+        { model: 'm', fetchImpl: fetch }
+    );
+    assert.equal(r.status, 200);
+    const body = r.body as any;
+    assert.match(body.answer, /Prerequisite Notice: REST APIs/i);
+    assert.match(body.answer, /require prerequisite foundational/i);
+    assert.equal(body.proposals[0].skill, 'problem-solving'); // Diverted to prerequisite
+});
+
 
 
