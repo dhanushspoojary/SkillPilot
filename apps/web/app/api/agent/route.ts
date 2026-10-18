@@ -8,6 +8,7 @@ import { maybeRunRetention } from '../../../lib/retention';
 import { json, readJsonBody, requireOrigin } from '../../../lib/server-security';
 import { appendConversationMessage } from '../../../lib/conversation';
 import { getCoherentStudentContext, addStudentMemory } from '../../../lib/student-context';
+import { handleNaturalLanguagePreferenceRequest } from '../../../lib/roadmap-preferences';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90; // up to 4 sequential model calls with a 20s timeout each
@@ -65,6 +66,42 @@ export async function POST(req: Request) {
             mentorNoteResolved: activity.some((a) => a.id === 'MENTOR:feedback'),
             planNote: '', agentRuns: [],
         }));
+
+        // Handle natural language preference adjustments or prerequisite rationale
+        if (/explain\s+simpler|simpler\s+explanation|20\s+minute|30\s+minute|short\s+session|focus\s+on\s+c|c\s+first|focus\s+on\s+rest|rest\s+api|apis\s+first|harder\s+challenge|fewer\s+question|why\s+this/i.test(parsed.question)) {
+            const prefResult = await handleNaturalLanguagePreferenceRequest(u.id, parsed.question, state).catch(() => null);
+            if (prefResult) {
+                let answerText = prefResult.summary;
+                if (prefResult.conflictWarning) {
+                    answerText = `${prefResult.conflictWarning} ${prefResult.recommendedAlternative || ''}`;
+                }
+                const prefBody = {
+                    mode: 'deterministic' as const,
+                    answer: answerText,
+                    steps: [{ tool: 'calibrate_learning_schedule', input: { query: parsed.question }, result: JSON.stringify(prefResult) }],
+                    proposals: prefResult.newTopAction ? [{
+                        id: `prop-${Date.now()}`,
+                        type: 'start_retest' as const,
+                        skill: prefResult.newTopAction.skill,
+                        actionId: prefResult.newTopAction.id,
+                        reason: prefResult.summary,
+                    }] : [],
+                };
+                await appendConversationMessage(u.id, 'agent', prefBody.answer, {
+                    mode: prefBody.mode,
+                    steps: prefBody.steps,
+                    proposals: prefBody.proposals,
+                }, activeThreadId).catch(() => {});
+                try {
+                    await db().query(
+                        `insert into agent_runs(user_id,agent,input_hash,provider,model_version,status,output) values($1,'career-orchestrator',encode(digest($2::text,'sha256'),'hex'),'deterministic','deterministic-engine','proposed',$3)`,
+                        [u.id, parsed.question, JSON.stringify({ mode: 'deterministic', proposalCount: prefBody.proposals.length, redacted: true })],
+                    );
+                } catch {}
+                void maybeRunRetention();
+                return json({ ...prefBody, threadId: activeThreadId }, 200);
+            }
+        }
         const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
         const provider: 'anthropic' | 'openai' | 'gemini' | undefined = process.env.ANTHROPIC_API_KEY ? 'anthropic' : (process.env.OPENAI_API_KEY ? 'openai' : (process.env.GEMINI_API_KEY ? 'gemini' : undefined));
         const model = process.env.ANTHROPIC_MODEL || process.env.OPENAI_MODEL || process.env.GEMINI_MODEL || (provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-5-5');

@@ -538,8 +538,8 @@ export function Today({
             )}
 
             {companionReply && !companionBusy && (
-              <div className="companion-output">
-                <p style={{ margin: 0 }}>{companionReply}</p>
+              <div className="companion-output companion-reply">
+                <p style={{ margin: 0 }} className="companion-reply-text">{companionReply}</p>
                 {companionTools.length > 0 && (
                   <div className="companion-tools-trace">
                     {companionTools.map((t, idx) => (

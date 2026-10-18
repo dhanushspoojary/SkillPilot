@@ -312,7 +312,11 @@ export function CapabilityOnboarding({
         fieldOfStudy: 'computer_science',
         careerInterests: [careerInterest],
         weeklyHours,
-        focusAreas: ['Programming Fundamentals', 'Problem Solving'],
+        focusAreas: careerInterest === 'Frontend Engineer'
+          ? ['JavaScript', 'Frontend Engineering']
+          : careerInterest === 'Backend Engineer'
+          ? ['SQL', 'Backend Engineering']
+          : ['Programming Fundamentals', 'Problem Solving'],
         onboardingCompleted: true,
       });
       if (onClose) onClose();

@@ -100,7 +100,7 @@ export function extractClaimedSkills(
   }
 
   // Check experience levels
-  if (exp === 'projects' || exp === 'small_programs' || exp === 'experienced') {
+  if (exp === 'projects' || exp === 'built_projects' || exp.includes('project') || exp === 'small_programs' || exp === 'experienced') {
     // If student claims project experience, check if career interest implies specific skills
     if (careerInterests.some((c) => /frontend|web/i.test(c))) {
       claimedSet.add('javascript');
@@ -299,8 +299,9 @@ export function planAssessmentSession(params: {
       selectedSkills = ['problem-solving'];
       explanation = 'Beginner assessment focused strictly on core logic and problem-solving.';
     } else {
-      // Limit to at most 2 eligible claimed skills per session for focused diagnostics
-      selectedSkills = eligible.slice(0, 2);
+      // For experienced students with declared domain interests, prioritize technical skills over generic problem-solving
+      const nonGeneric = eligible.filter((s) => s !== 'problem-solving');
+      selectedSkills = (nonGeneric.length > 0 ? [...nonGeneric, 'problem-solving'] : eligible).slice(0, 2);
       explanation = `Assessing eligible claimed skills: ${selectedSkills.join(', ')}.`;
     }
   }
