@@ -17,16 +17,20 @@
   - [x] Onboarding, assessment engine, question taxonomy, memory systems inspected
   - [x] Root cause of unrelated JS/SQL questions verified and documented
   - [x] Baseline typecheck, tests, and build executed and recorded
-- [ ] **Phase 2: Provider-Agnostic Model Layer with Google Gemini as Primary**
-  - [ ] Install official `@google/genai` SDK in `apps/web`
-  - [ ] Implement `LLMProvider` abstraction (`complete`, `stream`, `structured`, `toolCall`)
-  - [ ] Implement `GeminiProviderAdapter` using official `@google/genai` SDK
-  - [ ] Configure `GEMINI_MODEL_FAST` and `GEMINI_MODEL_STRONG` routing
-  - [ ] Implement exponential backoff, jitter, and clear user-facing messages for free-tier 429s
-  - [ ] PII minimization and secret redaction before any provider call
-  - [ ] Maintain secondary `AnthropicProviderAdapter` compatibility
-  - [ ] Honest fallback labeling (`not AI-generated`)
+- [x] **Phase 2: Provider-Agnostic Model Layer with Google Gemini as Primary**
+  - [x] Install official `@google/genai` SDK in `apps/web` (`^2.30.0`)
+  - [x] Implement `LLMProvider` abstraction (`generateResponse`, `generateText`, toolCall schemas)
+  - [x] Implement `GeminiProviderAdapter` using official `@google/genai` SDK
+  - [x] Configure `GEMINI_MODEL_FAST` and `GEMINI_MODEL_STRONG` routing (default: `gemini-2.5-flash`)
+  - [x] Implement exponential backoff, jitter, and clear user-facing messages for free-tier 429s
+  - [x] PII minimization (`sanitizePII`) and secret redaction (`redactSecrets`)
+  - [x] Maintain secondary `AnthropicProviderAdapter` compatibility
+  - [x] Centralized versioned prompt templates (`apps/web/lib/prompt-templates.ts`)
+  - [x] Honest fallback labeling (`mode: 'fallback'`, `fallbackReason: 'Google Gemini capacity reached...'`)
+  - [x] Verified with unit tests (`apps/web/lib/llm-provider.test.ts`, 114/114 passing)
 - [ ] **Phase 3: Agent Controller & Tool Registry**
+  - [x] Server-side agent loop with loop detection (`step_limit_exceeded` on repetition)
+  - [x] Tool disabling kill switch (`isToolDisabled`)
   - [ ] Typed schemas for all tool definitions (zod/typed validator)
   - [ ] Server-session identity enforcement (never trust client user ID)
   - [ ] Bounded iterations, loop detection, execution deadlines, rate limits

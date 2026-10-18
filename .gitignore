@@ -9,3 +9,5 @@ target/
 
 .skillpilot-data/
 apps/web/.skillpilot-data/
+test-results/
+*.tsbuildinfo

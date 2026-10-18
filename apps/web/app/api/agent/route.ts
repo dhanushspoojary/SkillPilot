@@ -9,6 +9,7 @@ import { json, readJsonBody, requireOrigin } from '../../../lib/server-security'
 import { appendConversationMessage } from '../../../lib/conversation';
 import { getCoherentStudentContext, addStudentMemory } from '../../../lib/student-context';
 import { handleNaturalLanguagePreferenceRequest } from '../../../lib/roadmap-preferences';
+import { getActiveLLMProvider, isAgentEnabled, redactSecrets } from '../../../lib/llm-provider';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90; // up to 4 sequential model calls with a 20s timeout each
@@ -102,9 +103,12 @@ export async function POST(req: Request) {
                 return json({ ...prefBody, threadId: activeThreadId }, 200);
             }
         }
-        const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
-        const provider: 'anthropic' | 'openai' | 'gemini' | undefined = process.env.ANTHROPIC_API_KEY ? 'anthropic' : (process.env.OPENAI_API_KEY ? 'openai' : (process.env.GEMINI_API_KEY ? 'gemini' : undefined));
-        const model = process.env.ANTHROPIC_MODEL || process.env.OPENAI_MODEL || process.env.GEMINI_MODEL || (provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-5-5');
+        const activeProvider = getActiveLLMProvider();
+        const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.ANTHROPIC_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
+        const provider: 'gemini' | 'anthropic' | 'openai' | undefined = activeProvider.providerName !== 'deterministic' && activeProvider.providerName !== 'disabled'
+            ? (activeProvider.providerName as any)
+            : undefined;
+        const model = activeProvider.strongModel;
 
         const { status, body } = await handleAgentRequest({ question: parsed.question }, {
             apiKey,
