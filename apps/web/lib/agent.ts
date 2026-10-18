@@ -13,6 +13,7 @@ import {
 import type { Mentor } from './types.ts';
 import type { CoherentStudentContext } from './student-context.ts';
 import { PROJECT_CATALOG } from './project-catalog.ts';
+import { validateQuestionProposal, extractClaimedSkills } from './assessment-planner.ts';
 
 /**
  * Bounded Career Agent. The model can READ the student's evidence through tools and PROPOSE
@@ -569,6 +570,26 @@ export function executeTool(
           result: 'error: skill_id must be rest-apis, sql or problem-solving and reason is required',
         };
       }
+
+      // If student context is provided, deterministically validate claims & prerequisites
+      if (studentContext) {
+        const claimed = extractClaimedSkills(studentContext.capabilityProfile).claimedSkills;
+        const validation = validateQuestionProposal(
+          { skill: skill.id, level: 1 },
+          {
+            claimedSkills: claimed,
+            evidence: state.evidence,
+          }
+        );
+
+        if (!validation.allowed) {
+          return {
+            summary: `Rejected retest proposal for ${skill.name}`,
+            result: `rejected: ${validation.reason}`,
+          };
+        }
+      }
+
       return {
         summary: `Proposed retest: ${skill.name}`,
         result: 'queued for student approval',
@@ -810,11 +831,28 @@ export function executeTool(
         ],
       };
 
-      const questions = questionBank[targetSkillId] || questionBank['problem-solving'];
+      // Deterministically validate skill claim and prerequisites
+      const claimed = studentContext ? extractClaimedSkills(studentContext.capabilityProfile).claimedSkills : ['problem-solving'];
+      const targetLevel = difficulty === 'advanced' ? 3 : difficulty === 'intermediate' ? 2 : 1;
+      const validation = validateQuestionProposal(
+        { skill: targetSkillId, level: targetLevel },
+        {
+          claimedSkills: claimed,
+          evidence: state.evidence,
+        }
+      );
+
+      const effectiveSkillId = validation.allowed ? targetSkillId : (validation.suggestedSkill || 'problem-solving');
+      const questions = questionBank[effectiveSkillId] || questionBank['problem-solving'];
       return {
-        summary: `Generated ${questions.length} ${difficulty} practice questions for ${targetSkillId}`,
+        summary: validation.allowed
+          ? `Generated ${questions.length} ${difficulty} practice questions for ${effectiveSkillId}`
+          : `Diverted practice from ${targetSkillId} to ${effectiveSkillId} (${validation.reason})`,
         result: JSON.stringify({
-          skill: targetSkillId,
+          skill: effectiveSkillId,
+          requestedSkill: targetSkillId,
+          diverted: !validation.allowed,
+          divertReason: validation.allowed ? undefined : validation.reason,
           difficulty,
           questions,
         }),

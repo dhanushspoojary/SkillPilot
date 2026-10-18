@@ -32,11 +32,13 @@ export type ActionKind = 'BUILD' | 'PROVE' | 'MENTOR';
 export interface Question {
   id: string;
   skill: string;
-  level: 1 | 2 | 3;
+  level: 0 | 1 | 2 | 3 | 4 | 5 | number;
   q: string;
   options: string[];
   answer: number;
   why: string;
+  prerequisiteConcept?: string;
+  misconceptions?: Record<number, string>;
 }
 
 export interface Mentor {

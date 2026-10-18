@@ -5,6 +5,7 @@ import { json, readJsonBody, requireOrigin, safeText } from '../../../../lib/ser
 import { QUESTIONS, SKILLS, publicQ } from '../../../../lib/questions';
 import { answeredCount, nextUnanswered, totalQuestions } from '../../../../lib/assessment';
 import { getStudentCapabilityProfile } from '../../../../lib/capability-profile';
+import { planAssessmentSession } from '../../../../lib/assessment-planner';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const COOLDOWN_MS = 30 * 60000;
@@ -51,23 +52,31 @@ export async function POST(req: Request) {
             const recent = await c.query(`select 1 from assessments where user_id=$1 and status='completed' and completed_at > now()-interval '30 minutes' limit 1`, [u.id]);
             if (recent.rowCount)
                 throw new Error('cooldown');
-            const assessable = SKILLS.filter(s => s.assessable);
-            let selected: string[];
-            if (focus && assessable.some(s => s.id === focus)) {
-                selected = [focus];
-            } else if (isBeginner) {
-                selected = ['problem-solving', 'git', 'communication'];
-            } else {
-                selected = shuffle(assessable.map(s => s.id));
+            const evidenceRows = await c.query<any>(
+                `select e.id, s.slug as skill, e.source as kind, e.score, e.confidence, e.captured_at as at
+                 from user_skill_evidence e join skills s on s.id=e.skill_id
+                 where e.user_id=$1 order by e.captured_at asc`,
+                [u.id]
+            );
+            const workflowRow = await c.query<any>(
+                `select onboarding_dialogue from student_workflow_states where user_id=$1`,
+                [u.id]
+            );
+            const dialogue = workflowRow.rows[0]?.onboarding_dialogue;
+
+            const plan = planAssessmentSession({
+                userId: u.id,
+                focus: focus || undefined,
+                profile: capability,
+                dialogue: Array.isArray(dialogue) ? dialogue : [],
+                evidence: evidenceRows.rows,
+            });
+
+            const qs = plan.initialQuestions;
+            if (qs.length === 0) {
+                throw new Error('no_questions_eligible');
             }
-            const qs = [] as typeof QUESTIONS;
-            // Select starting question tailored to student background (Level 1 for beginners, Level 2 for experienced)
-            for (const skill of selected) {
-                const pool = shuffle(QUESTIONS.filter(q => q.skill === skill));
-                const targetQ = pool.find(q => q.level === startingLevel) ?? pool.find(q => q.level === 1) ?? pool[0];
-                qs.push(targetQ);
-            }
-            const a = (await c.query<any>(`insert into assessments(user_id,kind,version,status) values($1,'adaptive','v5','started') returning id`, [u.id])).rows[0];
+            const a = (await c.query<any>(`insert into assessments(user_id,kind,version,status) values($1,'adaptive','v6','started') returning id`, [u.id])).rows[0];
             for (const q of qs)
                 await c.query(`insert into assessment_items(assessment_id,question_id,skill_slug,prompt) values($1,$2,$3,$4)`, [a.id, q.id, q.skill, JSON.stringify(publicQ(q))]);
             return { id: a.id, question: publicQ(qs[0]), total: qs.length * 2, index: 0, resumed: false };
