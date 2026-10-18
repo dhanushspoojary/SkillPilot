@@ -301,3 +301,16 @@ export async function deleteStudentMemory(userId: string, memoryId: string): Pro
   );
   return (res.rowCount ?? 0) > 0;
 }
+
+/**
+ * Updates an existing student learning memory.
+ */
+export async function updateStudentMemory(userId: string, memoryId: string, fact: string): Promise<boolean> {
+  const cleanFact = fact.trim().slice(0, 300);
+  if (!cleanFact) return false;
+  const res = await db().query(
+    `update student_memories set fact = $1, updated_at = now() where id = $2 and user_id = $3`,
+    [cleanFact, memoryId, userId],
+  );
+  return (res.rowCount ?? 0) > 0;
+}

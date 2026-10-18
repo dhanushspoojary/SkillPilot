@@ -4,6 +4,7 @@ import {
   listStudentMemories,
   addStudentMemory,
   deleteStudentMemory,
+  updateStudentMemory,
   type MemoryCategory,
 } from '../../../../lib/student-context';
 
@@ -82,5 +83,37 @@ export async function DELETE(req: Request) {
   } catch (err) {
     console.error('memories DELETE error', err);
     return json({ error: 'Could not delete memory' }, 500);
+  }
+}
+
+export async function PATCH(req: Request) {
+  if (!requireOrigin(req)) {
+    return json({ error: 'Origin not allowed' }, 403);
+  }
+
+  const u = await currentUser();
+  if (!u || u.role !== 'student') {
+    return json({ error: 'Student account required' }, 401);
+  }
+
+  try {
+    const body = await readJsonBody<any>(req, 10000);
+    const memoryId = typeof body?.id === 'string' ? body.id : typeof body?.memoryId === 'string' ? body.memoryId : '';
+    const fact = typeof body?.fact === 'string' ? body.fact.trim() : '';
+
+    if (!memoryId || !fact) {
+      return json({ error: 'memoryId and fact are required' }, 400);
+    }
+
+    const updated = await updateStudentMemory(u.id, memoryId, fact);
+    if (!updated) {
+      return json({ error: 'Memory not found or not owned by user' }, 404);
+    }
+
+    const memories = await listStudentMemories(u.id);
+    return json({ ok: true, updated, memories });
+  } catch (err) {
+    console.error('memories PATCH error', err);
+    return json({ error: 'Could not update memory' }, 500);
   }
 }

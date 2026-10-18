@@ -1929,6 +1929,43 @@ export function deterministicCareerReply(
     };
   }
 
+  // 12.5 Conceptual Programming & Technical Knowledge (General-purpose Q&A)
+  if (/\b(closure|closures|lexical scope|hoisting|event loop|promise|async|await)\b/i.test(q)) {
+    addStep('concept_explanation', { topic: 'JavaScript Concepts' }, 'Explained JavaScript execution & scope semantics');
+    answer = `A **closure** in JavaScript is the combination of a function bundled together with references to its lexical environment. In simple terms, a closure allows an inner function to remember and access variables from an outer function even after the outer function has executed and returned.\n\nExample:\n\`\`\`javascript\nfunction createCounter() {\n  let count = 0; // encapsulated state\n  return function() {\n    count++;\n    return count;\n  };\n}\nconst counter = createCounter();\nconsole.log(counter()); // 1\nconsole.log(counter()); // 2\n\`\`\`\nThis pattern is foundational for data privacy, event handlers, and higher-order functions.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
+  if (/\b(tcp|udp|osi model|three-way handshake|socket)\b/i.test(q)) {
+    addStep('concept_explanation', { topic: 'Networking & Protocols' }, 'Explained transport layer protocol trade-offs');
+    answer = `**TCP vs UDP Overview**:\n\n- **TCP (Transmission Control Protocol)** is connection-oriented, reliable, and guarantees in-order packet delivery using three-way handshakes and sequence numbers (used for web pages, APIs, and file transfers).\n- **UDP (User Datagram Protocol)** is connectionless, lightweight, and prioritizes low latency over reliability (used for real-time video streaming, VoIP, and gaming).\n\nIn backend engineering, choosing between them depends on whether guaranteed data integrity or minimal packet latency is your primary operational constraint.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
+  if (/\b(big[\s-]o|quicksort|mergesort|binary search|time complexity|space complexity)\b/i.test(q)) {
+    addStep('concept_explanation', { topic: 'Algorithms & Complexity' }, 'Analyzed algorithmic time and space complexity');
+    answer = `**Algorithmic Complexity & Big-O Notation**:\n\nBig-O notation characterizes the upper bound of runtime or memory as input size ($n$) scales toward infinity:\n\n- **O(1) Constant**: Direct hash map lookup or array indexing.\n- **O(log n) Logarithmic**: Binary search dividing the search space in half.\n- **O(n) Linear**: Single pass through an unsorted array.\n- **O(n log n) Linearithmic**: Optimal comparison sorts like Merge Sort and average-case Quick Sort.\n- **O(n^2) Quadratic**: Nested loops (Bubble/Selection Sort).\n\nWhen optimizing algorithms, reducing from O(n^2) to O(n log n) or O(n) provides exponential efficiency gains at scale.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
   // 13. Specific Skill Inquiries
   const matchedSkill = SKILLS.find((s) => q.includes(s.id) || q.includes(s.name.toLowerCase()));
   if (matchedSkill) {

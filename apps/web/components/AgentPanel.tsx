@@ -276,6 +276,8 @@ export function AgentPanel({
   const [showMemoriesModal, setShowMemoriesModal] = useState(false);
   const [loadingMemories, setLoadingMemories] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastQuestionRef = useRef<string>('');
 
   // Load threads list on mount
   const loadThreads = async (selectLatest = false) => {
@@ -489,9 +491,13 @@ export function AgentPanel({
   async function ask(question: string) {
     if (!question.trim() || busy) return;
     const userText = question.trim();
+    lastQuestionRef.current = userText;
     setQ('');
     setBusy(true);
     setError('');
+
+    const ctl = new AbortController();
+    abortControllerRef.current = ctl;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -505,6 +511,7 @@ export function AgentPanel({
     try {
       const res = await fetch('/api/agent', {
         method: 'POST',
+        signal: ctl.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: userText,
@@ -544,6 +551,10 @@ export function AgentPanel({
         evidenceVersion: await evidenceVersion(state.evidence),
       });
     } catch (e) {
+      if (e instanceof Error && (e.name === 'AbortError' || e.message === 'aborted')) {
+        setError('Generation stopped by student.');
+        return;
+      }
       const message = e instanceof Error ? e.message : 'The agent could not be reached.';
       setError(message);
       onAudit({
@@ -557,8 +568,23 @@ export function AgentPanel({
       });
     } finally {
       setBusy(false);
+      abortControllerRef.current = null;
     }
   }
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setBusy(false);
+      setError('Generation stopped.');
+    }
+  };
+
+  const handleRetry = () => {
+    if (lastQuestionRef.current && !busy) {
+      void ask(lastQuestionRef.current);
+    }
+  };
 
   return (
     <div className="wide">
@@ -789,6 +815,8 @@ export function AgentPanel({
           {/* Chat Scroll Area */}
           <div
             className="chat-scroll-area"
+            role="log"
+            aria-live="polite"
             style={{
               flex: 1,
               overflowY: 'auto',
@@ -1000,16 +1028,69 @@ export function AgentPanel({
                 onChange={(e) => setQ(e.target.value)}
                 disabled={busy}
               />
-              <button className="primary" disabled={busy || !q.trim()}>
-                <Send size={15} />
-                <span>Ask</span>
-              </button>
+              {busy ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={handleCancel}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    borderColor: 'rgba(239, 68, 68, 0.4)',
+                    color: '#F87171',
+                  }}
+                  title="Stop generating"
+                >
+                  <X size={15} />
+                  <span>Stop</span>
+                </button>
+              ) : (
+                <button className="primary" disabled={busy || !q.trim()}>
+                  <Send size={15} />
+                  <span>Ask</span>
+                </button>
+              )}
             </form>
 
             {error && (
-              <p className="auth-error" style={{ marginTop: 10 }} role="alert">
-                {error}
-              </p>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginTop: 10,
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                }}
+              >
+                <p className="auth-error" style={{ margin: 0 }} role="alert">
+                  {error}
+                </p>
+                {lastQuestionRef.current && (
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--cyan)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <RotateCcw size={13} />
+                    <span>Retry</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

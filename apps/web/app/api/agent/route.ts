@@ -10,6 +10,7 @@ import { appendConversationMessage } from '../../../lib/conversation';
 import { getCoherentStudentContext, addStudentMemory } from '../../../lib/student-context';
 import { handleNaturalLanguagePreferenceRequest } from '../../../lib/roadmap-preferences';
 import { getActiveLLMProvider, isAgentEnabled, redactSecrets } from '../../../lib/llm-provider';
+import { withIdempotency } from '../../../lib/idempotency';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90; // up to 4 sequential model calls with a 20s timeout each
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
         }));
 
         // Handle natural language preference adjustments or prerequisite rationale
-        if (/explain\s+simpler|simpler\s+explanation|20\s+minute|30\s+minute|short\s+session|focus\s+on\s+c|c\s+first|focus\s+on\s+rest|rest\s+api|apis\s+first|harder\s+challenge|fewer\s+question|why\s+this/i.test(parsed.question)) {
+        if (/explain\s+simpler|simpler\s+explanation|20\s+minute|30\s+minute|short\s+session|focus\s+on\s+c|c\s+first|focus\s+on\s+rest|rest\s+api|apis\s+first|harder\s+challenge|fewer\s+question|why\s+this|undo|revert/i.test(parsed.question)) {
             const prefResult = await handleNaturalLanguagePreferenceRequest(u.id, parsed.question, state).catch(() => null);
             if (prefResult) {
                 let answerText = prefResult.summary;

@@ -12,7 +12,7 @@ export interface PreferenceChangeRecord {
   id: string;
   userId: string;
   requestText: string;
-  changeType: 'pace' | 'difficulty' | 'focus_skill' | 'daily_minutes' | 'weekly_hours' | 'career_goal';
+  changeType: 'pace' | 'difficulty' | 'focus_skill' | 'daily_minutes' | 'weekly_hours' | 'career_goal' | 'reversal' | 'roadmap_refresh';
   previousValue: Record<string, unknown>;
   newValue: Record<string, unknown>;
   reasoning: string;
@@ -32,6 +32,8 @@ export interface PreferenceChangeResult {
   newTopAction?: PlanAction;
 }
 
+const inMemoryPreferenceHistory: PreferenceChangeRecord[] = [];
+
 /**
  * Audit-log a roadmap preference change with strict change history.
  */
@@ -43,6 +45,18 @@ export async function recordRoadmapPreferenceChange(
   newValue: Record<string, unknown>,
   reasoning: string,
 ): Promise<void> {
+  const record: PreferenceChangeRecord = {
+    id: `pref-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    userId,
+    requestText: requestText.slice(0, 500),
+    changeType,
+    previousValue,
+    newValue,
+    reasoning,
+    createdAt: new Date().toISOString(),
+  };
+  inMemoryPreferenceHistory.unshift(record);
+
   if (!process.env.DATABASE_URL) return;
 
   await db().query(
@@ -59,7 +73,9 @@ export async function recordRoadmapPreferenceChange(
  * Retrieve audited change history for student.
  */
 export async function getRoadmapPreferenceHistory(userId: string, limit = 10): Promise<PreferenceChangeRecord[]> {
-  if (!process.env.DATABASE_URL) return [];
+  if (!process.env.DATABASE_URL) {
+    return inMemoryPreferenceHistory.filter((r) => r.userId === userId).slice(0, limit);
+  }
 
   const rows = await many<{
     id: string;
@@ -254,7 +270,30 @@ export async function handleNaturalLanguagePreferenceRequest(
     };
   }
 
-  // 8. "change my roadmap" / "update my roadmap" (General refresh)
+  // 8. "undo" / "revert last change" / "undo my preference change"
+  if (/\b(undo|revert|revert\s+change|undo\s+last|revert\s+last)\b/i.test(text)) {
+    const undoResult = await revertLastRoadmapPreferenceChange(userId, state);
+    if (!undoResult.success) {
+      return {
+        applied: false,
+        changeType: 'reversal',
+        summary: undoResult.message,
+        details: { previous: {}, updated: {} },
+      };
+    }
+    return {
+      applied: true,
+      changeType: 'reversal',
+      summary: undoResult.message,
+      details: {
+        previous: undoResult.revertedChange?.newValue || {},
+        updated: undoResult.revertedChange?.previousValue || {},
+      },
+      newTopAction: undoResult.newTopAction,
+    };
+  }
+
+  // 9. "change my roadmap" / "update my roadmap" (General refresh)
   const prev = { updatedAt: currentProfile.updatedAt || 'initial' };
   const updated = { updatedAt: new Date().toISOString() };
   await saveStudentCapabilityProfile(userId, {});
@@ -273,6 +312,111 @@ export async function handleNaturalLanguagePreferenceRequest(
     changeType: 'roadmap_refresh',
     summary: 'Refreshed personalized roadmap preserving all completed progress',
     details: { previous: prev, updated },
+    newTopAction: newActions[0],
+  };
+}
+
+/**
+ * Reverts the most recent roadmap preference modification for the student.
+ * Restores previous values to student_capability_profiles and audits the reversal.
+ */
+export async function revertLastRoadmapPreferenceChange(
+  userId: string,
+  state: AppState,
+): Promise<{
+  success: boolean;
+  message: string;
+  revertedChange?: PreferenceChangeRecord;
+  restoredProfile?: Partial<StudentCapabilityProfile>;
+  newTopAction?: PlanAction;
+}> {
+  let lastChange: {
+    id: string;
+    user_id: string;
+    request_text: string;
+    change_type: PreferenceChangeRecord['changeType'];
+    previous_value: unknown;
+    new_value: unknown;
+    reasoning: string;
+    created_at: string;
+  } | null = null;
+
+  if (!process.env.DATABASE_URL) {
+    const mem = inMemoryPreferenceHistory.find((r) => r.userId === userId && r.changeType !== 'reversal');
+    if (mem) {
+      lastChange = {
+        id: mem.id,
+        user_id: mem.userId,
+        request_text: mem.requestText,
+        change_type: mem.changeType,
+        previous_value: mem.previousValue,
+        new_value: mem.newValue,
+        reasoning: mem.reasoning,
+        created_at: mem.createdAt,
+      };
+    }
+  } else {
+    lastChange = await one<{
+      id: string;
+      user_id: string;
+      request_text: string;
+      change_type: PreferenceChangeRecord['changeType'];
+      previous_value: unknown;
+      new_value: unknown;
+      reasoning: string;
+      created_at: string;
+    }>(
+      `select id, user_id, request_text, change_type, previous_value, new_value, reasoning, created_at
+       from roadmap_preference_changes
+       where user_id = $1 and change_type != 'reversal'
+       order by created_at desc
+       limit 1`,
+      [userId],
+    ).catch(() => null);
+  }
+
+  if (!lastChange || !lastChange.previous_value) {
+    return { success: false, message: 'No prior preference changes to revert.' };
+  }
+
+  const prev = (typeof lastChange.previous_value === 'object' && lastChange.previous_value !== null
+    ? lastChange.previous_value
+    : {}) as Record<string, unknown>;
+
+  const current = (typeof lastChange.new_value === 'object' && lastChange.new_value !== null
+    ? lastChange.new_value
+    : {}) as Record<string, unknown>;
+
+  // Restore previous values
+  await saveStudentCapabilityProfile(userId, prev);
+
+  // Record reversal in change history
+  await recordRoadmapPreferenceChange(
+    userId,
+    `Undo: Reverted "${lastChange.request_text}"`,
+    'reversal',
+    current,
+    prev,
+    `Student initiated undo. Restored prior settings.`,
+  );
+
+  const updatedProfile = await getStudentCapabilityProfile(userId);
+  const newActions = planActions(state, undefined, updatedProfile);
+
+  return {
+    success: true,
+    message: `Successfully reverted change "${lastChange.request_text}". Prior settings restored.`,
+    revertedChange: {
+      id: lastChange.id,
+      userId: lastChange.user_id,
+      requestText: lastChange.request_text,
+      changeType: lastChange.change_type,
+      previousValue: prev,
+      newValue: current,
+      reasoning: lastChange.reasoning,
+      createdAt: lastChange.created_at,
+    },
+    restoredProfile: prev,
     newTopAction: newActions[0],
   };
 }
