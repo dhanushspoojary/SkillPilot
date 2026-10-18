@@ -164,12 +164,30 @@ try {
   ]);
   await page.waitForTimeout(600);
 
-  console.log('   Answering Turn 5 (availability)...');
+  console.log('   Answering Turn 5 (learning format)...');
   const chip5 = page.locator('.onboarding-modal .chip-card').first();
   await chip5.waitFor({ state: 'visible', timeout: 8000 });
   await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/workflow/onboarding') && r.status() === 200),
     chip5.click(),
+  ]);
+  await page.waitForTimeout(600);
+
+  console.log('   Answering Turn 6 (time commitment)...');
+  const chip6 = page.locator('.onboarding-modal .chip-card').first();
+  await chip6.waitFor({ state: 'visible', timeout: 8000 });
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/api/workflow/onboarding') && r.status() === 200),
+    chip6.click(),
+  ]);
+  await page.waitForTimeout(600);
+
+  console.log('   Answering Turn 7 (learning pace)...');
+  const chip7 = page.locator('.onboarding-modal .chip-card').first();
+  await chip7.waitFor({ state: 'visible', timeout: 8000 });
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/api/workflow/onboarding') && r.status() === 200),
+    chip7.click(),
   ]);
   await page.waitForTimeout(800);
 

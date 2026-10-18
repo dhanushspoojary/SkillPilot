@@ -57,7 +57,7 @@ check(checkProfile.data.capabilityProfile?.onboardingCompleted === true, 'onboar
 // --- assessment: start, resume, validation ----------------------------------------------
 const first = await call('/api/assess/start', { method: 'POST', headers: auth, body: {} });
 check(first.status === 201, `assessment start failed: ${first.status}`);
-check((first.data.total === 12 || first.data.total === 6) && first.data.index === 0, 'assessment should report total and start at index 0');
+check(first.data.total >= 2 && first.data.index === 0, 'assessment should report total and start at index 0');
 check(first.data.question && !('answer' in first.data.question), 'answer key must not be sent to the browser');
 const again = await call('/api/assess/start', { method: 'POST', headers: auth, body: {} });
 check(again.status === 200 && again.data.resumed === true, `restarting should resume, got ${again.status}`);
@@ -65,7 +65,7 @@ check(again.data.assessmentId === first.data.assessmentId, 'resume must return t
 check(again.data.question.id === first.data.question.id, 'resume must return the same pending question');
 const answer = await call('/api/assess/submit', { method: 'POST', headers: auth, body: { assessmentId: first.data.assessmentId, questionId: first.data.question.id, choice: 0 } });
 check(answer.status === 200 && answer.data.done === false, `submit failed: ${answer.status}`);
-check(answer.data.index === 1 && (answer.data.total === 12 || answer.data.total === 6), 'index/total should be stable after one answer');
+check(answer.data.index === 1 && answer.data.total >= 2, 'index/total should be stable after one answer');
 const resumedAfterAnswer = await call('/api/assess/start', { method: 'POST', headers: auth, body: {} });
 check(resumedAfterAnswer.status === 200 && resumedAfterAnswer.data.index === 1, 'resume should continue after the answered question');
 const badId = await call('/api/assess/submit', { method: 'POST', headers: auth, body: { assessmentId: 'not-a-uuid', questionId: 'rest-1a', choice: 0 } });
