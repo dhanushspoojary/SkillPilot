@@ -381,6 +381,95 @@ export const QUESTIONS: Question[] = [
     answer: 1,
     why: 'Force-pushing rewrites history on the remote repository, which can cause other developers local branches to diverge and lose committed code.',
   },
+  // Problem Solving Level 0 (Concept Recognition)
+  {
+    id: 'ps-0a',
+    skill: 'problem-solving',
+    level: 0,
+    q: 'What is a variable in computer programming?',
+    options: ['A named storage location in memory holding a value', 'A computer display monitor', 'A physical network wire', 'An audio speaker'],
+    answer: 0,
+    why: 'Variables act as labeled containers in memory that hold data values that can be read or modified by a program.',
+    prerequisiteConcept: 'programming-fundamentals',
+    misconceptions: { 1: 'Variables are software data constructs, not physical hardware.' },
+  },
+  {
+    id: 'ps-0b',
+    skill: 'problem-solving',
+    level: 0,
+    q: 'What is an algorithm?',
+    options: ['A step-by-step procedure or set of rules to solve a specific problem', 'A physical keyboard', 'A computer power supply', 'A software bug'],
+    answer: 0,
+    why: 'An algorithm is a finite sequence of well-defined computer-implementable instructions to solve a class of specific problems or perform a computation.',
+    prerequisiteConcept: 'problem-solving-fundamentals',
+  },
+  // Problem Solving Level 4 (Implementation & Debugging)
+  {
+    id: 'ps-4a',
+    skill: 'problem-solving',
+    level: 4,
+    q: 'In multithreaded code, two concurrent threads increment a shared counter without synchronization. What defect occurs?',
+    options: ['Compilation error', 'A data race causing lost updates due to non-atomic read-modify-write', 'Memory leak', 'Stack overflow'],
+    answer: 1,
+    why: 'Incrementing a shared counter requires reading, incrementing, and writing back. Without atomic instructions or locks, concurrent interleaving loses updates.',
+    prerequisiteConcept: 'concurrency-synchronization',
+    misconceptions: { 0: 'Data races compile cleanly without errors, making them insidious runtime defects.' },
+  },
+  // Problem Solving Level 5 (Advanced Architecture & Concurrency)
+  {
+    id: 'ps-5a',
+    skill: 'problem-solving',
+    level: 5,
+    q: 'In lock-free concurrent algorithm design, what technique prevents the ABA problem in Compare-And-Swap (CAS)?',
+    options: ['Using a version tag / pointer counter or load-linked/store-conditional (LL/SC)', 'Using volatile keyword only', 'Disabling CPU interrupts', 'Sleeping for 10ms between retries'],
+    answer: 0,
+    why: 'Tagging pointers with a monotonically increasing version counter ensures that even if a memory address is reused, the CAS will detect the version mismatch.',
+    prerequisiteConcept: 'lock-free-data-structures',
+  },
+  // JavaScript Level 0 (Concept Recognition)
+  {
+    id: 'js-0a',
+    skill: 'javascript',
+    level: 0,
+    q: 'In JavaScript, what are the two possible values of the boolean data type?',
+    options: ['true and false', '0 and 1 only', '"yes" and "no"', 'null and undefined'],
+    answer: 0,
+    why: 'A boolean in JavaScript represents one of two logical truth values: true or false.',
+    prerequisiteConcept: 'primitive-types',
+  },
+  // JavaScript Level 4/5
+  {
+    id: 'js-4a',
+    skill: 'javascript',
+    level: 4,
+    q: 'In Node.js, when does process.nextTick execute relative to the event loop phases?',
+    options: ['Immediately after the current operation finishes, before the event loop advances to the next phase', 'Only in the check / setImmediate phase', 'After all setTimeout timers complete', 'In the OS worker threadpool'],
+    answer: 0,
+    why: 'process.nextTick is not technically part of the event loop; its queue is processed immediately after the current JavaScript operation runs to completion.',
+    prerequisiteConcept: 'node-event-loop',
+  },
+  // SQL Level 0 (Concept Recognition)
+  {
+    id: 'sql-0a',
+    skill: 'sql',
+    level: 0,
+    q: 'In a relational database table, what is the role of a primary key?',
+    options: ['Uniquely identifying each individual row in the table', 'Encrypting passwords on the server', 'Sorting records in reverse order', 'Deleting old records automatically'],
+    answer: 0,
+    why: 'A primary key enforces uniqueness and ensures each record in a database table can be uniquely identified and referenced.',
+    prerequisiteConcept: 'relational-primitives',
+  },
+  // SQL Level 4
+  {
+    id: 'sql-4a',
+    skill: 'sql',
+    level: 4,
+    q: 'In PostgreSQL, what is the primary consequence of MVCC dead tuple accumulation from frequent UPDATEs, and how is it mitigated?',
+    options: ['Table bloat and degraded sequential scans, mitigated by VACUUM', 'Loss of foreign key constraints', 'Corrupted transaction logs', 'Inability to connect over TCP'],
+    answer: 0,
+    why: 'In PostgreSQL MVCC, UPDATE creates new row versions leaving old versions as dead tuples until VACUUM marks space reusable.',
+    prerequisiteConcept: 'mvcc-vacuum',
+  },
 ];
 
 export function publicQ(q: Question) {
