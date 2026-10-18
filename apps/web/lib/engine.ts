@@ -26,22 +26,22 @@ export function skillStates(rawEvidence: Evidence[]): SkillState[] {
         const kinds = [...new Set(items.map((e) => e.kind))];
         const verified = items.length >= 3 && kinds.length >= 2;
         let status: import('./types.ts').SkillStatus = 'not_assessed';
-        let statusLabel = 'Not yet assessed';
+        let statusLabel = 'Not Assessed';
         if (items.length === 0) {
             status = 'not_assessed';
-            statusLabel = 'Not yet assessed';
-        } else if (verified) {
-            status = 'mentor_verified';
-            statusLabel = 'Verified practical ability';
-        } else if (kinds.includes('project')) {
-            status = 'practical_submitted';
-            statusLabel = 'Practical evidence submitted';
-        } else if (kinds.includes('assessment')) {
-            status = 'demonstrated';
-            statusLabel = `Demonstrated assessment (${score}%)`;
+            statusLabel = 'Not Assessed';
+        } else if (verified || (kinds.includes('project') && score >= 80)) {
+            status = 'independent_application';
+            statusLabel = verified ? 'Independent Application (Verified)' : `Independent Application (${score}%)`;
+        } else if (score >= 70) {
+            status = 'foundational';
+            statusLabel = `Foundational (${score}%)`;
+        } else if (score >= 45) {
+            status = 'emerging';
+            statusLabel = `Emerging (${score}%)`;
         } else {
-            status = 'demonstrated';
-            statusLabel = 'In progress';
+            status = 'insufficient_evidence';
+            statusLabel = `Insufficient Evidence (${score}%)`;
         }
         return { def, score, count: items.length, kinds, verified, gap: Math.max(0, def.target - score), status, statusLabel };
     });
@@ -146,12 +146,20 @@ export function resolveSkillOrder(
 }
 
 /** Deterministic next actions, highest priority first. Never invents scores. */
-export function planActions(state: AppState, roleName?: string): PlanAction[] {
+export function planActions(
+    state: AppState,
+    roleName?: string,
+    capabilityProfile?: { programmingExperience?: string; educationLevel?: string; focusAreas?: string[]; careerInterests?: string[] }
+): PlanAction[] {
     const goal = getCareerGoal(roleName);
     const skills = skillStates(state.evidence).filter(s => goal.requiredSkills.includes(s.def.id));
     const total = skills.reduce((s, k) => s + k.def.weight, 0);
     const out: PlanAction[] = [];
     const gapsBySkill = new Map(skills.map(s => [s.def.id, s.gap]));
+
+    const isBeginner = capabilityProfile?.programmingExperience === 'beginner' ||
+        capabilityProfile?.educationLevel === 'first_year' ||
+        (Array.isArray(capabilityProfile?.focusAreas) && capabilityProfile.focusAreas.some((f: string) => /fundamentals|problem solving|c programming/i.test(f)));
 
     for (const s of skills) {
         const unverifiedGap = s.verified ? 0 : 8;
@@ -164,6 +172,11 @@ export function planActions(state: AppState, roleName?: string): PlanAction[] {
             if (deps.includes(s.def.id) && (gapsBySkill.get(dependent) ?? 0) > 0) {
                 prereqBoost += 25;
             }
+        }
+
+        // For beginners or first-year students, prioritize foundational problem-solving & logic
+        if (isBeginner && s.def.id === 'problem-solving') {
+            prereqBoost += 200;
         }
 
         const priority = s.def.weight * (s.gap + unverifiedGap) + prereqBoost;
@@ -183,6 +196,21 @@ export function planActions(state: AppState, roleName?: string): PlanAction[] {
             out.push({ id: `PROVE:${s.def.id}`, kind: 'PROVE', skill: s.def.id, title: `Prove ${s.def.name}`, detail: 'Adaptive check · 4 min', reason: facts, upTo, priority, route: 'assess' });
         }
     }
+
+    // If student has no evidence yet, recommend baseline diagnostic check first
+    if (state.evidence.length === 0) {
+        out.push({
+            id: 'PROVE:problem-solving',
+            kind: 'PROVE',
+            skill: 'problem-solving',
+            title: 'Start Baseline Diagnostic: Problem Solving',
+            detail: 'Adaptive check · 4 min',
+            reason: 'Calibrate your initial logic and code-tracing baseline to personalize your learning roadmap.',
+            upTo: 25,
+            priority: 2500,
+            route: 'assess',
+        });
+    }
     // Mentor feedback is only shown when a real mentor request is awaiting review.
     const hasOpenMentorWork = state.requests.some((r) => ['accepted'].includes(r.status));
     if (!state.mentorNoteResolved && hasOpenMentorWork) {
@@ -191,8 +219,8 @@ export function planActions(state: AppState, roleName?: string): PlanAction[] {
     const done = new Set(state.activity.map((a) => a.id));
     return out.filter((a) => a.kind === 'PROVE' || !done.has(a.id)).sort((a, b) => b.priority - a.priority);
 }
-export function explainPlan(state: AppState): string {
-    const top = planActions(state)[0];
+export function explainPlan(state: AppState, roleName?: string, capabilityProfile?: any): string {
+    const top = planActions(state, roleName, capabilityProfile)[0];
     return top ? `${top.title}. ${top.reason}` : 'Every tracked skill meets its target and is verified. Time to raise the target role.';
 }
 export function toggleActivity(state: AppState, action: PlanAction | {

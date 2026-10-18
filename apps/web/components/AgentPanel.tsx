@@ -24,6 +24,7 @@ import {
 import type { AppState, AgentAudit } from '../lib/engine';
 import type { AgentReply, Proposal } from '../lib/agent';
 import { PageIntro } from './ui';
+import { formatSafeTime } from '../lib/date-format';
 
 interface ChatMessage {
   id: string;
@@ -315,7 +316,7 @@ export function AgentPanel({
             id: m.id,
             sender: m.role === 'user' ? 'student' : 'agent',
             text: m.content,
-            time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            time: formatSafeTime(m.createdAt || m.created_at, new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
             replyData: m.metadata?.replyData || undefined,
           }));
           setMessages(loaded);

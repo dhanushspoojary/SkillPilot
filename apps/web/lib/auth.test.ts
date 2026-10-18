@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validEmail, validPassword, passwordHash, passwordCheck, passwordCheckDummy } from './auth.ts';
+import { validEmail, validPassword, passwordHash, passwordCheck, passwordCheckDummy, SESSION_COOKIE } from './auth.ts';
 
 test('validEmail validates standard email format and length', () => {
   assert.equal(validEmail('admin@example.com'), true);
@@ -29,4 +29,8 @@ test('passwordCheck verifies bcrypt hashes and passwordCheckDummy safely rejects
   assert.equal(await passwordCheck('wrong-password-123', hash), false);
   assert.equal(await passwordCheckDummy(secret), false);
   assert.equal(await passwordCheckDummy('wrong-password-123'), false);
+});
+
+test('SESSION_COOKIE is standardized to skillpilot_session', () => {
+  assert.equal(SESSION_COOKIE, 'skillpilot_session');
 });

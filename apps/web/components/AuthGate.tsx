@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
-import { ShieldCheck, Users, GraduationCap, ArrowRight, LockKeyhole } from 'lucide-react';
+import { ShieldCheck, Users, GraduationCap, ArrowRight, LockKeyhole, Sparkles } from 'lucide-react';
 import { App } from './App';
 import { MentorWorkspace } from './MentorWorkspace';
 import { AdminWorkspace } from './AdminWorkspace';
+import { CustomCursor, AnimatedMarquee } from './motion';
 type Role = 'student' | 'mentor' | 'admin';
 interface User {
     id: string;
@@ -119,9 +120,22 @@ export function AuthGate() {
         setNotice(r.data.message || 'If that address has an unconfirmed account, a new link is on its way.');
     }
     async function logout() {
-        await fetch('/api/auth/logout', { method: 'POST' });
+        try {
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+        } catch (err) {
+            console.error('Logout error:', err);
+        }
         navigator.serviceWorker?.controller?.postMessage({ type: 'SKILLPILOT_LOGOUT' });
+        try {
+            sessionStorage.clear();
+        } catch {}
         setUser(null);
+        setMode('login');
+        setError('');
+        setNotice('');
     }
     if (loading)
         return <div className="auth-loading"><div className="brand-mark">S</div><p>Loading your secure workspace…</p></div>;
@@ -130,17 +144,18 @@ export function AuthGate() {
             return <MentorWorkspace user={user} onLogout={logout}/>;
         if (user.role === 'admin')
             return <AdminWorkspace user={user} onLogout={logout}/>;
-        return <App user={user}/>;
+        return <App user={user} onLogout={logout}/>;
     }
     const [title, subtitle] = TITLES[mode];
     const passwordLabel = mode === 'reset' ? 'New password' : 'Password';
     return <main className="auth-shell">
+    <CustomCursor />
     <div className="auth-brand"><span className="brand-mark">S</span><b>SkillPilot</b><span>Evidence-led career operating system</span></div>
     <div className="auth-layout">
       <section className="auth-hero">
-        <span className="eyebrow">PRIVATE · EVIDENCE · HUMAN REVIEW</span>
-        <h1>Your career,<br /><em>proved over time.</em></h1>
-        <p>Adaptive assessment, verified mentor feedback and an agent that turns real evidence into your next best move.</p>
+        <span className="eyebrow"><span className="live-dot" /> PRIVATE · EVIDENCE-LED · HUMAN REVIEW</span>
+        <h1 className="editorial-hero-title">Your career,<br /><em>proved over time.</em></h1>
+        <p className="editorial-hero-sub">Adaptive assessment, verified mentor feedback and an agent that turns real evidence into your next best move.</p>
         <div className="auth-trust">
           <span><ShieldCheck size={16}/>Server-owned evidence</span>
           <span><LockKeyhole size={16}/>Secure sessions</span>
@@ -174,6 +189,15 @@ export function AuthGate() {
         </form>
         <p className="auth-foot">Mentor accounts stay hidden until an administrator approves them. No seeded mentor profiles exist.</p>
       </section>
+    </div>
+    <div className="auth-marquee-wrap">
+      <AnimatedMarquee items={[
+        'SKILLPILOT // CAREER OPERATING SYSTEM',
+        'SERVER-OWNED EVIDENCE',
+        'ZERO SYNTHETIC SCORES',
+        'SOCRATIC AI COMPANION',
+        'REAL RUNTIME EVALUATION',
+      ]} speedSeconds={35} />
     </div>
   </main>;
 }

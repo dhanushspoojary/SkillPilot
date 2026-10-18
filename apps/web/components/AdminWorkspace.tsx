@@ -74,7 +74,7 @@ export function AdminWorkspace({ user, onLogout }: {
       <div className="brand"><span className="brand-mark">S</span><span>SkillPilot Admin</span></div>
       <div className="workspace-user">
         <span><b>{user.name}</b><small>Platform administrator</small></span>
-        <button className="ghost" onClick={onLogout}><LogOut size={14}/>Sign out</button>
+        <button className="ghost logout-btn" onClick={onLogout} aria-label="Log out"><LogOut size={14}/>Log out</button>
       </div>
     </header>
     <div className="workspace-page">

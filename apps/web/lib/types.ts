@@ -49,6 +49,10 @@ export interface Mentor {
 
 export type SkillStatus =
   | 'not_assessed'
+  | 'insufficient_evidence'
+  | 'emerging'
+  | 'foundational'
+  | 'independent_application'
   | 'self_reported'
   | 'demonstrated'
   | 'practical_submitted'

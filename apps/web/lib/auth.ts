@@ -41,7 +41,7 @@ export async function clearSession() {
     const token = jar.get(SESSION_COOKIE)?.value;
     if (token)
         await db().query('delete from sessions where token_hash=$1', [hashToken(token)]).catch(() => undefined);
-    jar.set(SESSION_COOKIE, '', { httpOnly: true, secure: process.env.NODE_ENV === 'production' && process.env.SKILLPILOT_SECURE_COOKIES !== 'false', sameSite: 'lax', path: '/', maxAge: 0 });
+    jar.set(SESSION_COOKIE, '', { httpOnly: true, secure: process.env.NODE_ENV === 'production' && process.env.SKILLPILOT_SECURE_COOKIES !== 'false', sameSite: 'lax', path: '/', maxAge: 0, expires: new Date(0) });
 }
 export async function currentUser(): Promise<User | null> {
     const token = (await getCookies()).get(SESSION_COOKIE)?.value;

@@ -2,6 +2,13 @@ import { db, one, many } from './db.ts';
 import { SKILLS } from './questions.ts';
 import { skillStates, readiness } from './engine.ts';
 import type { Evidence } from './types.ts';
+import {
+  generateTurnId,
+  sanitizeDialogueTurns,
+  ONBOARDING_TOPIC_CONFIGS,
+  type OnboardingTurn,
+  type OnboardingTopic,
+} from './onboarding-dialogue.ts';
 
 export type WorkflowStage =
   | 'REGISTERED'
@@ -17,14 +24,7 @@ export type WorkflowStage =
   | 'REASSESSMENT_DUE'
   | 'REASSESSMENT_COMPLETE';
 
-export interface OnboardingTurn {
-  id: string;
-  topic: 'education' | 'experience' | 'struggles' | 'goals' | 'availability' | 'summary';
-  question: string;
-  options?: string[];
-  answer?: string;
-  answeredAt?: string;
-}
+export type { OnboardingTurn, OnboardingTopic };
 
 export interface StudentWorkflowState {
   userId: string;
@@ -53,37 +53,7 @@ export interface StudentWorkflowState {
   updatedAt: string;
 }
 
-const ONBOARDING_TOPICS: Array<{
-  topic: OnboardingTurn['topic'];
-  defaultQuestion: string;
-  options: string[];
-}> = [
-  {
-    topic: 'education',
-    defaultQuestion: 'Welcome to SkillPilot! To personalize your journey, what is your current academic stage or background?',
-    options: ['1st Year Student', '2nd Year Student', '3rd / 4th Year Student', 'Self-Taught / Independent Learner'],
-  },
-  {
-    topic: 'experience',
-    defaultQuestion: 'How would you describe your coding experience so far?',
-    options: ['Complete Beginner (new to programming)', 'Basic Coursework (studied intro C, C++, or Python)', 'Small Programs (understand loops, functions, variables)', 'Built Projects (built scripts, apps, or web pages)'],
-  },
-  {
-    topic: 'struggles',
-    defaultQuestion: 'Which concepts or problem-solving areas feel most unfamiliar or difficult right now?',
-    options: ['Pointers and memory layout in C', 'Writing logic/algorithms without hints', 'Arrays and basic data structures', 'Web development and REST APIs', 'Everything is new — starting from zero'],
-  },
-  {
-    topic: 'goals',
-    defaultQuestion: 'What career direction or pathway are you aiming toward?',
-    options: ['Software Engineer', 'Backend Engineer', 'Frontend Engineer', 'Full Stack Engineer'],
-  },
-  {
-    topic: 'availability',
-    defaultQuestion: 'How many focused hours can you realistically dedicate to learning each week?',
-    options: ['3-5 hours / week (steady foundational pace)', '6-10 hours / week (active career building)', '10+ hours / week (intensive preparation)'],
-  },
-];
+const ONBOARDING_TOPICS = ONBOARDING_TOPIC_CONFIGS;
 
 /**
  * Derives the contextual next recommended action and feature locks
@@ -247,7 +217,7 @@ export async function getOrComputeWorkflowState(userId: string): Promise<Student
 
   if (row) {
     stage = row.stage as WorkflowStage;
-    onboardingDialogue = Array.isArray(row.onboardingDialogue) ? (row.onboardingDialogue as OnboardingTurn[]) : [];
+    onboardingDialogue = sanitizeDialogueTurns(row.onboardingDialogue);
     confirmedSkills = (row.confirmedSkills && typeof row.confirmedSkills === 'object') ? (row.confirmedSkills as StudentWorkflowState['confirmedSkills']) : {};
     confirmedGoals = Array.isArray(row.confirmedGoals) ? (row.confirmedGoals as string[]) : [];
   } else {
@@ -263,7 +233,7 @@ export async function getOrComputeWorkflowState(userId: string): Promise<Student
       // Initialize first question in onboarding dialogue
       onboardingDialogue = [
         {
-          id: 'turn-1',
+          id: generateTurnId(ONBOARDING_TOPICS[0].topic),
           topic: ONBOARDING_TOPICS[0].topic,
           question: ONBOARDING_TOPICS[0].defaultQuestion,
           options: ONBOARDING_TOPICS[0].options,
@@ -293,7 +263,7 @@ export async function getOrComputeWorkflowState(userId: string): Promise<Student
   if (['REGISTERED', 'ONBOARDING_IN_PROGRESS'].includes(stage) && onboardingDialogue.length === 0) {
     onboardingDialogue = [
       {
-        id: 'turn-1',
+        id: generateTurnId(ONBOARDING_TOPICS[0].topic),
         topic: ONBOARDING_TOPICS[0].topic,
         question: ONBOARDING_TOPICS[0].defaultQuestion,
         options: ONBOARDING_TOPICS[0].options,
@@ -332,12 +302,32 @@ export async function transitionWorkflowStage(
 }
 
 /**
+ * Resets the student's onboarding dialogue back to step 1 with a fresh unique turn ID.
+ */
+export async function resetOnboardingDialogue(userId: string): Promise<StudentWorkflowState> {
+  const initialTurn: OnboardingTurn = {
+    id: generateTurnId(ONBOARDING_TOPICS[0].topic),
+    topic: ONBOARDING_TOPICS[0].topic,
+    question: ONBOARDING_TOPICS[0].defaultQuestion,
+    options: ONBOARDING_TOPICS[0].options,
+  };
+  await db().query(
+    `update student_workflow_states
+     set onboarding_dialogue = $1, stage = 'ONBOARDING_IN_PROGRESS', updated_at = now()
+     where user_id = $2`,
+    [JSON.stringify([initialTurn]), userId],
+  );
+  return getOrComputeWorkflowState(userId);
+}
+
+/**
  * Processes one dynamic onboarding answer, saves it incrementally to the database,
  * and generates the next dynamic question or the final summary for student review.
  */
 export async function processOnboardingTurn(
   userId: string,
   answer: string,
+  turnTopic?: string,
 ): Promise<{
   state: StudentWorkflowState;
   nextTurn?: OnboardingTurn;
@@ -352,16 +342,40 @@ export async function processOnboardingTurn(
   isComplete: boolean;
 }> {
   const current = await getOrComputeWorkflowState(userId);
-  const dialogue = [...current.onboardingDialogue];
+  let dialogue = sanitizeDialogueTurns(current.onboardingDialogue);
 
-  // Find latest unanswered turn or turn being answered
-  const activeTurnIdx = dialogue.length - 1;
-  if (activeTurnIdx >= 0) {
+  // If student restarted dialogue on client, dialogue may have completed earlier turns
+  if (turnTopic === ONBOARDING_TOPICS[0].topic && dialogue.length >= ONBOARDING_TOPICS.length) {
+    dialogue = [];
+  }
+
+  // Find unanswered turn matching turnTopic, or first unanswered turn, or last turn
+  let activeTurnIdx = turnTopic
+    ? dialogue.findIndex((d) => d.topic === turnTopic)
+    : dialogue.findIndex((d) => !d.answer);
+
+  if (activeTurnIdx === -1) {
+    activeTurnIdx = dialogue.length - 1;
+  }
+  if (activeTurnIdx >= 0 && activeTurnIdx < dialogue.length) {
     dialogue[activeTurnIdx] = {
       ...dialogue[activeTurnIdx],
       answer: answer.trim(),
       answeredAt: new Date().toISOString(),
     };
+  } else {
+    const topicToUse = (turnTopic && ONBOARDING_TOPICS.some((t) => t.topic === turnTopic))
+      ? (turnTopic as OnboardingTopic)
+      : ONBOARDING_TOPICS[0].topic;
+    const topicDef = ONBOARDING_TOPICS.find((t) => t.topic === topicToUse) || ONBOARDING_TOPICS[0];
+    dialogue.push({
+      id: generateTurnId(topicDef.topic),
+      topic: topicDef.topic,
+      question: topicDef.defaultQuestion,
+      options: topicDef.options,
+      answer: answer.trim(),
+      answeredAt: new Date().toISOString(),
+    });
   }
 
   // Check which topics have been answered
@@ -395,7 +409,7 @@ export async function processOnboardingTurn(
     }
 
     nextTurn = {
-      id: `turn-${dialogue.length + 1}`,
+      id: generateTurnId(nextTopicDef.topic),
       topic: nextTopicDef.topic,
       question: dynamicQuestion,
       options: nextTopicDef.options,

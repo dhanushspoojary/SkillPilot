@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { ShieldCheck, CheckCircle2, Award, ExternalLink, Sparkles, ArrowRight, Lock } from 'lucide-react';
 import { getPublicPassport } from '../../../lib/passport';
 import { ProgressRing } from '../../../components/ProgressRing';
+import { formatSafeDate } from '../../../lib/date-format';
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -165,7 +166,7 @@ export default async function PublicPassportPage({ params }: Props) {
                     <span className="evidence-skill">{ev.skillName}</span>
                     <span className="evidence-score">{ev.score}% score recorded</span>
                     <small className="evidence-date">
-                      {new Date(ev.capturedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {formatSafeDate(ev.capturedAt)}
                     </small>
                   </div>
                 ))}
@@ -183,7 +184,7 @@ export default async function PublicPassportPage({ params }: Props) {
               </div>
             </div>
             <div className="timestamp-note">
-              Verified: {new Date(data.verifiedAt).toLocaleDateString()}
+              Verified: {formatSafeDate(data.verifiedAt)}
             </div>
           </footer>
         </article>

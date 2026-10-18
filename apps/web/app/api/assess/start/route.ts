@@ -52,10 +52,14 @@ export async function POST(req: Request) {
             if (recent.rowCount)
                 throw new Error('cooldown');
             const assessable = SKILLS.filter(s => s.assessable);
-            let order = shuffle(assessable.map(s => s.id));
-            if (focus && assessable.some(s => s.id === focus))
-                order = [focus, ...shuffle(order.filter(x => x !== focus))];
-            const selected = order; // Assess all six core skills so the diagnostic is not blind to communication or Git.
+            let selected: string[];
+            if (focus && assessable.some(s => s.id === focus)) {
+                selected = [focus];
+            } else if (isBeginner) {
+                selected = ['problem-solving', 'git', 'communication'];
+            } else {
+                selected = shuffle(assessable.map(s => s.id));
+            }
             const qs = [] as typeof QUESTIONS;
             // Select starting question tailored to student background (Level 1 for beginners, Level 2 for experienced)
             for (const skill of selected) {

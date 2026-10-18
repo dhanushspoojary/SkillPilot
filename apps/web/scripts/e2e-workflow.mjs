@@ -84,6 +84,25 @@ try {
   const welcomeText = await page.textContent('.welcome h1, h1');
   console.log(`   Dashboard loaded successfully: "${welcomeText?.replace(/\s+/g, ' ').trim()}"`);
 
+  // Step 3.5: Complete Capability Discovery Onboarding
+  try {
+    await page.waitForSelector('.onboarding-modal', { timeout: 6000 });
+    console.log('   Completing Capability Discovery Onboarding...');
+    const switchBtn = page.locator('button:has-text("Switch to Quick Form")');
+    if (await switchBtn.isVisible()) {
+      await switchBtn.click();
+      await page.waitForTimeout(400);
+    }
+    const saveSetupBtn = page.locator('button.submit-setup-btn, button:has-text("Save & Continue to Diagnostic")').first();
+    if (await saveSetupBtn.isVisible()) {
+      await saveSetupBtn.click();
+      await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 10000 });
+      console.log('   Capability onboarding completed successfully!');
+    }
+  } catch {
+    // Modal did not mount or already completed
+  }
+
   // Step 4: Start Adaptive Assessment in Browser
   console.log('4. Starting Adaptive Assessment from Dashboard...');
   const assessBtn = page.locator('button.primary:has-text("Start adaptive assessment")').first();

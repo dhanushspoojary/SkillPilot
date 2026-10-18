@@ -19,20 +19,19 @@ import {
   Loader2,
 } from 'lucide-react';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
+import {
+  generateTurnId,
+  sanitizeDialogueTurns,
+  mergeOrAppendTurn,
+  ONBOARDING_TOPIC_CONFIGS,
+  type OnboardingTurn,
+} from '../lib/onboarding-dialogue';
 
 interface Props {
   initialProfile?: StudentCapabilityProfile;
   onSave: (profile: StudentCapabilityProfile) => Promise<void>;
   onClose?: () => void;
   canDismiss?: boolean;
-}
-
-interface DialogueTurn {
-  id: string;
-  topic: string;
-  question: string;
-  options?: string[];
-  answer?: string;
 }
 
 interface SummaryData {
@@ -53,8 +52,8 @@ export function CapabilityOnboarding({
   const [mode, setMode] = useState<'conversational' | 'form'>('conversational');
   const [busy, setBusy] = useState(false);
   const [customText, setCustomText] = useState('');
-  const [turns, setTurns] = useState<DialogueTurn[]>([]);
-  const [activeTurn, setActiveTurn] = useState<DialogueTurn | null>(null);
+  const [turns, setTurns] = useState<OnboardingTurn[]>([]);
+  const [activeTurn, setActiveTurn] = useState<OnboardingTurn | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [error, setError] = useState('');
 
@@ -76,57 +75,65 @@ export function CapabilityOnboarding({
         const data = await res.json();
         if (cancelled) return;
 
-        const dialogue: DialogueTurn[] = data.state?.onboardingDialogue || [];
+        const rawDialogue = data.state?.onboardingDialogue || [];
+        const dialogue = sanitizeDialogueTurns(rawDialogue);
+
         if (dialogue.length > 0) {
           const answered = dialogue.filter((d) => d.answer);
           const unanswered = dialogue.find((d) => !d.answer);
           setTurns(answered);
+
           if (unanswered) {
             setActiveTurn(unanswered);
-          } else if (answered.length >= 5) {
-            // Already complete
-            const edu = answered.find((d) => d.topic === 'education')?.answer || '1st Year Student';
-            const exp = answered.find((d) => d.topic === 'experience')?.answer || 'Beginner';
-            const struggles = answered.find((d) => d.topic === 'struggles')?.answer || 'Problem Solving';
-            const goals = answered.find((d) => d.topic === 'goals')?.answer || 'Software Engineer';
-            const avail = answered.find((d) => d.topic === 'availability')?.answer || '5 hours';
-            setSummary({
-              educationLevel: edu,
-              programmingExperience: exp,
-              struggles,
-              careerGoal: goals,
-              weeklyHours: parseInt(avail.match(/\d+/)?.[0] || '5', 10),
-              selfReported: true,
-            });
           } else {
-            setActiveTurn(dialogue[dialogue.length - 1]);
+            // Check if all topic stages have been answered
+            const answeredTopics = new Set(answered.map((d) => d.topic));
+            const nextTopicDef = ONBOARDING_TOPIC_CONFIGS.find((cfg) => !answeredTopics.has(cfg.topic));
+
+            if (!nextTopicDef || answered.length >= 5) {
+              // Completed
+              const edu = answered.find((d) => d.topic === 'education')?.answer || '1st Year Student';
+              const exp = answered.find((d) => d.topic === 'experience')?.answer || 'Beginner';
+              const struggles = answered.find((d) => d.topic === 'struggles')?.answer || 'Problem Solving';
+              const goals = answered.find((d) => d.topic === 'goals')?.answer || 'Software Engineer';
+              const avail = answered.find((d) => d.topic === 'availability')?.answer || '5 hours';
+              setSummary({
+                educationLevel: edu,
+                programmingExperience: exp,
+                struggles,
+                careerGoal: goals,
+                weeklyHours: parseInt(avail.match(/\d+/)?.[0] || '5', 10),
+                selfReported: true,
+              });
+              setActiveTurn(null);
+            } else {
+              // Create next turn for the first unanswered topic
+              setActiveTurn({
+                id: generateTurnId(nextTopicDef.topic),
+                topic: nextTopicDef.topic,
+                question: nextTopicDef.defaultQuestion,
+                options: nextTopicDef.options,
+              });
+            }
           }
         } else {
-          // Default initial question
+          // Fresh default initial turn
+          const first = ONBOARDING_TOPIC_CONFIGS[0];
           setActiveTurn({
-            id: 'turn-1',
-            topic: 'education',
-            question: 'Welcome to SkillPilot! Which best describes your current college or learning stage?',
-            options: [
-              '1st Year Student (Just starting college)',
-              '2nd Year Student (Core CS subjects)',
-              '3rd / 4th Year (Placement prep)',
-              'Self-taught / Bootcamp (Independent learner)',
-            ],
+            id: generateTurnId(first.topic),
+            topic: first.topic,
+            question: first.defaultQuestion,
+            options: first.options,
           });
         }
       } catch {
         // Fallback default
+        const first = ONBOARDING_TOPIC_CONFIGS[0];
         setActiveTurn({
-          id: 'turn-1',
-          topic: 'education',
-          question: 'Welcome to SkillPilot! Which best describes your current college or learning stage?',
-          options: [
-            '1st Year Student (Just starting college)',
-            '2nd Year Student (Core CS subjects)',
-            '3rd / 4th Year (Placement prep)',
-            'Self-taught / Bootcamp (Independent learner)',
-          ],
+          id: generateTurnId(first.topic),
+          topic: first.topic,
+          question: first.defaultQuestion,
+          options: first.options,
         });
       }
     }
@@ -143,22 +150,28 @@ export function CapabilityOnboarding({
 
   // Answer a turn
   const handleAnswer = async (answerText: string) => {
-    if (!answerText.trim() || busy) return;
+    const trimmedAnswer = answerText.trim();
+    if (!trimmedAnswer || busy) return;
     setBusy(true);
     setError('');
 
-    const currentTurn = activeTurn || {
-      id: `turn-${turns.length + 1}`,
-      topic: 'general',
+    const currentTurn: OnboardingTurn = activeTurn || {
+      id: generateTurnId('step'),
+      topic: 'education',
       question: '',
     };
 
-    // Optimistically update turns
-    const updatedTurns = [
-      ...turns,
-      { ...currentTurn, answer: answerText.trim() },
-    ];
-    setTurns(updatedTurns);
+    const existingTurn = turns.find(
+      (t) => t.id === currentTurn.id || (Boolean(t.topic) && t.topic === currentTurn.topic),
+    );
+
+    const turnWithAnswer: OnboardingTurn = {
+      ...currentTurn,
+      answer: trimmedAnswer,
+    };
+
+    // Optimistically update turns state without duplicate keys or duplicate topics
+    setTurns((prev) => mergeOrAppendTurn(prev, turnWithAnswer));
     setActiveTurn(null);
     setCustomText('');
 
@@ -166,7 +179,7 @@ export function CapabilityOnboarding({
       const res = await fetch('/api/workflow/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answer: answerText.trim() }),
+        body: JSON.stringify({ answer: trimmedAnswer, topic: currentTurn.topic }),
       });
 
       const data = await res.json();
@@ -178,13 +191,23 @@ export function CapabilityOnboarding({
         setCareerInterest(data.summary.careerGoal || 'Software Engineer');
         setWeeklyHours(data.summary.weeklyHours || 5);
       } else if (data.nextTurn) {
-        setActiveTurn(data.nextTurn);
+        const nextTurn: OnboardingTurn = {
+          ...data.nextTurn,
+          id: data.nextTurn.id || generateTurnId(data.nextTurn.topic || 'step'),
+        };
+        setActiveTurn(nextTurn);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit answer. Please retry.');
       // Restore turn so student can re-attempt
       setActiveTurn(currentTurn);
-      setTurns(turns);
+      if (existingTurn) {
+        // Roll back to previously valid answer without discarding it
+        setTurns((prev) => prev.map((t) => (t.id === existingTurn.id ? existingTurn : t)));
+      } else {
+        // Remove optimistic entry if it was a new turn
+        setTurns((prev) => prev.filter((t) => t.id !== currentTurn.id));
+      }
     } finally {
       setBusy(false);
     }
@@ -293,7 +316,7 @@ export function CapabilityOnboarding({
           <div className="onboarding-chat-stream" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Answered turns */}
             {turns.map((turn, idx) => (
-              <div key={turn.id || idx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div key={turn.id || `turn-${turn.topic || idx}`} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface-indigo)', color: 'var(--cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
                     <Bot size={16} />
@@ -415,20 +438,30 @@ export function CapabilityOnboarding({
                   <button
                     type="button"
                     className="ghost"
-                    onClick={() => {
+                    onClick={async () => {
                       setSummary(null);
                       setTurns([]);
-                      setActiveTurn({
-                        id: 'turn-1',
-                        topic: 'education',
-                        question: 'Welcome to SkillPilot! Which best describes your current college or learning stage?',
-                        options: [
-                          '1st Year Student (Just starting college)',
-                          '2nd Year Student (Core CS subjects)',
-                          '3rd / 4th Year (Placement prep)',
-                          'Self-taught / Bootcamp (Independent learner)',
-                        ],
-                      });
+                      const first = ONBOARDING_TOPIC_CONFIGS[0];
+                      const freshTurn: OnboardingTurn = {
+                        id: generateTurnId(first.topic),
+                        topic: first.topic,
+                        question: first.defaultQuestion,
+                        options: first.options,
+                      };
+                      setActiveTurn(freshTurn);
+                      try {
+                        const res = await fetch('/api/workflow/onboarding', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'restart' }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          if (data.nextTurn) {
+                            setActiveTurn(data.nextTurn);
+                          }
+                        }
+                      } catch {}
                     }}
                     disabled={busy}
                   >

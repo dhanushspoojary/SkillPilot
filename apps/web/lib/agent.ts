@@ -1065,7 +1065,7 @@ export function deterministicCareerReply(
 ): AgentReply {
   const q = question.trim().toLowerCase();
   const skills = skillStates(state.evidence);
-  const actions = planActions(state);
+  const actions = planActions(state, studentContext?.careerGoal, studentContext?.capabilityProfile);
   const topAction = actions[0];
   const readinessScore = readiness(skills);
 
@@ -1350,13 +1350,13 @@ export function deterministicCareerReply(
   if (isBeginner) {
     addStep('get_profile', {}, 'Checked beginner skill baseline');
     answer = `Welcome to engineering! Starting as a beginner in your first year is the ideal time to build strong foundations.\n\nIn SkillPilot, we never judge missing experience. Your diagnostic starts with Level 1 fundamentals—variables, loops, and step-by-step logic. Would you like to take your introductory diagnostic to establish your baseline?`;
-    const jsSkill = skills.find((s) => s.def.id === 'javascript') || skills[0];
+    const targetSkill = skills.find((s) => s.def.id === 'problem-solving') || skills[0];
     proposals.push({
-      id: `retest-${jsSkill.def.id}`,
+      id: `retest-${targetSkill.def.id}`,
       type: 'start_retest',
-      label: `Start Level 1 Diagnostic: ${jsSkill.def.name}`,
+      label: `Start Level 1 Diagnostic: ${targetSkill.def.name}`,
       reason: 'Calibrate your initial baseline starting with Level 1 fundamentals.',
-      skill: jsSkill.def.id,
+      skill: targetSkill.def.id,
       permission: 'approval_required',
     });
     return {
@@ -1394,7 +1394,12 @@ export function deterministicCareerReply(
   // 9. Time Constraint ("30 minutes", "only have 30 mins", "schedule")
   if (/\b(30 minutes|30 mins|limited time|only have|available time)\b/i.test(q)) {
     addStep('get_next_actions', {}, 'Filtered actions for 30-minute block');
-    answer = `A 30-minute block is ideal for high-impact deliberate practice! SkillPilot tasks are designed in ~15–30 minute units so you can make measurable progress every day.\n\nHere is your top priority task for today:`;
+    const hasPointerStruggle = studentContext?.memories?.some((m) => m.category === 'struggle' && /pointer/i.test(m.fact));
+    if (hasPointerStruggle) {
+      answer = `A 30-minute block is ideal for high-impact deliberate practice! Based on your confirmed struggle with C pointers and memory, here is your recommended 30-minute focus for today:\n\n- **Target**: Pointer dereferencing (\`*p = val\`) and address visualization (\`&var\`).\n- **Next Action**: Practice Problem Solving (C Pointers Tracing).\n\nWould you like to start?`;
+    } else {
+      answer = `A 30-minute block is ideal for high-impact deliberate practice! SkillPilot tasks are designed in ~15–30 minute units so you can make measurable progress every day.\n\nHere is your top priority task for today:`;
+    }
     attachTopAction('Optimized for your 30-minute study window.');
     return {
       mode: 'fallback',
@@ -1408,9 +1413,17 @@ export function deterministicCareerReply(
   // 10. Next Steps / Workflow Navigation ("what should I do next", "what should I focus on this week")
   if (/\b(what should i do next|what to do next|what next|what should i focus on|focus on this week)\b/i.test(q)) {
     addStep('get_next_learning_action', {}, 'Selected next bottleneck task');
-    answer = topAction
-      ? `Your highest-leverage move right now is **${topAction.title}** (${topAction.detail}).\n\nCompleting this directly addresses your primary gap in **${topAction.skill}** and will raise your readiness by up to +${topAction.upTo}%. Would you like to begin?`
-      : `All planned actions for your current milestone are complete! Take an adaptive diagnostic to verify your practical ability.`;
+    const isBeginnerStudent = studentContext?.capabilityProfile?.programmingExperience === 'beginner' ||
+      studentContext?.capabilityProfile?.educationLevel === 'first_year' ||
+      state.evidence.length === 0;
+
+    if (isBeginnerStudent && state.evidence.length === 0) {
+      answer = `As a student building your foundations, your highest-leverage first step is to calibrate your starting baseline with a 4-minute adaptive check in **Problem Solving & Logic**.\n\nThis diagnostic measures core building blocks—variables, conditionals, and loop tracing—so SkillPilot can tailor your daily 30-minute practice plan to your exact level. Ready to begin?`;
+    } else {
+      answer = topAction
+        ? `Your highest-leverage move right now is **${topAction.title}** (${topAction.detail}).\n\nCompleting this directly addresses your primary gap in **${topAction.skill}** and will raise your readiness by up to +${topAction.upTo}%. Would you like to begin?`
+        : `All planned actions for your current milestone are complete! Take an adaptive diagnostic to verify your practical ability.`;
+    }
     attachTopAction();
     return {
       mode: 'fallback',

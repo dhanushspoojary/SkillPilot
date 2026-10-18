@@ -5,6 +5,7 @@ import { ProgressRing } from './ProgressRing';
 import { ChatPanel } from './ChatPanel';
 import { MeetingLink } from './MeetingLink';
 import { PageIntro, Signal, SkillBar, VerifiedBadge } from './ui';
+import { AnimatedMarquee, ConnectedSkillNetwork, ScrollReveal } from './motion';
 export type View = 'today' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
 export function Today({ state, actions, go, onAction, onUndo, runAgent, running, careerGoal = 'Software Engineer', onOpenCalibration, workflow }: {
@@ -37,9 +38,9 @@ export function Today({ state, actions, go, onAction, onUndo, runAgent, running,
     return <div className="today-dashboard">
     <section className="welcome dashboard-header">
       <div className="greeting-col">
-        <div className="eyebrow"><span className="live-dot" /> PERSONAL CAREER SYSTEM</div>
-        <h1>Know what to do <em>next.</em></h1>
-        <p>SkillPilot measures verified evidence, maps skill gaps to your target role, and guides high-impact actions.</p>
+        <div className="eyebrow"><span className="live-dot" /> SKILLPILOT — CAREER INTELLIGENCE SYSTEM</div>
+        <h1>YOUR POTENTIAL. <em>ENGINEERED.</em></h1>
+        <p>Understand your strengths. Close your skill gaps. Build evidence of what you can do.</p>
       </div>
       <div className="goal-badge-wrap">
         <div className="goal-pill">
@@ -53,6 +54,17 @@ export function Today({ state, actions, go, onAction, onUndo, runAgent, running,
         )}
       </div>
     </section>
+
+    <AnimatedMarquee items={[
+      'ASSESS COMPETENCIES',
+      'LEARN WITH SOCRATIC AI',
+      'BUILD PRACTICAL SYSTEMS',
+      'DEMONSTRATE RUNTIME EVIDENCE',
+      'GROW CAREER READINESS',
+      'AUTONOMOUS CAREER SYSTEM',
+    ]} />
+
+    <ConnectedSkillNetwork state={state} onSelectSkill={(skillId) => go('assess', skillId)} />
 
     <section className="priority-card">
       <div className="priority-copy">
@@ -200,9 +212,27 @@ export function Roadmap({ state, actions, go, workflow }: {
 }) {
     const skills = skillStates(state.evidence);
     const prog = STAGES.map((s) => stageProgress(skills, s.skills));
-    const current = prog.findIndex((p) => p < 90);
+    const current = Math.max(0, prog.findIndex((p) => p < 90));
     const top = actions[0];
     const isLocked = Boolean(workflow?.featuresLocked?.roadmap);
+
+    const goalLabel = workflow?.confirmedGoals?.[0] || 'SOFTWARE ENGINEER';
+    const eduLevel = workflow?.capabilityProfile?.educationLevel || 'first_year';
+    const academicYear = eduLevel === 'first_year' ? 'YEAR 1 (FOUNDATIONS)' :
+      eduLevel === 'second_year' ? 'YEAR 2 (CORE SYSTEMS)' :
+      eduLevel === 'third_year' ? 'YEAR 3 (ADVANCED ARCHITECTURE)' :
+      eduLevel === 'final_year' ? 'YEAR 4 (CAPSTONE READINESS)' : 'YEAR 1';
+
+    const semesterFocus = current === 0 ? 'SEM 1: SYNTAX & LOGIC' :
+      current === 1 ? 'SEM 2: BUILD & MEMORY' :
+      current === 2 ? 'SEM 3: PRACTICAL SYSTEMS' : 'SEM 4: VERIFICATION';
+
+    const monthlyMilestone = current === 0 ? 'MONTH 1: BITE-SIZED TRACING' :
+      current === 1 ? 'MONTH 2: ARRAYS & POINTERS' :
+      current === 2 ? 'MONTH 3: REST & DB' : 'MONTH 4: CODE REVIEWS';
+
+    const weeklyTarget = `${workflow?.capabilityProfile?.weeklyHours || 5}H / WEEK (30-MIN DAILY PRACTICE)`;
+    const todayAction = top ? top.title : 'ALL BENCHMARKS VERIFIED';
 
     return <div className="wide">
     <PageIntro kicker="LIVING ROADMAP" title="A plan that moves when you do." text="Stage progress is computed from the skills each stage needs. New evidence can change the plan without losing your history."/>
@@ -230,6 +260,20 @@ export function Roadmap({ state, actions, go, workflow }: {
       </div>
     )}
 
+    <div className="roadmap-hierarchy-strip" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      <span>CAREER GOAL: <b>{goalLabel.toUpperCase()}</b></span>
+      <span className="hierarchy-arrow">→</span>
+      <span>{academicYear}</span>
+      <span className="hierarchy-arrow">→</span>
+      <span>{semesterFocus}</span>
+      <span className="hierarchy-arrow">→</span>
+      <span>{monthlyMilestone}</span>
+      <span className="hierarchy-arrow">→</span>
+      <span>{weeklyTarget}</span>
+      <span className="hierarchy-arrow">→</span>
+      <span className="hierarchy-active">TODAY: <b>{todayAction}</b></span>
+    </div>
+
     <div className="roadmap-meta"><span><b>12 weeks</b> current cycle</span><span><b>{readiness(skills)}%</b> readiness</span><span><b>{actions.length}</b> open actions</span></div>
     <div className="roadmap-list">{STAGES.map((s, i) => (<div className={i === current ? 'roadmap-row current' : 'roadmap-row'} key={s.n}>
         <span className="road-num">{s.n}</span><div><small>{s.weeks}</small><h3>{s.name}</h3><p>{s.blurb}</p></div>
@@ -239,12 +283,16 @@ export function Roadmap({ state, actions, go, workflow }: {
       {top && <button className="ghost" onClick={() => go(top.route === 'assess' ? 'assess' : 'today', top.route === 'assess' ? top.skill : undefined)}>{top.route === 'assess' ? 'Start retest' : 'Go to today'} <ArrowRight size={14}/></button>}</div>
   </div>;
 }
-export function Skills({ state }: {
+export function Skills({ state, go }: {
     state: AppState;
+    go?: (v: View, focus?: string) => void;
 }) {
     const skills = skillStates(state.evidence);
     return <div className="wide">
-    <PageIntro kicker="SKILL GRAPH" title="Know what you can prove." text="Scores are signals. A skill is verified only with 3+ evidence items from at least two source types."/>
+    <PageIntro kicker="SKILL GRAPH & TOPOLOGY" title="KNOW WHERE YOU STAND." text="Scores are signals. A skill is verified only with 3+ evidence items from at least two source types. Continuous evidence proves ability over time."/>
+    <div style={{ marginBottom: 24 }}>
+      <ConnectedSkillNetwork state={state} onSelectSkill={(id) => go?.('assess', id)} />
+    </div>
     <div className="skills-grid">{skills.map((s) => (<div className="skill-tile" key={s.def.id}>
         <div className="tile-top"><span>{s.def.name}</span><b>{s.count > 0 ? `${s.score}%` : 'Unassessed'}</b></div>
         <div className="bar" role="img" aria-label={`${s.def.name} ${s.score} percent`}><i style={{ width: `${s.score}%` }}/></div>

@@ -1,6 +1,6 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BrainCircuit, Bell, CheckCircle2, ChevronRight, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BrainCircuit, Bell, CheckCircle2, ChevronRight, ChevronUp, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2, LogOut, GraduationCap, Play } from 'lucide-react';
 import { defaultState, explainPlan, planActions, toggleActivity, type AppState, type PlanAction, } from '../lib/engine';
 import { Assess } from './Assess';
 import { AgentPanel } from './AgentPanel';
@@ -10,21 +10,24 @@ import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } fr
 import { MockInterview } from './MockInterview';
 import { CapabilityOnboarding } from './CapabilityOnboarding';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
+import { CustomCursor, CinematicEntry } from './motion';
 const NAV: [
     View,
     string,
+    string,
     typeof Gauge
 ][] = [
-    ['today', 'Today', LayoutDashboard], ['agent', 'Agent', BrainCircuit], ['projects', 'Projects', Code2], ['roadmap', 'Roadmap', Activity], ['skills', 'Skills', Gauge],
-    ['assess', 'Assess', Crosshair], ['mentors', 'Mentors', Users], ['interview', 'Mock interview', Mic], ['passport', 'Passport', Award], ['settings', 'Settings', Settings],
+    ['today', '01', 'Today', LayoutDashboard], ['agent', '02', 'Agent', BrainCircuit], ['projects', '03', 'Projects', Code2], ['roadmap', '04', 'Roadmap', Activity], ['skills', '05', 'Skills', Gauge],
+    ['assess', '06', 'Assess', Crosshair], ['mentors', '07', 'Mentors', Users], ['interview', '08', 'Mock interview', Mic], ['passport', '09', 'Passport', Award], ['settings', '10', 'Settings', Settings],
 ];
-export function App({ user }: {
+export function App({ user, onLogout }: {
     user: {
         id: string;
         email: string;
         name: string;
         role: string;
     };
+    onLogout?: () => void;
 }) {
     const [state, setState] = useState<AppState>(defaultState);
     const [view, setView] = useState<View>('today');
@@ -39,6 +42,54 @@ export function App({ user }: {
     const [careerGoal, setCareerGoal] = useState('Software Engineer');
     const [workflow, setWorkflow] = useState<any>(null);
     const [showCalibration, setShowCalibration] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
+    const profileMenuRef = useRef<HTMLDivElement>(null);
+    const triggerButtonRef = useRef<HTMLButtonElement>(null);
+    const [replayCinematic, setReplayCinematic] = useState(false);
+
+    const handleLogout = async () => {
+        try {
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+        } catch (err) {
+            console.error('Logout error:', err);
+        }
+        if (onLogout) {
+            onLogout();
+        } else {
+            window.location.href = '/';
+        }
+    };
+
+    useEffect(() => {
+        if (!profileOpen) return;
+
+        function handleClickOutside(event: MouseEvent | TouchEvent) {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+                setProfileOpen(false);
+            }
+        }
+
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setProfileOpen(false);
+                triggerButtonRef.current?.focus();
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [profileOpen]);
     useEffect(() => {
         let cancelled = false;
         async function boot() {
@@ -49,10 +100,20 @@ export function App({ user }: {
                 const x = await r.json();
                 if (x.careerGoal)
                     setCareerGoal(x.careerGoal);
-                if (x.capabilityProfile)
+                if (x.capabilityProfile) {
                     setCapabilityProfile(x.capabilityProfile);
-                if (x.workflow)
+                    if (x.capabilityProfile.onboardingCompleted !== true) {
+                        setShowCalibration(true);
+                    }
+                } else {
+                    setShowCalibration(true);
+                }
+                if (x.workflow) {
                     setWorkflow(x.workflow);
+                    if (x.workflow.stage === 'REGISTERED' || x.workflow.stage === 'ONBOARDING_IN_PROGRESS') {
+                        setShowCalibration(true);
+                    }
+                }
                 const remote = x.evidence ? { ...defaultState(), name: x.user?.name ?? user.name, evidence: x.evidence, activity: x.activity ?? [], mentorNoteResolved: (x.activity ?? []).some((a: any) => a.id === 'MENTOR:feedback'), requests: x.requests ?? [], agentRuns: x.agentRuns ?? [], planNote: 'Server evidence loaded. The browser is not authoritative.' } : defaultState();
                 if (!cancelled) {
                     setState(remote);
@@ -80,7 +141,7 @@ export function App({ user }: {
         const t = window.setTimeout(() => setToast(''), 3200);
         return () => window.clearTimeout(t);
     }, [toast]);
-    const actions = useMemo(() => planActions(state), [state]);
+    const actions = useMemo(() => planActions(state, careerGoal, capabilityProfile ?? undefined), [state, careerGoal, capabilityProfile]);
     const go = useCallback((v: View, f?: string) => {
         setView(v);
         setFocus(f);
@@ -119,7 +180,7 @@ export function App({ user }: {
             setCapabilityProfile(x.capabilityProfile);
         if (x.workflow)
             setWorkflow(x.workflow);
-        setState(s => { const next = { ...s, name: x.user?.name ?? s.name, evidence: x.evidence ?? s.evidence, requests: x.requests ?? s.requests, agentRuns: x.agentRuns ?? s.agentRuns }; return { ...next, planNote: explainPlan(next) }; });
+        setState(s => { const next = { ...s, name: x.user?.name ?? s.name, evidence: x.evidence ?? s.evidence, requests: x.requests ?? s.requests, agentRuns: x.agentRuns ?? s.agentRuns }; return { ...next, planNote: explainPlan(next, x.careerGoal, x.capabilityProfile) }; });
     };
     const saveCalibration = async (profile: StudentCapabilityProfile) => {
         try {
@@ -208,19 +269,133 @@ export function App({ user }: {
         }
     };
     return <div className="app-shell">
+    <CustomCursor />
+    <CinematicEntry forceShow={replayCinematic} onComplete={() => setReplayCinematic(false)} />
     <aside className={menu ? 'sidebar mobile-open' : 'sidebar'}>
       <div className="brand"><span className="brand-mark">S</span><span>SkillPilot</span></div>
-      <div className="side-label">CAREER SYSTEM</div>
-      <nav aria-label="Main navigation">{NAV.map(([id, label, Icon]) => (<button key={id} className={view === id ? 'nav-item active' : 'nav-item'} aria-current={view === id ? 'page' : undefined} onClick={() => go(id)}><Icon size={17}/><span>{label}</span></button>))}</nav>
+      <div className="side-label">CAREER INTELLIGENCE SYSTEM</div>
+      <nav aria-label="Main navigation">{NAV.map(([id, num, label, Icon]) => (<button key={id} className={view === id ? 'nav-item active' : 'nav-item'} aria-current={view === id ? 'page' : undefined} onClick={() => go(id)}><span className="nav-index">{num}</span><Icon size={17}/><span>{label}</span></button>))}</nav>
       <div className="sidebar-spacer"/>
-      <div className="side-profile"><div className="mini-avatar">{(state.name.trim()[0] ?? 'S').toUpperCase()}</div>
-        <div><b>{state.name.trim() || 'Student'}</b><small>Software Engineer path · API {apiOnline === null ? 'unchecked' : apiOnline ? 'reachable' : 'offline'} · {syncStatus === 'off' ? 'Local only' : `Server ${syncStatus}`}</small></div><ChevronRight size={15}/></div>
+      <div className="sidebar-profile-container" ref={profileMenuRef}>
+        {profileOpen && (
+          <div
+            className="profile-dropdown-menu"
+            id="profile-dropdown-menu"
+            role="menu"
+            aria-label="User account menu"
+          >
+            <div className="profile-dropdown-header">
+              <div className="profile-dropdown-user-info">
+                <div className="profile-dropdown-avatar">
+                  {(user?.name?.trim()?.[0] || state.name.trim()[0] || 'S').toUpperCase()}
+                </div>
+                <div className="profile-dropdown-meta">
+                  <span className="profile-dropdown-name">{user?.name || state.name.trim() || 'Student'}</span>
+                  <span className="profile-dropdown-email">{user?.email || 'student@skillpilot.test'}</span>
+                </div>
+              </div>
+              <div className="profile-dropdown-badge-row">
+                <span className="profile-dropdown-role-badge">
+                  <GraduationCap size={12} />
+                  <span>{(user?.role || 'student').toUpperCase()}</span>
+                </span>
+                <span className="profile-dropdown-status-badge">
+                  <span className="status-dot-pulse" />
+                  <span>{apiOnline ? 'Online' : 'Synced'}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="profile-dropdown-divider" role="separator" />
+
+            <div className="profile-dropdown-items">
+              <button
+                type="button"
+                className="profile-dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  go('settings');
+                  setProfileOpen(false);
+                }}
+              >
+                <Settings size={15} />
+                <span>Account Settings</span>
+              </button>
+
+              <button
+                type="button"
+                className="profile-dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  go('passport');
+                  setProfileOpen(false);
+                }}
+              >
+                <Award size={15} />
+                <span>Skill Passport</span>
+              </button>
+
+              <div className="profile-dropdown-divider" role="separator" />
+
+              <button
+                type="button"
+                className="profile-dropdown-item logout-item"
+                role="menuitem"
+                onClick={async () => {
+                  setProfileOpen(false);
+                  await handleLogout();
+                }}
+              >
+                <LogOut size={15} />
+                <span>Log out</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          ref={triggerButtonRef}
+          className={`side-profile side-profile-trigger ${profileOpen ? 'active' : ''}`}
+          aria-haspopup="menu"
+          aria-expanded={profileOpen}
+          aria-controls="profile-dropdown-menu"
+          aria-label="User account and profile menu"
+          onClick={() => setProfileOpen((prev) => !prev)}
+        >
+          <div className="mini-avatar">{(user?.name?.trim()?.[0] || state.name.trim()[0] || 'S').toUpperCase()}</div>
+          <div className="side-profile-text">
+            <b>{user?.name || state.name.trim() || 'Student'}</b>
+            <small>{careerGoal} · {(user?.role || 'student')}</small>
+          </div>
+          <ChevronUp
+            size={16}
+            className={`side-profile-chevron ${profileOpen ? 'open' : ''}`}
+          />
+        </button>
+      </div>
     </aside>
     <main id="main-content" className="main">
       <header className="topbar">
         <button className="mobile-menu" onClick={() => setMenu((v) => !v)} aria-label={menu ? 'Close navigation' : 'Open navigation'}>{menu ? <X /> : <Menu />}</button>
-        <div className="crumb"><span>SkillPilot</span><ChevronRight size={14}/><b>{NAV.find((n) => n[0] === view)?.[1]}</b></div>
-        <div className="top-actions"><button className="icon-button" aria-label="Notifications" onClick={() => setToast(actions[0] ? `Next: ${actions[0].title}` : 'Nothing pending.')}><Bell size={17}/></button></div>
+        <div className="crumb"><span>SkillPilot</span><ChevronRight size={14}/><b>{NAV.find((n) => n[0] === view)?.[2]}</b></div>
+        <div className="top-telemetry-badge">
+          <span className="live-dot" />
+          <span>SYS.ONLINE // PROD-2.4</span>
+        </div>
+        <div className="top-actions">
+          <button
+            type="button"
+            className="cinema-trigger-btn"
+            onClick={() => setReplayCinematic(true)}
+            aria-label="Replay cinematic launch sequence"
+            title="Launch theatrical entrance"
+          >
+            <Play size={11} fill="currentColor" />
+            <span>CINEMA</span>
+          </button>
+          <button className="icon-button" aria-label="Notifications" onClick={() => setToast(actions[0] ? `Next: ${actions[0].title}` : 'Nothing pending.')}><Bell size={17}/></button>
+        </div>
       </header>
       <div className="page">
         {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)} workflow={workflow}/>}
@@ -238,7 +413,7 @@ export function App({ user }: {
           />
         )}
         {view === 'roadmap' && <Roadmap state={state} actions={actions} go={go} workflow={workflow}/>}
-        {view === 'skills' && <Skills state={state}/>}
+        {view === 'skills' && <Skills state={state} go={go}/>}
         {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} careerGoal={careerGoal} onFinish={onFinish} onDone={() => go('roadmap')}/>}
         {view === 'mentors' && <Mentors state={state} onSend={onSend} selfId={user.id}/>}
         {view === 'interview' && <MockInterview onDone={() => { void refreshProfile().then(() => setToast('Practice evidence saved at reduced confidence.')).catch(() => undefined); }}/>} 
@@ -256,7 +431,7 @@ export function App({ user }: {
         {view === 'settings' && <SettingsView state={state} onExport={exportData}/>}
       </div>
     </main>
-    {showCalibration && (
+    {showCalibration && view === 'today' && (
       <CapabilityOnboarding
         initialProfile={capabilityProfile ?? undefined}
         onSave={saveCalibration}
