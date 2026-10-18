@@ -1,6 +1,6 @@
 import { currentUser } from '../../../../lib/auth';
 import { json, requireOrigin, readJsonBody } from '../../../../lib/server-security';
-import { processOnboardingTurn, transitionWorkflowStage, resetOnboardingDialogue } from '../../../../lib/workflow';
+import { processOnboardingTurn, transitionWorkflowStage, resetOnboardingDialogue, rewindOnboardingTurn } from '../../../../lib/workflow';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,12 +30,25 @@ export async function POST(req: Request) {
       return json({ ok: true, state, nextTurn: state.onboardingDialogue[0] });
     }
 
+    // If student clicks Back to edit previous answer:
+    if (body?.action === 'back') {
+      const result = await rewindOnboardingTurn(u.id);
+      return json({ ok: true, state: result.state, activeTurn: result.activeTurn });
+    }
+
+    const topic = typeof body?.topic === 'string' ? body.topic.trim() : undefined;
+
+    // If student skips / not sure:
+    if (body?.action === 'skip') {
+      const result = await processOnboardingTurn(u.id, 'Skipped / Not sure yet', topic);
+      return json(result);
+    }
+
     const answer = typeof body?.answer === 'string' ? body.answer.trim() : '';
     if (!answer) {
       return json({ error: 'answer is required' }, 400);
     }
 
-    const topic = typeof body?.topic === 'string' ? body.topic.trim() : undefined;
     const result = await processOnboardingTurn(u.id, answer, topic);
     return json(result);
   } catch (err) {

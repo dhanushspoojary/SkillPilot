@@ -321,6 +321,35 @@ export async function resetOnboardingDialogue(userId: string): Promise<StudentWo
 }
 
 /**
+ * Rewinds the student's onboarding dialogue to the previous question.
+ */
+export async function rewindOnboardingTurn(userId: string): Promise<{
+  state: StudentWorkflowState;
+  activeTurn?: OnboardingTurn;
+}> {
+  const current = await getOrComputeWorkflowState(userId);
+  let dialogue = sanitizeDialogueTurns(current.onboardingDialogue);
+  if (dialogue.length <= 1) {
+    return { state: current, activeTurn: dialogue[0] };
+  }
+  const lastAnsweredIdx = dialogue.map((d) => Boolean(d.answer)).lastIndexOf(true);
+  if (lastAnsweredIdx >= 0) {
+    dialogue[lastAnsweredIdx].answer = undefined;
+    dialogue[lastAnsweredIdx].answeredAt = undefined;
+    dialogue = dialogue.slice(0, lastAnsweredIdx + 1);
+  }
+
+  await db().query(
+    `update student_workflow_states
+     set onboarding_dialogue = $1, stage = 'ONBOARDING_IN_PROGRESS', updated_at = now()
+     where user_id = $2`,
+    [JSON.stringify(dialogue), userId]
+  );
+  const updatedState = await getOrComputeWorkflowState(userId);
+  return { state: updatedState, activeTurn: dialogue[dialogue.length - 1] };
+}
+
+/**
  * Processes one dynamic onboarding answer, saves it incrementally to the database,
  * and generates the next dynamic question or the final summary for student review.
  */
@@ -334,9 +363,11 @@ export async function processOnboardingTurn(
   summary?: {
     educationLevel: string;
     programmingExperience: string;
+    skillsUsed?: string;
     struggles: string;
     careerGoal: string;
     weeklyHours: number;
+    formatPace?: string;
     selfReported: boolean;
   };
   isComplete: boolean;
@@ -372,7 +403,10 @@ export async function processOnboardingTurn(
       id: generateTurnId(topicDef.topic),
       topic: topicDef.topic,
       question: topicDef.defaultQuestion,
+      explanation: topicDef.explanation,
       options: topicDef.options,
+      multiSelect: topicDef.multiSelect,
+      allowSkip: true,
       answer: answer.trim(),
       answeredAt: new Date().toISOString(),
     });
@@ -388,9 +422,11 @@ export async function processOnboardingTurn(
   let summary: {
     educationLevel: string;
     programmingExperience: string;
+    skillsUsed?: string;
     struggles: string;
     careerGoal: string;
     weeklyHours: number;
+    formatPace?: string;
     selfReported: boolean;
   } | undefined;
   let isComplete = false;
@@ -400,19 +436,22 @@ export async function processOnboardingTurn(
     // Generate next dynamic question
     let dynamicQuestion = nextTopicDef.defaultQuestion;
 
-    // Contextual phrasing based on previous answers
+    // Contextual phrasing based on previous answers (branching)
     const expAnswer = dialogue.find((d) => d.topic === 'experience')?.answer || '';
-    if (nextTopicDef.topic === 'struggles' && /beginner|new|never/i.test(expAnswer)) {
-      dynamicQuestion = 'Starting as a beginner is valued here. Which concepts would you like to explore first without rush?';
+    if (nextTopicDef.topic === 'struggles' && /beginner|new|never|zero/i.test(expAnswer)) {
+      dynamicQuestion = 'Starting from scratch is completely respected here. Which fundamental concepts would you like to explore first?';
     } else if (nextTopicDef.topic === 'struggles' && /c\b|c\+\+|basics/i.test(expAnswer)) {
-      dynamicQuestion = 'C and core coursework provide great foundations! In problem-solving, which areas feel trickiest (e.g. pointers, logic tracing, or arrays)?';
+      dynamicQuestion = 'C and core systems programming give great foundations! In problem-solving, which areas feel trickiest (e.g. pointers, logic tracing, or memory)?';
     }
 
     nextTurn = {
       id: generateTurnId(nextTopicDef.topic),
       topic: nextTopicDef.topic,
       question: dynamicQuestion,
+      explanation: nextTopicDef.explanation,
       options: nextTopicDef.options,
+      multiSelect: nextTopicDef.multiSelect,
+      allowSkip: true,
     };
     dialogue.push(nextTurn);
     newStage = 'ONBOARDING_IN_PROGRESS';
@@ -421,21 +460,28 @@ export async function processOnboardingTurn(
     isComplete = true;
     const edu = dialogue.find((d) => d.topic === 'education')?.answer || '1st Year Student';
     const exp = dialogue.find((d) => d.topic === 'experience')?.answer || 'Beginner';
+    const skillsUsed = dialogue.find((d) => d.topic === 'skills_used')?.answer || 'None / Starting fresh';
     const struggles = dialogue.find((d) => d.topic === 'struggles')?.answer || 'Problem solving fundamentals';
-    const goals = dialogue.find((d) => d.topic === 'goals')?.answer || 'Software Engineer';
+    const rawGoals = dialogue.find((d) => d.topic === 'goals')?.answer || 'Software Engineer';
+    const isExploring = /exploring|not sure|undecided/i.test(rawGoals);
+    const goals = isExploring ? 'Software Engineer (Exploring)' : rawGoals;
     const avail = dialogue.find((d) => d.topic === 'availability')?.answer || '5 hours';
+    const formatPace = dialogue.find((d) => d.topic === 'format_pace')?.answer || 'Hands-on code exercises';
     const hours = parseInt(avail.match(/\d+/)?.[0] || '5', 10);
 
     summary = {
       educationLevel: edu,
       programmingExperience: exp,
+      skillsUsed,
       struggles,
       careerGoal: goals,
       weeklyHours: hours,
+      formatPace,
       selfReported: true,
     };
 
     // Save capability profile to database
+    const focusAreasList = [struggles, skillsUsed, formatPace].filter(Boolean);
     await db().query(
       `insert into student_capability_profiles(
         user_id, education_level, programming_experience, field_of_study,
@@ -455,15 +501,15 @@ export async function processOnboardingTurn(
         exp.toLowerCase().includes('beginner') ? 'beginner' : exp.toLowerCase().includes('project') ? 'built_projects' : 'studied_basics',
         JSON.stringify([goals]),
         hours,
-        JSON.stringify([struggles]),
+        JSON.stringify(focusAreasList),
       ],
     ).catch(() => {});
 
-    // Save career goal to career_goals table
+    // Save career goal to career_goals table (supports exploration)
     await db().query(
       `insert into career_goals(user_id, role_name, active, created_at)
        values($1, $2, true, now())`,
-      [userId, goals],
+      [userId, isExploring ? 'Software Engineer' : goals],
     ).catch(() => {});
   }
 

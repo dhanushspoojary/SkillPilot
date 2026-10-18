@@ -65,6 +65,8 @@ export function CapabilityOnboarding({
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [selectedChips, setSelectedChips] = useState<string[]>([]);
+
   // Initialize dynamic onboarding from server
   useEffect(() => {
     let cancelled = false;
@@ -90,7 +92,7 @@ export function CapabilityOnboarding({
             const answeredTopics = new Set(answered.map((d) => d.topic));
             const nextTopicDef = ONBOARDING_TOPIC_CONFIGS.find((cfg) => !answeredTopics.has(cfg.topic));
 
-            if (!nextTopicDef || answered.length >= 5) {
+            if (!nextTopicDef || answered.length >= ONBOARDING_TOPIC_CONFIGS.length) {
               // Completed
               const edu = answered.find((d) => d.topic === 'education')?.answer || '1st Year Student';
               const exp = answered.find((d) => d.topic === 'experience')?.answer || 'Beginner';
@@ -112,7 +114,10 @@ export function CapabilityOnboarding({
                 id: generateTurnId(nextTopicDef.topic),
                 topic: nextTopicDef.topic,
                 question: nextTopicDef.defaultQuestion,
+                explanation: nextTopicDef.explanation,
                 options: nextTopicDef.options,
+                multiSelect: nextTopicDef.multiSelect,
+                allowSkip: true,
               });
             }
           }
@@ -123,7 +128,10 @@ export function CapabilityOnboarding({
             id: generateTurnId(first.topic),
             topic: first.topic,
             question: first.defaultQuestion,
+            explanation: first.explanation,
             options: first.options,
+            multiSelect: first.multiSelect,
+            allowSkip: true,
           });
         }
       } catch {
@@ -133,7 +141,10 @@ export function CapabilityOnboarding({
           id: generateTurnId(first.topic),
           topic: first.topic,
           question: first.defaultQuestion,
+          explanation: first.explanation,
           options: first.options,
+          multiSelect: first.multiSelect,
+          allowSkip: true,
         });
       }
     }
@@ -143,6 +154,42 @@ export function CapabilityOnboarding({
       cancelled = true;
     };
   }, []);
+
+  const handleBack = async () => {
+    if (busy || turns.length === 0) return;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await fetch('/api/workflow/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'back' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to rewind turn');
+      if (data.state) {
+        const answered = (data.state.onboardingDialogue || []).filter((d: any) => d.answer);
+        setTurns(answered);
+        if (data.activeTurn) {
+          setActiveTurn(data.activeTurn);
+        } else if (data.state.onboardingDialogue?.length) {
+          const last = data.state.onboardingDialogue[data.state.onboardingDialogue.length - 1];
+          setActiveTurn(last);
+        }
+        setSummary(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not go back');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSkip = async () => {
+    if (busy) return;
+    await handleAnswer('Skipped / Not sure yet');
+  };
+
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -314,6 +361,19 @@ export function CapabilityOnboarding({
 
         {mode === 'conversational' ? (
           <div className="onboarding-chat-stream" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Progress indicator */}
+            {!summary && (
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
+                  <span>Question {Math.min(turns.length + 1, ONBOARDING_TOPIC_CONFIGS.length)} of {ONBOARDING_TOPIC_CONFIGS.length}</span>
+                  <span>{Math.round((turns.length / ONBOARDING_TOPIC_CONFIGS.length) * 100)}% calibrated</span>
+                </div>
+                <div style={{ width: '100%', height: 4, background: 'var(--line)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${(turns.length / ONBOARDING_TOPIC_CONFIGS.length) * 100}%`, height: '100%', background: 'var(--cyan)', transition: 'width 0.3s ease' }} />
+                </div>
+              </div>
+            )}
+
             {/* Answered turns */}
             {turns.map((turn, idx) => (
               <div key={turn.id || `turn-${turn.topic || idx}`} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -347,27 +407,71 @@ export function CapabilityOnboarding({
                   </div>
                   <div style={{ background: 'var(--surface-navy)', padding: '14px 18px', borderRadius: 12, color: '#FFFFFF', fontSize: 14, flex: 1, border: '1px solid var(--cyan-border)', boxShadow: 'var(--shadow-sm)' }}>
                     <b style={{ color: 'var(--cyan)', display: 'block', fontSize: 11, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Step {turns.length + 1} of 5
+                      Step {turns.length + 1} of {ONBOARDING_TOPIC_CONFIGS.length} · {activeTurn.topic.toUpperCase().replace('_', ' ')}
                     </b>
-                    {activeTurn.question}
+                    <div>{activeTurn.question}</div>
+                    {activeTurn.explanation && (
+                      <div style={{ fontSize: 12, color: 'var(--cyan)', marginTop: 8, fontStyle: 'italic', opacity: 0.9 }}>
+                        {activeTurn.explanation}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Option Chips */}
+                {/* Option Chips (Single or Multi-select) */}
                 {activeTurn.options && activeTurn.options.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 38 }}>
-                    {activeTurn.options.map((opt, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className="chip-card small"
-                        style={{ background: 'var(--surface-indigo)', cursor: busy ? 'not-allowed' : 'pointer' }}
-                        disabled={busy}
-                        onClick={() => handleAnswer(opt)}
-                      >
-                        <b>{opt}</b>
-                      </button>
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 38 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {activeTurn.options.map((opt, i) => {
+                        const isSelected = selectedChips.includes(opt);
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            className="chip-card small"
+                            style={{
+                              background: isSelected ? 'var(--primary)' : 'var(--surface-indigo)',
+                              borderColor: isSelected ? 'var(--cyan)' : undefined,
+                              color: isSelected ? '#FFFFFF' : undefined,
+                              cursor: busy ? 'not-allowed' : 'pointer',
+                            }}
+                            disabled={busy}
+                            onClick={() => {
+                              if (activeTurn.multiSelect) {
+                                if (opt.includes('None') || opt.includes('fresh')) {
+                                  setSelectedChips([opt]);
+                                } else {
+                                  const filtered = selectedChips.filter((c) => !c.includes('None') && !c.includes('fresh'));
+                                  setSelectedChips(
+                                    isSelected ? filtered.filter((c) => c !== opt) : [...filtered, opt]
+                                  );
+                                }
+                              } else {
+                                handleAnswer(opt);
+                              }
+                            }}
+                          >
+                            <b>{opt}</b>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {activeTurn.multiSelect && selectedChips.length > 0 && (
+                      <div style={{ marginTop: 4 }}>
+                        <button
+                          type="button"
+                          className="primary small"
+                          disabled={busy}
+                          onClick={() => {
+                            handleAnswer(selectedChips.join(', '));
+                            setSelectedChips([]);
+                          }}
+                        >
+                          Confirm selected skills ({selectedChips.length})
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -395,6 +499,30 @@ export function CapabilityOnboarding({
                     {busy ? <Loader2 size={15} className="spin" /> : <Send size={14} />}
                   </button>
                 </form>
+
+                {/* Back and Skip navigation buttons */}
+                <div style={{ display: 'flex', gap: 10, paddingLeft: 38, marginTop: 4 }}>
+                  {turns.length > 0 && (
+                    <button
+                      type="button"
+                      className="ghost"
+                      style={{ fontSize: 12, padding: '4px 10px' }}
+                      disabled={busy}
+                      onClick={handleBack}
+                    >
+                      ← Back
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="ghost"
+                    style={{ fontSize: 12, padding: '4px 10px', color: 'var(--text-secondary)' }}
+                    disabled={busy}
+                    onClick={handleSkip}
+                  >
+                    Skip / Not sure yet
+                  </button>
+                </div>
               </div>
             )}
 
@@ -446,7 +574,10 @@ export function CapabilityOnboarding({
                         id: generateTurnId(first.topic),
                         topic: first.topic,
                         question: first.defaultQuestion,
+                        explanation: first.explanation,
                         options: first.options,
+                        multiSelect: first.multiSelect,
+                        allowSkip: true,
                       };
                       setActiveTurn(freshTurn);
                       try {

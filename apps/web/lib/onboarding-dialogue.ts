@@ -6,28 +6,36 @@
 export type OnboardingTopic =
   | 'education'
   | 'experience'
+  | 'skills_used'
   | 'struggles'
   | 'goals'
   | 'availability'
+  | 'format_pace'
   | 'summary';
 
 export interface OnboardingTurn {
   id: string;
   topic: OnboardingTopic;
   question: string;
+  explanation?: string;
   options?: string[];
+  multiSelect?: boolean;
+  allowSkip?: boolean;
   answer?: string;
   answeredAt?: string;
 }
 
 export const ONBOARDING_TOPIC_CONFIGS: Array<{
-  topic: 'education' | 'experience' | 'struggles' | 'goals' | 'availability';
+  topic: 'education' | 'experience' | 'skills_used' | 'struggles' | 'goals' | 'availability' | 'format_pace';
   defaultQuestion: string;
+  explanation: string;
   options: string[];
+  multiSelect?: boolean;
 }> = [
   {
     topic: 'education',
     defaultQuestion: 'Welcome to SkillPilot! Which best describes your current college or learning stage?',
+    explanation: 'Why we ask: Calibrates question phrasing and academic pacing to your current semester.',
     options: [
       '1st Year Student (Just starting college)',
       '2nd Year Student (Core CS subjects)',
@@ -38,6 +46,7 @@ export const ONBOARDING_TOPIC_CONFIGS: Array<{
   {
     topic: 'experience',
     defaultQuestion: 'How would you describe your coding experience so far?',
+    explanation: 'Why we ask: Determines whether we start with core logic fundamentals or applied engineering.',
     options: [
       'Complete Beginner (new to programming)',
       'Basic Coursework (studied intro C, C++, or Python)',
@@ -46,8 +55,24 @@ export const ONBOARDING_TOPIC_CONFIGS: Array<{
     ],
   },
   {
+    topic: 'skills_used',
+    defaultQuestion: 'Which programming languages or tools have you worked with (or claim familiarity with)?',
+    explanation: 'Why we ask: Ensures we only verify what you have actually worked with — never untested subjects.',
+    multiSelect: true,
+    options: [
+      'None / Starting fresh from zero',
+      'C / C++',
+      'Python',
+      'JavaScript / Web',
+      'Java',
+      'Git & GitHub',
+      'SQL / Databases',
+    ],
+  },
+  {
     topic: 'struggles',
     defaultQuestion: 'Which concepts or problem-solving areas feel most unfamiliar or difficult right now?',
+    explanation: 'Why we ask: Helps your AI mentor target your specific bottlenecks first.',
     options: [
       'Pointers and memory layout in C',
       'Writing logic/algorithms without hints',
@@ -59,20 +84,34 @@ export const ONBOARDING_TOPIC_CONFIGS: Array<{
   {
     topic: 'goals',
     defaultQuestion: 'What career direction or pathway are you aiming toward?',
+    explanation: 'Why we ask: Suggests milestone pathways. We never force a career decision; exploration is welcomed.',
     options: [
       'Software Engineer',
       'Backend Engineer',
       'Frontend Engineer',
       'Full Stack Engineer',
+      'Not sure yet / Exploring options',
     ],
   },
   {
     topic: 'availability',
     defaultQuestion: 'How many focused hours can you realistically dedicate to learning each week?',
+    explanation: 'Why we ask: Prevents burnout by keeping your roadmap milestones achievable.',
     options: [
       '3-5 hours / week (steady foundational pace)',
       '6-10 hours / week (active career building)',
       '10+ hours / week (intensive preparation)',
+    ],
+  },
+  {
+    topic: 'format_pace',
+    defaultQuestion: 'What learning format and pace works best for your schedule?',
+    explanation: 'Why we ask: Tailors daily recommendations between hands-on code exercises and deep conceptual dives.',
+    options: [
+      'Hands-on code exercises (Steady pace)',
+      'Conceptual deep dives with theory (Steady pace)',
+      'Practical project-first building (Active pace)',
+      'Self-directed / Flexible exploration',
     ],
   },
 ];
@@ -96,16 +135,18 @@ export function generateTurnId(topic = 'step'): string {
  */
 export function inferTopic(rawTopic: unknown, question?: string, index?: number): OnboardingTopic {
   const normTopic = typeof rawTopic === 'string' ? rawTopic.trim().toLowerCase() : '';
-  const valid: OnboardingTopic[] = ['education', 'experience', 'struggles', 'goals', 'availability', 'summary'];
+  const valid: OnboardingTopic[] = ['education', 'experience', 'skills_used', 'struggles', 'goals', 'availability', 'format_pace', 'summary'];
   if (valid.includes(normTopic as OnboardingTopic)) {
     return normTopic as OnboardingTopic;
   }
   const q = typeof question === 'string' ? question.toLowerCase() : '';
   if (/college|academic|stage|year/i.test(q)) return 'education';
-  if (/experience|coding|programming|c\+\+|python|built/i.test(q)) return 'experience';
+  if (/languages|worked with|familiarity|tools|skills/i.test(q)) return 'skills_used';
+  if (/experience|coding|programming|how would you describe/i.test(q)) return 'experience';
   if (/struggle|difficult|unfamiliar|pointers|memory|algorithms/i.test(q)) return 'struggles';
-  if (/career|pathway|aiming|goal|software engineer/i.test(q)) return 'goals';
+  if (/career|pathway|aiming|goal|software engineer|exploring/i.test(q)) return 'goals';
   if (/hour|week|availability|dedicate/i.test(q)) return 'availability';
+  if (/format|pace|schedule|theory|exercises/i.test(q)) return 'format_pace';
 
   if (typeof index === 'number' && index >= 0 && index < ONBOARDING_TOPIC_CONFIGS.length) {
     return ONBOARDING_TOPIC_CONFIGS[index].topic;

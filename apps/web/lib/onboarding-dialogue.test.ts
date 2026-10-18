@@ -141,11 +141,20 @@ test('inferTopic accurately identifies topic from question contents or sequence'
   assert.equal(inferTopic(undefined, 'How much programming or coding have you done?'), 'experience');
   assert.equal(inferTopic(undefined, 'Which concepts or pointers feel difficult?'), 'struggles');
   assert.equal(inferTopic(undefined, 'What career role or software engineer goal do you have?'), 'goals');
-  assert.equal(inferTopic(undefined, 'How many hours per week can you dedicate?'), 'availability');
-  assert.equal(inferTopic(undefined, 'Completely custom question', 3), 'goals');
+  assert.equal(inferTopic(undefined, 'Which programming languages or tools have you worked with?'), 'skills_used');
+  assert.equal(inferTopic(undefined, 'Completely custom question', 3), 'struggles');
+  assert.equal(inferTopic(undefined, 'Completely custom question', 4), 'goals');
 });
 
 test('ONBOARDING_TOPIC_CONFIGS has all required foundational stages in logical order', () => {
   const topics = ONBOARDING_TOPIC_CONFIGS.map((c) => c.topic);
-  assert.deepEqual(topics, ['education', 'experience', 'struggles', 'goals', 'availability']);
+  assert.deepEqual(topics, [
+    'education',
+    'experience',
+    'skills_used',
+    'struggles',
+    'goals',
+    'availability',
+    'format_pace',
+  ]);
 });
