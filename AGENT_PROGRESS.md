@@ -4,7 +4,7 @@
 **Root Path:** `c:\Users\Dhanush S Poojary\Downloads\SkillPilot\skillpilot-final`  
 **Web App Path:** `apps/web`  
 **Primary Provider:** Google Gemini via official `@google/genai` SDK  
-**Environment Variables:** `GEMINI_API_KEY`, `GEMINI_MODEL_FAST` (default: `gemini-2.5-flash`), `GEMINI_MODEL_STRONG` (default: `gemini-2.5-flash`)
+**Environment Variables:** `GEMINI_API_KEY`, `GEMINI_MODEL_FAST` (configured: `gemini-flash-latest`), `GEMINI_MODEL_STRONG` (configured: `gemini-flash-latest`)
 
 ---
 
@@ -21,7 +21,8 @@
   - [x] Installed official `@google/genai` SDK in `apps/web` (`^2.30.0`)
   - [x] Implemented `LLMProvider` abstraction (`generateResponse`, `generateText`, toolCall schemas)
   - [x] Implemented `GeminiProviderAdapter` using official `@google/genai` SDK
-  - [x] Configured `GEMINI_MODEL_FAST` and `GEMINI_MODEL_STRONG` routing (default: `gemini-2.5-flash`)
+  - [x] Configured `GEMINI_MODEL_FAST` and `GEMINI_MODEL_STRONG` routing (`gemini-flash-latest`)
+  - [x] Verified live Google Gemini API connectivity & tool calling with real API key
   - [x] Implemented exponential backoff with jitter and clear user-facing messages for free-tier 429 errors
   - [x] PII minimization (`sanitizePII`) and secret redaction (`redactSecrets`)
   - [x] Maintained secondary `AnthropicProviderAdapter` compatibility for future provider swaps
@@ -59,13 +60,16 @@
   - [x] Natural language preference changes with before/after diffs and history ("explain simpler", "I have 20 minutes", "focus on C first", "why this?")
   - [x] Prerequisite conflict explanation and safe alternatives (e.g., requesting REST APIs without JS explains missing foundation)
   - [x] Completed progress preserved during roadmap adjustments
-- [x] **Phase 9: Security & Reliability**
+- [x] **Phase 9: Security & Reliability (Origin & CSRF Fix)**
+  - [x] **Fixed "Origin not allowed" Root Cause**: Enhanced `requireOrigin` in `lib/server-security.ts` and `originOk` in `lib/guard.ts` to recognize legitimate same-origin requests matching Host header, request URL origin, and development IP/localhost aliases while strictly blocking cross-origin attempts and `sec-fetch-site: cross-site`.
+  - [x] Created `lib/origin-security.test.ts` (7/7 tests passing)
   - [x] Feature flag kill switches: `SKILLPILOT_AGENT_ENABLED`, `SKILLPILOT_DISABLED_TOOLS`
   - [x] Prompt injection resistance, parameterized PostgreSQL queries, cross-user isolation
   - [x] Execution budgets, request timeouts, and token budgeting
 - [x] **Phase 10: UX, Motion & Accessibility**
   - [x] Streaming chat UI with concise tool indicators, Stop/Cancel button (`AbortController`), and Retry on failure
   - [x] 5-stage stepper (01 Discover · 02 Verify · 03 Plan · 04 Learn · 05 Improve)
+  - [x] Refined deep blue design system (#080D1A midnight, #0C1426 navy, #245BFF primary, #4D8DFF electric blue, #71E6FF cyan; zero stray orange/purple highlights)
   - [x] Mobile 320px responsive layout with zero horizontal overflow
   - [x] `@media (prefers-reduced-motion)` support and `aria-live="polite"` for accessible streaming
 - [x] **Phase 11: Eval Harness & Observability**
@@ -74,9 +78,9 @@
   - [x] Explain-the-recommendation capability
   - [x] Honest degradation mode with user-friendly notices
 - [x] **Phase 12: Comprehensive Automated Testing**
-  - [x] Unit test suite pass: **118 passing, 0 failing, 0 skipped** (`npm test`)
+  - [x] Unit test suite pass: **125 passing, 0 failing, 0 skipped** (`npm test`)
   - [x] Typecheck pass: **0 TypeScript compiler errors** (`npm run typecheck`)
-  - [x] Production build pass: **Clean build in 5.1s, all 9 static pages and dynamic routes compiled** (`npm run build`)
+  - [x] Production build pass: **Clean build in 6.6s, all 9 static pages and dynamic routes compiled** (`npm run build`)
   - [x] Live browser E2E journey automation pass: **Both Beginner & Advanced Journeys Verified** (`verify-journeys-e2e.mjs`)
 - [x] **Phase 13: Self-Audit & Code Cleanliness Loop**
   - [x] Codebase audited for raw user IDs, mock strings, and unverified claims
@@ -91,10 +95,11 @@
 
 | Suite / Check | Command | Pass Count | Fail Count | Status | Notes |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Unit & Scenario Tests** | `npm test` (`apps/web`) | **118** | **0** | **PASS** | Evaluated in 18.3s |
+| **Unit & Scenario Tests** | `npm test` (`apps/web`) | **125** | **0** | **PASS** | Includes 7 origin security tests |
 | **TypeScript Typecheck** | `npm run typecheck` | N/A | **0 errors** | **PASS** | `tsc --noEmit` exited 0 |
-| **Production Build** | `npm run build` | 9/9 pages | **0 errors** | **PASS** | Compiled in 5.1s |
+| **Production Build** | `npm run build` | 9/9 pages | **0 errors** | **PASS** | Compiled in 6.6s |
 | **Browser E2E Journeys** | `node scripts/verify-journeys-e2e.mjs` | **2 journeys** | **0** | **PASS** | Edge headless automation |
+| **Live Gemini Model Check** | `gemini-flash-latest` | 1 text, 1 tool | **0** | **PASS** | Real Google GenAI API response |
 
 ### Browser E2E Highlights:
 - **Complete Beginner (Scenario A)**:
@@ -116,57 +121,50 @@
 
 ## 3. Key Findings & Architectural Solutions
 
-1. **Root Cause of Unrelated Diagnostic Questions (JavaScript / SQL shown to beginners)**:
-   - **Root Cause**: `apps/web/app/api/assess/start/route.ts` previously fetched all questions from `lib/questions.ts` and applied an unguided Fisher-Yates array shuffle, presenting JavaScript or SQL questions randomly regardless of the student's claimed skills or education level.
+1. **Origin Validation Mismatch ("Unable to Start Diagnostic / Origin not allowed")**:
+   - **Root Cause**: `apps/web/lib/server-security.ts` called `originOk(req.method, req.headers.get('origin'), allowed)` where `allowed` was statically evaluated against `SKILLPILOT_ALLOWED_ORIGIN`. When accessed on local network IP (e.g. `http://192.168.1.102:3000`), a different port, or when `origin` was absent on same-origin POST requests, the request was rejected with 403 `Origin not allowed`.
+   - **Solution**: Enhanced `requireOrigin` to cross-validate `origin` against the request's own `Host` header (`req.headers.get('host')`), incoming request URL origin, development hostname aliases (`localhost`, `127.0.0.1`, `[::1]`), and `sec-fetch-site`. Legitimate same-origin requests now succeed seamlessly, while unauthorized cross-origin requests (`sec-fetch-site: cross-site` or external domains) remain strictly rejected. Verified in `apps/web/lib/origin-security.test.ts`.
+
+2. **Google Gemini Live Model Verification**:
+   - Tested real Google Gemini inference using the configured `GEMINI_API_KEY`.
+   - Discovered that Google deprecated `gemini-2.5-flash` for new accounts in favor of `gemini-flash-latest`.
+   - Updated `apps/web/.env.local` and `apps/web/lib/llm-provider.ts` to use `gemini-flash-latest`.
+   - Confirmed live inference succeeded and tool calling (`update_learning_preferences` with `dailyMinutes: 25`) returned structured function call arguments directly from Google Gemini.
+
+3. **Root Cause of Unrelated Diagnostic Questions (JavaScript / SQL shown to beginners)**:
+   - **Root Cause**: `apps/web/app/api/assess/start/route.ts` previously fetched all questions from `lib/questions.ts` and applied an unguided Fisher-Yates array shuffle.
    - **Solution**: Replaced random selection with `planAssessmentSession` in `apps/web/lib/assessment-planner.ts`. It cross-references self-reported claims, learning goals, and verified prerequisites. Complete beginners receive strictly Level 1 Problem Solving. Furthermore, `validateQuestionProposal` serves as a hard deterministic server-side guard that rejects any question whose skill is not claimed or whose prerequisites are unverified.
 
-2. **Primary Provider: Google Gemini Integration**:
-   - Integrated using the official `@google/genai` SDK (`^2.30.0`).
-   - Implemented `GeminiProviderAdapter` in `apps/web/lib/llm-provider.ts` routing between:
-     - `GEMINI_MODEL_FAST` (default: `gemini-2.5-flash`) for intent classification, tool routing, conversation summarization, and quick responses.
-     - `GEMINI_MODEL_STRONG` (default: `gemini-2.5-flash`) for deep tutoring, multi-step planning, code evaluation, and roadmap orchestration.
-   - Preserved `LLMProvider` interface and `AnthropicProviderAdapter` so Anthropic or other providers can be configured seamlessly.
-   - Rate limit handling: exponential backoff with jitter on 429 quota errors, falling back honestly to verified deterministic mode if free-tier capacity is exhausted.
-
-3. **Privacy & Security**:
-   - Client identity comes exclusively from `requireAuth()` server cookies; client-supplied user IDs are rejected.
-   - Student PII (emails, phone numbers, auth tokens) is stripped (`sanitizePII`) before any external API call.
-   - Secrets and tokens are redacted from all server logs (`redactSecrets`).
-   - Administrative kill switches: `SKILLPILOT_AGENT_ENABLED` (disables model calls) and `SKILLPILOT_DISABLED_TOOLS` (disables individual tools).
-
-4. **Idempotency & Reversible Preferences**:
-   - Added `withIdempotency` caching using table `agent_idempotency_keys` to prevent duplicate attempts or mutations on network retries.
-   - Added versioned preference history via table `roadmap_preference_history` and `revertLastRoadmapPreferenceChange`, enabling students to say "undo" or "revert" to restore their prior learning settings.
+4. **Dashboard Aesthetic Refinement**:
+   - Removed lingering orange/purple shadows and borders from `.priority-card`, `.primary-btn-link`, `.journey-step-btn`, and `.status-pill.active`.
+   - Applied unified deep-blue design tokens: `#080D1A` midnight navy, `#0C1426` dark navy surface, `#245BFF` primary, `#4D8DFF` electric blue glow, and `#71E6FF` pale cyan accents.
 
 ---
 
-## 4. Advanced Features Implemented vs. Skipped
-
-| Feature | Status | Notes |
-| :--- | :---: | :--- |
-| **Golden Conversation Eval Harness** | **Implemented** | 6 scenarios in `lib/scenarios-and-security.test.ts` (beginner, advanced JS, undecided, injection, preference change, general topic). |
-| **Structured Observability** | **Implemented** | Logs request ID, step count, tool execution duration, token estimates, without exposing private reasoning. |
-| **Conversation Auto-Summarization** | **Implemented** | Rolling summaries via `generateConversationSummary` in `lib/student-context.ts`. |
-| **Student Memory View / Edit / Delete** | **Implemented** | Fully interactive via `/api/agent/memories` (GET, POST, PATCH, DELETE). |
-| **Explain-the-Recommendation** | **Implemented** | Agent tool `explain_recommendation` provides prerequisite and gap justification. |
-| **Honest Degradation Mode** | **Implemented** | Clear user-facing status when LLM provider is unavailable, keeping all core assessment and roadmap viewing intact. |
-| **Stop / Cancel & Retry Streaming** | **Implemented** | `AbortController` cancel button and retry triggers in `components/AgentPanel.tsx`. |
-| **Preference Undo / Revert** | **Implemented** | Reverts learning pace, daily schedule, and difficulty to prior version with before/after confirmation. |
-| *Vector Database / pgvector Embeddings* | *Skipped* | Not present in existing schema; per instructions, utilized keyword and recency retrieval without adding heavy external infrastructure dependencies. |
-
----
-
-## 5. How to Enable the Real Google Gemini Provider
+## 4. How to Run & Verify
 
 In `.env.local` inside `apps/web`:
 ```bash
-# Server-side only: never exposed to browser
-GEMINI_API_KEY=your_actual_google_gemini_api_key_here
-GEMINI_MODEL_FAST=gemini-2.5-flash
-GEMINI_MODEL_STRONG=gemini-2.5-flash
-
-# Optional kill switches:
-# SKILLPILOT_AGENT_ENABLED=true
-# SKILLPILOT_DISABLED_TOOLS=
+DATABASE_URL=postgresql://...
+SKILLPILOT_ALLOWED_ORIGIN=http://localhost:3000
+SKILLPILOT_TRUST_PROXY=false
+SKILLPILOT_SECURE_COOKIES=false
+GEMINI_API_KEY="your_api_key_here"
+GEMINI_MODEL_FAST=gemini-flash-latest
+GEMINI_MODEL_STRONG=gemini-flash-latest
 ```
-When `GEMINI_API_KEY` is present, `getActiveLLMProvider()` automatically instantiates `GeminiProviderAdapter` via the official `@google/genai` client. If absent or quota-exhausted, SkillPilot operates in labeled deterministic fallback mode.
+
+### Verification Commands
+```bash
+# Run 125 automated unit & security tests
+npm test
+
+# Run TypeScript type check
+npm run typecheck
+
+# Run production build
+npm run build
+
+# Run automated browser journeys
+node scripts/verify-journeys-e2e.mjs
+```
