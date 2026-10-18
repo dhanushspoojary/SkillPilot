@@ -1035,7 +1035,7 @@ nav {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(255, 122, 0, 0.4);
+  box-shadow: 0 4px 14px rgba(36, 91, 255, 0.35);
   white-space: nowrap;
 }
 .priority-action-btn:hover {
@@ -2433,7 +2433,7 @@ nav {
   border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 14px;
-  box-shadow: 0 4px 14px rgba(255, 122, 0, 0.4);
+  box-shadow: 0 4px 14px rgba(36, 91, 255, 0.35);
 }
 .primary-btn-link:hover {
   background: var(--primary-hover);
@@ -3383,7 +3383,7 @@ nav {
 .journey-step-btn.active .step-num-bubble {
   background: var(--primary);
   color: #FFFFFF;
-  box-shadow: 0 0 8px rgba(255, 122, 0, 0.5);
+  box-shadow: 0 0 8px rgba(77, 141, 255, 0.6);
 }
 .step-label-group {
   display: flex;
@@ -3459,9 +3459,9 @@ nav {
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 .status-pill.active {
-  background: rgba(255, 122, 0, 0.15);
-  color: var(--primary);
-  border: 1px solid rgba(255, 122, 0, 0.3);
+  background: rgba(36, 91, 255, 0.2);
+  color: var(--cyan);
+  border: 1px solid rgba(113, 230, 255, 0.35);
 }
 .status-pill.upcoming {
   background: rgba(148, 169, 204, 0.1);

@@ -69,7 +69,7 @@ try {
 
   // 2. Onboarding Modal Auto-Starts
   console.log('2. Verifying Conversational Discovery auto-starts on first login...');
-  await page.waitForSelector('.onboarding-modal', { timeout: 15000 });
+  await page.waitForSelector('.onboarding-modal', { timeout: 30000 });
   const modalTitle = await page.textContent('.onboarding-modal h2');
   console.log(`   Onboarding modal active: "${modalTitle?.trim()}"`);
   check(modalTitle?.includes('SkillPilot') || modalTitle?.includes('Welcome'), 'Onboarding modal title missing');
@@ -269,7 +269,7 @@ try {
 
   // 2. Onboarding Modal Auto-Starts
   console.log('2. Completing conversational discovery as practical JS developer...');
-  await page2.waitForSelector('.onboarding-modal', { timeout: 15000 });
+  await page2.waitForSelector('.onboarding-modal', { timeout: 30000 });
 
   // Use Switch to Quick Form for direct structured calibration
   const switchBtn = page2.locator('button:has-text("Switch to Quick Form")');

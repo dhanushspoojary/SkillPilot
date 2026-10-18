@@ -162,9 +162,10 @@ export class GeminiProviderAdapter implements LLMProvider {
   private strongModel: string;
 
   constructor(apiKey: string) {
-    this.client = new GoogleGenAI({ apiKey });
-    this.fastModel = process.env.GEMINI_MODEL_FAST || 'gemini-2.5-flash';
-    this.strongModel = process.env.GEMINI_MODEL_STRONG || 'gemini-2.5-flash';
+    const cleanKey = (apiKey || '').trim().replace(/^["']|["']$/g, '');
+    this.client = new GoogleGenAI({ apiKey: cleanKey });
+    this.fastModel = (process.env.GEMINI_MODEL_FAST || 'gemini-flash-latest').trim().replace(/^["']|["']$/g, '');
+    this.strongModel = (process.env.GEMINI_MODEL_STRONG || 'gemini-flash-latest').trim().replace(/^["']|["']$/g, '');
   }
 
   public getModelName(tier: 'fast' | 'strong' = 'strong'): string {

@@ -63,11 +63,14 @@ export function originOk(method: string, origin: string | null, allowed: string 
     if (!allowed)
         return true;
     if (origin) {
-        if (origin === allowed)
+        const norm = (o: string) => o.replace(/\/+$/, '').toLowerCase();
+        const oNorm = norm(origin);
+        const aNorm = norm(allowed);
+        if (oNorm === aNorm)
             return true;
         if (process.env.NODE_ENV !== 'production') {
-            const norm = (o: string) => o.replace('://127.0.0.1:', '://localhost:');
-            if (norm(origin) === norm(allowed))
+            const devNorm = (o: string) => o.replace('://127.0.0.1:', '://localhost:').replace('://[::1]:', '://localhost:');
+            if (devNorm(oNorm) === devNorm(aNorm))
                 return true;
         }
         return false;
