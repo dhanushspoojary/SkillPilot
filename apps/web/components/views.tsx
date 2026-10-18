@@ -1,120 +1,315 @@
-import { useEffect, useState } from 'react';
-import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, Share2, Copy, ExternalLink, Lock } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, Share2, Copy, ExternalLink, Lock, Send, Clock, BookOpen, AlertCircle } from 'lucide-react';
 import { STAGES, SKILLS, passportSummary, readiness, skillStates, stageProgress, type AppState, type PlanAction, } from '../lib/engine';
 import { ProgressRing } from './ProgressRing';
 import { ChatPanel } from './ChatPanel';
 import { MeetingLink } from './MeetingLink';
 import { PageIntro, Signal, SkillBar, VerifiedBadge } from './ui';
-import { AnimatedMarquee, ConnectedSkillNetwork, ScrollReveal } from './motion';
+import { AnimatedMarquee, ConnectedSkillNetwork, ScrollReveal, GuidedJourneyProgress, type JourneyStageConfig } from './motion';
+import type { StudentCapabilityProfile } from '../lib/capability-profile';
+import { extractClaimedSkills } from '../lib/assessment-planner';
 export type View = 'today' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
-export function Today({ state, actions, go, onAction, onUndo, runAgent, running, careerGoal = 'Software Engineer', onOpenCalibration, workflow }: {
-    state: AppState;
-    actions: PlanAction[];
-    go: (v: View, focus?: string) => void;
-    onAction: (a: PlanAction) => void;
-    onUndo: (id: string) => void;
-    runAgent: () => void;
-    running: boolean;
-    careerGoal?: string;
-    onOpenCalibration?: () => void;
-    workflow?: any;
+
+export function Today({
+  state,
+  actions,
+  go,
+  onAction,
+  onUndo,
+  runAgent,
+  running,
+  careerGoal = 'Software Engineer',
+  onOpenCalibration,
+  workflow,
+  capabilityProfile,
+  refreshProfile,
+}: {
+  state: AppState;
+  actions: PlanAction[];
+  go: (v: View, focus?: string) => void;
+  onAction: (a: PlanAction) => void;
+  onUndo: (id: string) => void;
+  runAgent: () => void;
+  running: boolean;
+  careerGoal?: string;
+  onOpenCalibration?: () => void;
+  workflow?: any;
+  capabilityProfile?: StudentCapabilityProfile | null;
+  refreshProfile?: () => Promise<void>;
 }) {
-    const skills = skillStates(state.evidence);
-    const r = readiness(skills);
-    const top = actions.slice(0, 3);
-    const stagesProg = STAGES.map((s) => ({ ...s, progress: stageProgress(skills, s.skills) }));
-    const currentStage = stagesProg.find((s) => s.progress < 90) ?? stagesProg[stagesProg.length - 1];
+  const skills = skillStates(state.evidence);
+  const r = readiness(skills);
+  const top = actions.slice(0, 3);
+  const stagesProg = STAGES.map((s) => ({ ...s, progress: stageProgress(skills, s.skills) }));
+  const currentStage = stagesProg.find((s) => s.progress < 90) ?? stagesProg[stagesProg.length - 1];
 
-    const primaryAction = top[0];
-    const wfAction = workflow?.nextRecommendedAction;
-    const primaryTitle = wfAction?.title || (primaryAction ? primaryAction.title : 'Take Adaptive Baseline Assessment');
-    const primaryReason = wfAction?.reason || (state.evidence.length === 0
-      ? 'Calibrate your initial baseline across foundational software engineering competencies.'
-      : primaryAction
-        ? `Closing the gap in ${skillName(primaryAction.skill)} will yield the highest readiness impact.`
-        : 'All targets for your current path are met. Retest periodically to maintain verified proof.');
+  // 1. Primary Action: What, Why, What to do now
+  const primaryAction = top[0];
+  const wfAction = workflow?.nextRecommendedAction;
+  const primaryTitle = wfAction?.title || (primaryAction ? primaryAction.title : 'Take Adaptive Baseline Assessment');
+  const primaryReason = wfAction?.reason || (state.evidence.length === 0
+    ? 'Calibrate your initial baseline across foundational software engineering competencies.'
+    : primaryAction
+      ? `Closing the gap in ${skillName(primaryAction.skill)} will yield the highest readiness impact.`
+      : 'All targets for your current path are met. Retest periodically to maintain verified proof.');
+  const primaryNow = primaryAction
+    ? (primaryAction.kind === 'PROVE' ? 'Launch the adaptive diagnostic quiz (Levels 0–5) to record authentic proof.' : 'Work through the hands-on project in your workspace.')
+    : 'All current benchmarks verified. Retest periodically to maintain proof.';
 
-    return <div className="today-dashboard">
-    <section className="welcome dashboard-header">
-      <div className="greeting-col">
-        <div className="eyebrow"><span className="live-dot" /> SKILLPILOT — CAREER INTELLIGENCE SYSTEM</div>
-        <h1>YOUR POTENTIAL. <em>ENGINEERED.</em></h1>
-        <p>Understand your strengths. Close your skill gaps. Build evidence of what you can do.</p>
-      </div>
-      <div className="goal-badge-wrap">
-        <div className="goal-pill">
-          <Target size={14} />
-          <span>Target: <b>{careerGoal}</b></span>
+  // 2. Claimed vs Verified Skills
+  const claimedSkills: string[] = useMemo(() => {
+    if (capabilityProfile) {
+      return extractClaimedSkills(capabilityProfile).claimedSkills;
+    }
+    if (workflow?.confirmedSkills && workflow.confirmedSkills.length > 0) {
+      return workflow.confirmedSkills;
+    }
+    return ['problem-solving'];
+  }, [capabilityProfile, workflow?.confirmedSkills]);
+
+  const verifiedSkillsList = useMemo(() => {
+    return skills.filter((s) => s.count > 0);
+  }, [skills]);
+
+  // 3. Real-State 5-Stage Journey Config (01 Discover, 02 Verify, 03 Plan, 04 Learn, 05 Improve)
+  const isDiscoverDone = Boolean(capabilityProfile?.onboardingCompleted || workflow?.stage === 'DISCOVERY_COMPLETED');
+  const isVerifyDone = state.evidence.length >= 1;
+  const isPlanDone = stagesProg.some((s) => s.progress >= 90);
+  const isLearnDone = state.activity.length >= 3;
+  const isImproveDone = skills.some((s) => s.verified);
+
+  const journeyStages: JourneyStageConfig[] = [
+    {
+      num: '01',
+      id: 'discover',
+      title: 'Discover',
+      subtitle: 'Background & Skill Claims',
+      status: isDiscoverDone ? 'completed' : 'active',
+      badge: isDiscoverDone ? 'Calibrated' : 'In Progress',
+      happening: 'Conversational discovery captures your academic year, declared skill claims, and daily study availability.',
+      why: 'Calibrating your true starting point prevents irrelevant questions and aligns your roadmap to realistic weekly hours.',
+      now: isDiscoverDone ? 'Review or adjust your background calibration anytime.' : 'Complete conversational discovery to set your baseline.',
+      actionLabel: isDiscoverDone ? 'Review Background' : 'Start Discovery',
+      actionRoute: 'calibration',
+    },
+    {
+      num: '02',
+      id: 'verify',
+      title: 'Verify',
+      subtitle: 'Adaptive Diagnostic',
+      status: isVerifyDone ? 'completed' : isDiscoverDone ? 'active' : 'upcoming',
+      badge: isVerifyDone ? `${state.evidence.length} Signals Verified` : 'Needs Baseline',
+      happening: 'Adaptive, prerequisite-aware diagnostic verifies your capabilities across claimed foundational topics (Levels 0–5).',
+      why: 'Self-reported claims carry zero score weight. Objective testing creates immutable server proof without testing unearned topics.',
+      now: isVerifyDone ? 'Retest periodically or target next competency level.' : 'Take your initial adaptive diagnostic assessment.',
+      actionLabel: isVerifyDone ? 'Retest Baseline' : 'Start Diagnostic',
+      actionRoute: 'assess',
+    },
+    {
+      num: '03',
+      id: 'plan',
+      title: 'Plan',
+      subtitle: 'Personalized Roadmap',
+      status: isPlanDone ? 'completed' : isVerifyDone ? 'active' : 'upcoming',
+      badge: isVerifyDone ? 'Milestones Active' : 'Prerequisite Locked',
+      happening: 'Living career roadmap dynamically structured from verified evidence into semesters, milestones, and weekly targets.',
+      why: 'Dependencies are strictly enforced: advanced topics unlock only after verified foundational evidence is recorded.',
+      now: isVerifyDone ? 'Review your customized semester milestone targets.' : 'Complete baseline assessment to unlock your roadmap.',
+      actionLabel: 'Inspect Roadmap',
+      actionRoute: 'roadmap',
+    },
+    {
+      num: '04',
+      id: 'learn',
+      title: 'Learn',
+      subtitle: 'Bite-Sized Practice & Projects',
+      status: isLearnDone ? 'completed' : isVerifyDone ? 'active' : 'upcoming',
+      badge: state.activity.length > 0 ? `${state.activity.length} Tasks Done` : 'Ready to Practice',
+      happening: 'Targeted hands-on practice: bite-sized tracing challenges, practical systems projects, and code debugging.',
+      why: 'True capability is built by applying concepts. Practical project verification elevates confidence beyond quizzes.',
+      now: primaryAction ? `Execute today's recommended action: ${primaryAction.title}` : 'Explore available practical projects in your workspace.',
+      actionLabel: primaryAction?.kind === 'PROVE' ? 'Start Assessment' : 'Open Projects',
+      actionRoute: primaryAction?.kind === 'PROVE' ? 'assess' : 'projects',
+    },
+    {
+      num: '05',
+      id: 'improve',
+      title: 'Improve',
+      subtitle: 'Continuous Mastery & Passport',
+      status: isImproveDone ? 'completed' : state.activity.length >= 1 ? 'active' : 'upcoming',
+      badge: isImproveDone ? 'Verified Passport' : 'Continuous Cycle',
+      happening: 'Continuous capability re-verification, mentor feedback, mock interviews, and verifiable public Skill Passport.',
+      why: 'Multi-source evidence prevents skill decay and guarantees high-confidence capability signals to future employers.',
+      now: 'Inspect your verified passport summary or request review from an approved mentor.',
+      actionLabel: 'View Skill Passport',
+      actionRoute: 'passport',
+    },
+  ];
+
+  const activeStageIndex = !isDiscoverDone ? 0 : !isVerifyDone ? 1 : !isLearnDone ? 3 : isImproveDone ? 4 : 2;
+
+  // 4. Embedded AI Companion State
+  const [companionInput, setCompanionInput] = useState('');
+  const [companionBusy, setCompanionBusy] = useState(false);
+  const [companionReply, setCompanionReply] = useState<string | null>(null);
+  const [companionTools, setCompanionTools] = useState<string[]>([]);
+  const [companionError, setCompanionError] = useState('');
+
+  const quickPrompts = [
+    'Explain simpler',
+    'I have 20 minutes',
+    'Focus on C first',
+    'Why this task?',
+    'Harder challenge',
+    'Change my roadmap',
+  ];
+
+  const handleAskCompanion = async (queryText: string) => {
+    if (!queryText.trim() || companionBusy) return;
+    const text = queryText.trim();
+    setCompanionInput('');
+    setCompanionBusy(true);
+    setCompanionError('');
+
+    try {
+      const res = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: text,
+          state: { v: 2, activity: state.activity, requests: state.requests },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Agent call failed');
+
+      setCompanionReply(data.answer || 'Response received.');
+      if (Array.isArray(data.steps)) {
+        setCompanionTools(data.steps.map((s: any) => s.tool || 'executed_tool'));
+      }
+      if (refreshProfile) {
+        void refreshProfile();
+      }
+    } catch (err) {
+      setCompanionError(err instanceof Error ? err.message : 'Could not reach agent companion.');
+    } finally {
+      setCompanionBusy(false);
+    }
+  };
+
+  // Recent authentic evidence
+  const recentEvidence = useMemo(() => {
+    return [...state.evidence].filter((e) => !e.id.startsWith('seed-')).slice(-5).reverse();
+  }, [state.evidence]);
+
+  return (
+    <div className="today-dashboard">
+      {/* PRIORITY 1: STATUS & GUIDED JOURNEY STEPPER */}
+      <section className="welcome dashboard-header">
+        <div className="greeting-col">
+          <div className="eyebrow"><span className="live-dot" /> SKILLPILOT — CAREER INTELLIGENCE SYSTEM</div>
+          <h1>YOUR POTENTIAL. <em>ENGINEERED.</em></h1>
+          <p>Understand your strengths. Close your skill gaps. Build evidence of what you can do.</p>
         </div>
-        {onOpenCalibration && (
-          <button type="button" className="calibrate-btn" onClick={onOpenCalibration}>
-            <Sparkles size={13} /> Calibrate background
-          </button>
-        )}
-      </div>
-    </section>
-
-    <AnimatedMarquee items={[
-      'ASSESS COMPETENCIES',
-      'LEARN WITH SOCRATIC AI',
-      'BUILD PRACTICAL SYSTEMS',
-      'DEMONSTRATE RUNTIME EVIDENCE',
-      'GROW CAREER READINESS',
-      'AUTONOMOUS CAREER SYSTEM',
-    ]} />
-
-    <ConnectedSkillNetwork state={state} onSelectSkill={(skillId) => go('assess', skillId)} />
-
-    <section className="priority-card">
-      <div className="priority-copy">
-        <div className="priority-eyebrow">
-          <Zap size={14} /> RECOMMENDED NEXT STEP
-        </div>
-        <h2>{primaryTitle}</h2>
-        <p>{primaryReason}</p>
-      </div>
-      <button
-        className="primary priority-action-btn"
-        onClick={() => go('assess', primaryAction?.skill)}
-      >
-        <Zap size={16} /> Start adaptive assessment
-      </button>
-    </section>
-
-    <div className="dashboard-grid">
-      <div className="panel-block">
-        <div className="panel-head">
-          <div>
-            <span className="kicker">NEXT STEPS</span>
-            <h3>High-Priority Learning Tasks</h3>
+        <div className="goal-badge-wrap">
+          <div className="goal-pill">
+            <Target size={14} />
+            <span>Target: <b>{careerGoal}</b></span>
           </div>
-          <button className="link" onClick={() => go('roadmap')}>
-            See full plan <ArrowRight size={14} />
-          </button>
-        </div>
-        <div className="action-stack task-list">
-          {top.length === 0 && <p className="muted">Nothing left to do for this target role.</p>}
-          {top.map((a, i) => (
-            <button
-              className="action-card task-row"
-              key={a.id}
-              onClick={() => onAction(a)}
-              aria-label={`${a.title}. ${a.detail}`}
-            >
-              <span className="task-index">0{i + 1}</span>
-              <span className="action-icon">
-                {a.kind === 'PROVE' ? <Crosshair size={18} /> : a.kind === 'BUILD' ? <Zap size={18} /> : <MessageCircle size={18} />}
-              </span>
-              <span className="task-info">
-                <b>{a.title}</b>
-                <small>{a.detail} · ~15 mins · Prereq: None · {a.kind === 'PROVE' ? 'starts quiz' : 'mark complete'}</small>
-              </span>
-              <span className="task-impact">+{a.upTo}% readiness</span>
+          {onOpenCalibration && (
+            <button type="button" className="calibrate-btn" onClick={onOpenCalibration}>
+              <Sparkles size={13} /> Calibrate background
             </button>
-          ))}
+          )}
+        </div>
+      </section>
+
+      {/* Guided 5-Stage Stepper: 01 Discover, 02 Verify, 03 Plan, 04 Learn, 05 Improve */}
+      <GuidedJourneyProgress
+        stages={journeyStages}
+        activeStageIndex={activeStageIndex}
+        onStageClick={(idx) => {
+          const target = journeyStages[idx];
+          if (target.id === 'discover' && onOpenCalibration) onOpenCalibration();
+          else if (target.id === 'verify') go('assess');
+          else if (target.id === 'plan') go('roadmap');
+          else if (target.id === 'learn') go('projects');
+          else if (target.id === 'improve') go('passport');
+        }}
+        onActionClick={(stage) => {
+          if (stage.id === 'discover' && onOpenCalibration) onOpenCalibration();
+          else if (stage.actionRoute) go(stage.actionRoute as View);
+        }}
+      />
+
+      <AnimatedMarquee items={[
+        'ASSESS COMPETENCIES',
+        'LEARN WITH SOCRATIC AI',
+        'BUILD PRACTICAL SYSTEMS',
+        'DEMONSTRATE RUNTIME EVIDENCE',
+        'GROW CAREER READINESS',
+        'AUTONOMOUS CAREER SYSTEM',
+      ]} />
+
+      {/* PRIORITY 2: TODAY'S ACTION (ONE PRIMARY ACTION CARD) */}
+      <section className="priority-card" role="region" aria-label="Today's Primary Action">
+        <div className="priority-copy">
+          <div className="priority-eyebrow">
+            <Zap size={14} /> RECOMMENDED NEXT STEP // ONE PRIMARY ACTION
+          </div>
+          <h2>{primaryTitle}</h2>
+          <p>{primaryReason}</p>
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--cyan)' }}>
+            <b>What to do now:</b> {primaryNow}
+          </div>
+        </div>
+        <button
+          className="primary priority-action-btn"
+          onClick={() => {
+            if (primaryAction?.kind === 'BUILD') {
+              go('projects');
+            } else {
+              go('assess', primaryAction?.skill);
+            }
+          }}
+        >
+          <Zap size={16} /> {primaryAction?.kind === 'BUILD' ? 'Open project workspace' : 'Start adaptive assessment'}
+        </button>
+      </section>
+
+      {/* Secondary Tasks Stack (if any) */}
+      {top.slice(1).length > 0 && (
+        <div className="panel-block" style={{ marginBottom: 24 }}>
+          <div className="panel-head">
+            <div>
+              <span className="kicker">UPCOMING QUEUE</span>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Secondary Learning Actions</h3>
+            </div>
+            <button className="link" onClick={() => go('roadmap')}>See full roadmap <ArrowRight size={14} /></button>
+          </div>
+          <div className="action-stack task-list">
+            {top.slice(1).map((a, i) => (
+              <button
+                className="action-card task-row"
+                key={a.id}
+                onClick={() => onAction(a)}
+                aria-label={`${a.title}. ${a.detail}`}
+              >
+                <span className="task-index">0{i + 2}</span>
+                <span className="action-icon">
+                  {a.kind === 'PROVE' ? <Crosshair size={18} /> : a.kind === 'BUILD' ? <Zap size={18} /> : <MessageCircle size={18} />}
+                </span>
+                <span className="task-info">
+                  <b>{a.title}</b>
+                  <small>{a.detail} · ~{a.time || '15 mins'} · {a.kind === 'PROVE' ? 'starts quiz' : 'mark complete'}</small>
+                </span>
+                <span className="task-impact">+{a.upTo}% readiness</span>
+              </button>
+            ))}
+          </div>
           {state.activity.length > 0 && (
-            <div className="done-strip">
+            <div className="done-strip" style={{ marginTop: 12 }}>
               <small>DONE THIS CYCLE</small>
               {state.activity.map((a) => (
                 <span key={a.id}>
@@ -125,41 +320,27 @@ export function Today({ state, actions, go, onAction, onUndo, runAgent, running,
             </div>
           )}
         </div>
+      )}
 
-        <div className="agent-note" style={{ marginTop: '20px' }}>
-          <div className="agent-icon"><BrainCircuit /></div>
-          <span className="kicker">DETERMINISTIC CAREER INTELLIGENCE · VERIFIED SERVER EVIDENCE</span>
-          <h3>{state.planNote}</h3>
-          <p>Recommendations are derived strictly from your verified evidence using deterministic rules. The agent proposes actions; it cannot invent scores.</p>
-          <button onClick={runAgent} disabled={running}>
-            {running ? <><RefreshCcw className="spin" size={14} /> Re-evaluating…</> : <>Re-evaluate my plan <ArrowRight size={14} /></>}
-          </button>
-        </div>
-      </div>
+      {/* Interactive Procedural Vector Topology */}
+      <ConnectedSkillNetwork state={state} onSelectSkill={(skillId) => go('assess', skillId)} />
 
-      <div className="dashboard-sidebar-col">
+      {/* PRIORITY 3, 4, 5: GRID OF MILESTONE, PROGRESS & SKILL INSIGHTS */}
+      <div className="dashboard-grid">
         <div className="panel-block">
+          {/* PRIORITY 3: CURRENT MILESTONE */}
           <div className="panel-head">
-            <h3>Career Readiness</h3>
-            <span className="badge-cyan">{state.evidence.length} evidence</span>
-          </div>
-          <div className="readiness" style={{ marginBottom: '16px' }}>
-            <ProgressRing value={r} />
-            <div className="readiness-copy">
-              <small>COMPUTED READINESS</small>
-              <b>{r}%</b>
-              <span>{skills.filter((s) => s.verified).length} of {skills.length} verified</span>
-            </div>
-          </div>
-
-          <div className="panel-head" style={{ marginTop: '20px', marginBottom: '10px' }}>
             <div>
-              <span className="kicker">COMPACT ROADMAP</span>
-              <h4 style={{ margin: 0, fontSize: '14px', color: '#FFF' }}>Current: {currentStage.name}</h4>
+              <span className="kicker">CURRENT MILESTONE</span>
+              <h3>Phase {currentStage.n}: {currentStage.name}</h3>
             </div>
-            <button className="link" onClick={() => go('roadmap')}>Roadmap <ArrowRight size={12} /></button>
+            <button className="link" onClick={() => go('roadmap')}>Full Plan <ArrowRight size={12} /></button>
           </div>
-          <div className="compact-roadmap">
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+            {currentStage.blurb}
+          </p>
+
+          <div className="compact-roadmap" style={{ marginBottom: 20 }}>
             {stagesProg.map((st) => (
               <div key={st.n} className="stage-item">
                 <div className="stage-label">
@@ -172,38 +353,234 @@ export function Today({ state, actions, go, onAction, onUndo, runAgent, running,
               </div>
             ))}
           </div>
+
+          {/* PRIORITY 5: SKILL INSIGHTS (CLAIMED VS VERIFIED DISTINCTION) */}
+          <div className="skills-column-head" style={{ marginTop: 24 }}>
+            <div>
+              <span className="kicker">SKILL INSIGHTS</span>
+              <h3 style={{ margin: 0 }}>Claimed vs Verified Capability</h3>
+            </div>
+          </div>
+          <p className="skills-column-note">
+            Self-reported claims guide diagnostic starting points, but carry zero readiness weight. Verified capability is earned only through server evaluation.
+          </p>
+
+          <div className="claimed-vs-verified-grid">
+            {/* Column A: Claimed Skills */}
+            <div className="skills-column-block">
+              <div className="skills-column-head">
+                <h4>Claimed Skills</h4>
+                <span className="badge-cyan">Self-Reported</span>
+              </div>
+              <div className="skill-claims-list">
+                {claimedSkills.map((c) => (
+                  <div key={c} className="skill-claim-row">
+                    <span className="skill-claim-name">{skillName(c)}</span>
+                    <span className="claim-badge">0% Readiness</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Column B: Verified Capabilities */}
+            <div className="skills-column-block">
+              <div className="skills-column-head">
+                <h4>Verified Capabilities</h4>
+                <span className="badge-cyan">{verifiedSkillsList.length} Verified</span>
+              </div>
+              {verifiedSkillsList.length === 0 ? (
+                <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>
+                  <AlertCircle size={20} style={{ margin: '0 auto 6px auto', display: 'block', color: 'var(--muted)' }} />
+                  <span>No skills verified yet. Start an adaptive assessment to build verified proof.</span>
+                </div>
+              ) : (
+                <div className="verified-skills-list">
+                  {verifiedSkillsList.map((v) => (
+                    <div key={v.def.id} className="verified-skill-row">
+                      <span style={{ fontWeight: 600, color: '#FFFFFF' }}>{v.def.name}</span>
+                      <div className="verified-skill-meta">
+                        <span className="verified-level-tag">{v.score}%</span>
+                        <VerifiedBadge verified={v.verified} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* PRIORITY 6: RECENT IMMUTABLE EVIDENCE LEDGER */}
+          <div style={{ marginTop: 28 }}>
+            <div className="panel-head">
+              <div>
+                <span className="kicker">EVIDENCE LEDGER</span>
+                <h3>Recent Server-Verified Proof</h3>
+              </div>
+              <button className="link" onClick={() => go('passport')}>View Passport <ArrowRight size={12} /></button>
+            </div>
+            {recentEvidence.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', background: 'rgba(0,0,0,0.2)', border: '1px dashed var(--line)', borderRadius: 8 }}>
+                <ShieldCheck size={24} style={{ margin: '0 auto 8px auto', display: 'block', color: 'var(--muted)' }} />
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
+                  No verified evidence recorded yet. Take an adaptive assessment or complete a project to build verified proof.
+                </p>
+              </div>
+            ) : (
+              <div className="evidence-ledger-container">
+                <table className="evidence-table">
+                  <thead>
+                    <tr>
+                      <th>SKILL</th>
+                      <th>SOURCE</th>
+                      <th>SCORE</th>
+                      <th>DATE</th>
+                      <th>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentEvidence.map((ev) => (
+                      <tr key={ev.id}>
+                        <td style={{ fontWeight: 600, color: '#FFFFFF' }}>{skillName(ev.skill)}</td>
+                        <td><span className="evidence-source-tag">{ev.kind}</span></td>
+                        <td style={{ color: 'var(--cyan)' }}>{ev.score}%</td>
+                        <td>{new Date(ev.at).toLocaleDateString()}</td>
+                        <td><CheckCircle2 size={14} color="#10B981" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="panel-block">
-          <div className="panel-head">
-            <div>
-              <span className="kicker">VERIFIED SKILLS</span>
-              <h3>Truthful Skill Status</h3>
+        {/* SIDEBAR COLUMN */}
+        <div className="dashboard-sidebar-col">
+          {/* PRIORITY 4: COMPUTED READINESS & PROGRESS */}
+          <div className="panel-block">
+            <div className="panel-head">
+              <h3>Career Readiness</h3>
+              <span className="badge-cyan">{state.evidence.length} signals</span>
             </div>
-            <button className="link" onClick={() => go('skills')}>
-              Graph <ArrowRight size={12} />
-            </button>
-          </div>
-          <div className="skill-pills-list">
-            {skills.map((s) => (
-              <div key={s.def.id} className="skill-row-compact">
-                <div className="skill-title-area">
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFF' }}>{s.def.name}</span>
-                  <span className={`skill-status-tag ${s.status}`}>
-                    {s.statusLabel}
-                  </span>
-                </div>
-                <b style={{ fontSize: '13px', color: s.count > 0 ? '#00F0FF' : 'var(--text-secondary)' }}>
-                  {s.count > 0 ? `${s.score}%` : '—'}
-                </b>
+            <div className="readiness" style={{ marginBottom: 16 }}>
+              <ProgressRing value={r} />
+              <div className="readiness-copy">
+                <small>COMPUTED READINESS</small>
+                <b>{r}%</b>
+                <span>{skills.filter((s) => s.verified).length} of {skills.length} verified</span>
               </div>
-            ))}
+            </div>
+            {r === 0 && (
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0 0', lineHeight: 1.4 }}>
+                Awaiting initial verified evidence. Self-reported claims are excluded from readiness until proven.
+              </p>
+            )}
+          </div>
+
+          {/* PRIORITY 7: AI COMPANION (CONVERSATIONAL UI INTEGRATED INTO THE PRODUCT) */}
+          <div className="today-ai-companion" role="region" aria-label="AI Career Companion">
+            <div className="companion-head">
+              <div className="companion-title">
+                <BrainCircuit size={17} color="var(--cyan)" />
+                <span>AI Career Companion</span>
+              </div>
+              <button className="link" onClick={() => go('agent')} style={{ fontSize: 11 }}>
+                Full Workspace <ArrowRight size={11} />
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px 0' }}>
+              Ask anything, adjust your pace, or request prerequisite rationale:
+            </p>
+
+            <div className="companion-suggestions">
+              {quickPrompts.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className="companion-chip"
+                  disabled={companionBusy}
+                  onClick={() => handleAskCompanion(p)}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            <form
+              className="companion-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAskCompanion(companionInput);
+              }}
+            >
+              <input
+                value={companionInput}
+                onChange={(e) => setCompanionInput(e.target.value)}
+                placeholder="Ask e.g. 'I have 20 minutes', 'Explain simpler'..."
+                disabled={companionBusy}
+                maxLength={300}
+                aria-label="Ask your career companion"
+              />
+              <button type="submit" className="primary" disabled={companionBusy || !companionInput.trim()} style={{ padding: '0 12px' }}>
+                <Send size={14} />
+              </button>
+            </form>
+
+            {companionBusy && (
+              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--cyan)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <RefreshCcw size={12} className="spin" />
+                <span>Evaluating evidence, prerequisites, and preferences…</span>
+              </div>
+            )}
+
+            {companionError && (
+              <p style={{ margin: '10px 0 0 0', fontSize: 12, color: '#F87171' }}>{companionError}</p>
+            )}
+
+            {companionReply && !companionBusy && (
+              <div className="companion-output">
+                <p style={{ margin: 0 }}>{companionReply}</p>
+                {companionTools.length > 0 && (
+                  <div className="companion-tools-trace">
+                    {companionTools.map((t, idx) => (
+                      <span key={idx} className="tool-tag">{t}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* PRIORITY 8: UPCOMING MENTOR / REASSESSMENT ITEMS */}
+          <div className="panel-block" style={{ marginTop: 20 }}>
+            <div className="panel-head">
+              <div>
+                <span className="kicker">MENTOR & REASSESSMENT</span>
+                <h4 style={{ margin: 0, fontSize: 14, color: '#FFF' }}>Verified Review</h4>
+              </div>
+              <button className="link" onClick={() => go('mentors')}>Directory <ArrowRight size={11} /></button>
+            </div>
+            {state.requests.length === 0 ? (
+              <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+                <span>No active mentor reviews. Connect with approved mentors to build high-confidence review evidence.</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                {state.requests.map((r) => (
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
+                    <span style={{ color: '#FFF' }}>Mentor Request</span>
+                    <span style={{ color: 'var(--cyan)', textTransform: 'capitalize' }}>{r.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
-  </div>;
+  );
 }
+
 export function Roadmap({ state, actions, go, workflow }: {
     state: AppState;
     actions: PlanAction[];
@@ -235,7 +612,16 @@ export function Roadmap({ state, actions, go, workflow }: {
     const todayAction = top ? top.title : 'ALL BENCHMARKS VERIFIED';
 
     return <div className="wide">
-    <PageIntro kicker="LIVING ROADMAP" title="A plan that moves when you do." text="Stage progress is computed from the skills each stage needs. New evidence can change the plan without losing your history."/>
+    <PageIntro
+      kicker="LIVING ROADMAP"
+      title="A plan that moves when you do."
+      text="Stage progress is computed from the skills each stage needs. New evidence can change the plan without losing your history."
+      contextTriad={{
+        happening: `Roadmap for ${goalLabel} calibrated to your proven competencies and ${academicYear}.`,
+        why: 'Dependencies ensure foundational syntax and memory management are verified before complex distributed architectures.',
+        now: top ? `Execute today's action: ${top.title}` : 'All roadmap milestones verified. Retest periodically to build higher confidence.',
+      }}
+    />
 
     {isLocked && (
       <div style={{ background: 'var(--surface-navy)', border: '1px solid var(--cyan-border)', borderRadius: 12, padding: 24, marginBottom: 24 }}>
@@ -289,7 +675,16 @@ export function Skills({ state, go }: {
 }) {
     const skills = skillStates(state.evidence);
     return <div className="wide">
-    <PageIntro kicker="SKILL GRAPH & TOPOLOGY" title="KNOW WHERE YOU STAND." text="Scores are signals. A skill is verified only with 3+ evidence items from at least two source types. Continuous evidence proves ability over time."/>
+    <PageIntro
+      kicker="SKILL GRAPH & TOPOLOGY"
+      title="KNOW WHERE YOU STAND."
+      text="Scores are signals. A skill is verified only with 3+ evidence items from at least two source types. Continuous evidence proves ability over time."
+      contextTriad={{
+        happening: 'Interactive skill network showing your verified competency signals and topological prerequisites.',
+        why: 'Scores represent verified signals. 3+ multi-source evidence items are required for full verification.',
+        now: 'Select any skill node to review telemetry or start an adaptive diagnostic.',
+      }}
+    />
     <div style={{ marginBottom: 24 }}>
       <ConnectedSkillNetwork state={state} onSelectSkill={(id) => go?.('assess', id)} />
     </div>
@@ -313,7 +708,16 @@ export function Mentors({ state, onSend, selfId }: {
     const [loading, setLoading] = useState(true);
     useEffect(() => { fetch('/api/mentors', { cache: 'no-store' }).then(r => r.json()).then(x => setMentors(x.mentors || [])).catch(() => setMentors([])).finally(() => setLoading(false)); }, []);
     return <div className="wide">
-    <PageIntro kicker="MENTOR NETWORK" title="Real mentors, not placeholders." text="Only mentors who created an account and were approved by SkillPilot admins appear here. Your request is stored server-side; a mentor review can become verified evidence."/>
+    <PageIntro
+      kicker="MENTOR NETWORK"
+      title="Real mentors, not placeholders."
+      text="Only mentors who created an account and were approved by SkillPilot admins appear here. Your request is stored server-side; a mentor review can become verified evidence."
+      contextTriad={{
+        happening: 'Directory of approved career mentors and registered engineering practitioners.',
+        why: 'Mentor feedback counts as high-confidence verification evidence in your skill passport.',
+        now: 'Select an approved mentor to request code review or career guidance.',
+      }}
+    />
     {loading ? <div className="empty-state"><p>Finding approved mentors…</p></div> : mentors.length === 0 ? <div className="empty-state"><UsersIcon /><b>No approved mentors yet.</b><p>That is intentional. SkillPilot never seeds fake mentors. Invite real mentors to sign up and have an admin approve them.</p></div> : <div className="mentor-grid">{mentors.map((m: any, i: number) => { const sent = state.requests.find(r => r.mentorId === m.id); return <div className={i === 0 ? 'mentor-card top' : 'mentor-card'} key={m.id}><div className="mentor-avatar">{m.name.split(' ').map((x: string) => x[0]).join('').slice(0, 2).toUpperCase()}</div><span className="match">APPROVED</span><h3>{m.name}</h3><b>{m.focus || 'Career mentor'}</b>{m.bio && <p className="muted">{m.bio}</p>}{sent ? <><p className="sent"><CheckCircle2 size={13}/> Request recorded on the server.</p>{sent.status === 'accepted' && <><MeetingLink requestId={sent.id} canEdit={false}/><ChatPanel requestId={sent.id} selfId={selfId}/></>}</> : open === m.id ? <div className="draft"><label htmlFor={`m-${m.id}`}>Review and edit your message</label><textarea id={`m-${m.id}`} value={text} onChange={e => setText(e.target.value)} rows={5}/><div className="draft-actions"><button className="primary" onClick={() => { onSend(m.id, text); setOpen(null); }}>Send request</button><button className="ghost" onClick={() => setOpen(null)}>Cancel</button></div></div> : <button className="link" onClick={() => { setText(`Hi ${m.name}, I’m working on my career path and would value your feedback on my current skills and next steps.`); setOpen(m.id); }}>Request mentorship <ArrowRight size={13}/></button>}</div>; })}</div>}
   </div>;
 }
@@ -396,6 +800,16 @@ export function Passport({ state, setName, notify }: {
     const recent = [...state.evidence].filter((e) => !e.id.startsWith('seed-')).slice(-4).reverse();
 
     return <div className="passport">
+    <PageIntro
+      kicker="SKILL PASSPORT"
+      title="Cryptographically Shareable Proof."
+      text="Software Engineer pathway · private until you choose to share it."
+      contextTriad={{
+        happening: 'Cryptographically shareable Skill Passport summarizing your immutable server evidence.',
+        why: 'Employers and mentors verify authentic runtime demonstration rather than unverified resume claims.',
+        now: 'Generate a public verification link or copy your structured evidence summary.',
+      }}
+    />
     <div className="passport-top"><div><span className="kicker">SKILL PASSPORT</span>
       <label className="sr-only" htmlFor="pname">Your name</label>
       <input id="pname" className="name-input" value={state.name} placeholder="Add your name" maxLength={60} onChange={(e) => setName(e.target.value)}/>
@@ -469,7 +883,16 @@ export function SettingsView({ state, onExport }: {
 }) {
     const [showAudit, setShowAudit] = useState(false);
     return <div className="wide">
-    <PageIntro kicker="ACCOUNT & TRUST" title="Your proof stays server-owned." text="SkillPilot uses your account as the identity boundary. Scores, assessments and mentor evidence are stored on the server; browser storage is only a presentation cache."/>
+    <PageIntro
+      kicker="ACCOUNT & TRUST"
+      title="Your proof stays server-owned."
+      text="SkillPilot uses your account as the identity boundary. Scores, assessments and mentor evidence are stored on the server; browser storage is only a presentation cache."
+      contextTriad={{
+        happening: 'Account controls, server data export, and complete agent action audit logs.',
+        why: 'Your data remains server-owned, verifiable, and exportable at any time.',
+        now: 'Export your account JSON or inspect recent deterministic agent operations.',
+      }}
+    />
     <div className="settings-grid">
       <section className="settings-card"><div className="section-title"><div><span className="kicker">DATA EXPORT</span><h2>Take your data with you</h2></div><Download size={20}/></div><p className="muted">Export the latest server profile as JSON. This is a copy of your account data, not a way to forge evidence.</p><div className="settings-actions"><button className="primary" onClick={onExport}>Export account data</button></div></section>
       <section className="settings-card"><div className="section-title"><div><span className="kicker">ACCOUNT</span><h2>Delete your account</h2></div></div><p className="muted">This permanently removes your account and associated server data. You must confirm your current password.</p><button className="ghost" onClick={async () => {

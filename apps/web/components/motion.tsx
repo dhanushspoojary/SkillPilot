@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { skillStates, type AppState, SKILLS } from '../lib/engine';
-import { Zap, Crosshair, ArrowRight, X, Sparkles, ShieldCheck, Terminal, Award } from 'lucide-react';
+import { Zap, Crosshair, ArrowRight, X, Sparkles, ShieldCheck, Terminal, Award, Check, Compass, Activity, Code2, CheckCircle2 } from 'lucide-react';
 
 /**
  * CustomCursor:
@@ -657,6 +657,135 @@ export function ConnectedSkillNetwork({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+export interface JourneyStageConfig {
+  num: string;
+  id: string;
+  title: string;
+  subtitle: string;
+  status: 'completed' | 'active' | 'upcoming';
+  badge: string;
+  happening: string;
+  why: string;
+  now: string;
+  actionLabel?: string;
+  actionRoute?: string;
+}
+
+/**
+ * GuidedJourneyProgress:
+ * - Guided 01 Discover, 02 Verify, 03 Plan, 04 Learn, 05 Improve indicator driven by real state.
+ * - Interactive step tracker with status badges, animated track fill, and context panel answering
+ *   what is happening, why, and what to do now.
+ * - Accessible by keyboard, screen reader, and respects prefers-reduced-motion.
+ */
+export function GuidedJourneyProgress({
+  stages,
+  activeStageIndex,
+  onStageClick,
+  onActionClick,
+}: {
+  stages: JourneyStageConfig[];
+  activeStageIndex: number;
+  onStageClick?: (index: number) => void;
+  onActionClick?: (stage: JourneyStageConfig) => void;
+}) {
+  const [selectedStage, setSelectedStage] = useState<number>(activeStageIndex);
+
+  // Sync with activeStageIndex when it changes externally
+  useEffect(() => {
+    setSelectedStage(activeStageIndex);
+  }, [activeStageIndex]);
+
+  const current = stages[selectedStage] || stages[0];
+
+  return (
+    <div className="guided-journey-container" role="region" aria-label="Student Journey 5-Stage Stepper">
+      <div className="journey-header">
+        <div className="journey-header-eyebrow">
+          <span className="live-dot" />
+          <span className="mono-kicker">ADAPTIVE JOURNEY // PREREQUISITE-AWARE PIPELINE</span>
+        </div>
+        <span className="journey-progress-text">
+          STAGE {current.num} OF 05: <b>{current.title.toUpperCase()}</b> ({stages.filter((s) => s.status === 'completed').length} of {stages.length} COMPLETE)
+        </span>
+      </div>
+
+      {/* 5-Stage Stepper Track */}
+      <div className="journey-stepper-track" role="tablist" aria-label="Journey Stages">
+        {stages.map((stage, idx) => {
+          const isSelected = selectedStage === idx;
+          const isCompleted = stage.status === 'completed';
+          const isActive = stage.status === 'active';
+
+          return (
+            <button
+              key={stage.id}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              aria-label={`Stage ${stage.num}: ${stage.title} - ${stage.status}`}
+              className={`journey-step-btn ${stage.status} ${isSelected ? 'is-selected' : ''}`}
+              onClick={() => {
+                setSelectedStage(idx);
+                if (onStageClick) onStageClick(idx);
+              }}
+            >
+              <div className="step-num-bubble">
+                {isCompleted ? <Check size={14} /> : stage.num}
+              </div>
+              <div className="step-label-group">
+                <span className="step-title">{stage.title}</span>
+                <span className="step-status-tag">{stage.badge}</span>
+              </div>
+              {idx < stages.length - 1 && <div className="step-connector" aria-hidden="true" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active Stage Context Drawer (What's Happening, Why, What to do now) */}
+      <div className="journey-context-banner">
+        <div className="context-banner-top">
+          <div className="context-stage-badge">
+            <span className="stage-num-pill">{current.num}</span>
+            <b>{current.title}: {current.subtitle}</b>
+            <span className={`status-pill ${current.status}`}>
+              {current.status === 'completed' ? 'VERIFIED COMPLETE' : current.status === 'active' ? 'IN PROGRESS' : 'PREREQUISITE LOCKED'}
+            </span>
+          </div>
+          {current.actionLabel && (
+            <button
+              type="button"
+              className="primary stage-cta-btn"
+              onClick={() => onActionClick && onActionClick(current)}
+            >
+              <span>{current.actionLabel}</span>
+              <ArrowRight size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="context-triad-grid">
+          <div className="triad-col">
+            <span className="triad-col-label">WHAT'S HAPPENING</span>
+            <p>{current.happening}</p>
+          </div>
+          <div className="triad-col-divider" aria-hidden="true" />
+          <div className="triad-col">
+            <span className="triad-col-label">WHY IT MATTERS</span>
+            <p>{current.why}</p>
+          </div>
+          <div className="triad-col-divider" aria-hidden="true" />
+          <div className="triad-col highlight">
+            <span className="triad-col-label">WHAT TO DO NOW</span>
+            <p>{current.now}</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

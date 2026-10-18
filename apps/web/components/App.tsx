@@ -398,7 +398,7 @@ export function App({ user, onLogout }: {
         </div>
       </header>
       <div className="page">
-        {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)} workflow={workflow}/>}
+        {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)} workflow={workflow} capabilityProfile={capabilityProfile} refreshProfile={refreshProfile}/>}
         {view === 'agent' && <AgentPanel state={state} onApprove={onApprove} onAudit={onAudit} workflow={workflow}/>}
         {view === 'projects' && (
           <ProjectWorkspace
