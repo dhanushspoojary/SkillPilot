@@ -1,10 +1,11 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrainCircuit, Bell, CheckCircle2, ChevronRight, ChevronUp, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2, LogOut, GraduationCap, Play } from 'lucide-react';
+import { BrainCircuit, Bell, CheckCircle2, ChevronRight, ChevronUp, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2, LogOut, GraduationCap, Play, BookOpen } from 'lucide-react';
 import { defaultState, explainPlan, planActions, toggleActivity, type AppState, type PlanAction, } from '../lib/engine';
 import { Assess } from './Assess';
 import { AgentPanel } from './AgentPanel';
 import { ProjectWorkspace } from './ProjectWorkspace';
+import { LearnWorkspace } from './LearnWorkspace';
 import type { Proposal } from '../lib/agent';
 import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } from './views';
 import { MockInterview } from './MockInterview';
@@ -17,8 +18,17 @@ const NAV: [
     string,
     typeof Gauge
 ][] = [
-    ['today', '01', 'Today', LayoutDashboard], ['agent', '02', 'Agent', BrainCircuit], ['projects', '03', 'Projects', Code2], ['roadmap', '04', 'Roadmap', Activity], ['skills', '05', 'Skills', Gauge],
-    ['assess', '06', 'Assess', Crosshair], ['mentors', '07', 'Mentors', Users], ['interview', '08', 'Mock interview', Mic], ['passport', '09', 'Passport', Award], ['settings', '10', 'Settings', Settings],
+    ['today', '01', 'Today', LayoutDashboard],
+    ['learn', '02', 'Learn', BookOpen],
+    ['projects', '03', 'Projects', Code2],
+    ['roadmap', '04', 'Roadmap', Activity],
+    ['agent', '05', 'Agent', BrainCircuit],
+    ['skills', '06', 'Skills', Gauge],
+    ['assess', '07', 'Assess', Crosshair],
+    ['mentors', '08', 'Mentors', Users],
+    ['interview', '09', 'Mock interview', Mic],
+    ['passport', '10', 'Passport', Award],
+    ['settings', '11', 'Settings', Settings],
 ];
 export function App({ user, onLogout }: {
     user: {
@@ -399,6 +409,16 @@ export function App({ user, onLogout }: {
       </header>
       <div className="page">
         {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)} workflow={workflow} capabilityProfile={capabilityProfile} refreshProfile={refreshProfile}/>}
+        {view === 'learn' && (
+          <LearnWorkspace
+            initialLessonId={focus}
+            go={go}
+            onCompleted={async () => {
+              await refreshProfile();
+              setToast('Lesson progress recorded!');
+            }}
+          />
+        )}
         {view === 'agent' && <AgentPanel state={state} onApprove={onApprove} onAudit={onAudit} workflow={workflow}/>}
         {view === 'projects' && (
           <ProjectWorkspace

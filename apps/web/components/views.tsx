@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, Share2, Copy, ExternalLink, Lock, Send, Clock, BookOpen, AlertCircle } from 'lucide-react';
+import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, Share2, Copy, ExternalLink, Lock, Send, Clock, BookOpen, AlertCircle, Play } from 'lucide-react';
 import { STAGES, SKILLS, passportSummary, readiness, skillStates, stageProgress, type AppState, type PlanAction, } from '../lib/engine';
 import { ProgressRing } from './ProgressRing';
 import { ChatPanel } from './ChatPanel';
@@ -8,7 +8,7 @@ import { PageIntro, Signal, SkillBar, VerifiedBadge } from './ui';
 import { AnimatedMarquee, ConnectedSkillNetwork, ScrollReveal, GuidedJourneyProgress, type JourneyStageConfig } from './motion';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
 import { extractClaimedSkills } from '../lib/assessment-planner';
-export type View = 'today' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
+export type View = 'today' | 'learn' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
 
 export function Today({
@@ -38,6 +38,21 @@ export function Today({
   capabilityProfile?: StudentCapabilityProfile | null;
   refreshProfile?: () => Promise<void>;
 }) {
+  const [dynamicNextAction, setDynamicNextAction] = useState<any | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/learn/next-action', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d.nextAction) setDynamicNextAction(d.nextAction);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [state.evidence.length, state.activity.length]);
+
   const skills = skillStates(state.evidence);
   const r = readiness(skills);
   const top = actions.slice(0, 3);
@@ -47,15 +62,15 @@ export function Today({
   // 1. Primary Action: What, Why, What to do now
   const primaryAction = top[0];
   const wfAction = workflow?.nextRecommendedAction;
-  const primaryTitle = wfAction?.title || (primaryAction ? primaryAction.title : 'Take Adaptive Baseline Assessment');
-  const primaryReason = wfAction?.reason || (state.evidence.length === 0
+  const primaryTitle = dynamicNextAction?.title || wfAction?.title || (primaryAction ? primaryAction.title : 'Take Adaptive Baseline Assessment');
+  const primaryReason = dynamicNextAction?.whyItMatters || wfAction?.reason || (state.evidence.length === 0
     ? 'Calibrate your initial baseline across foundational software engineering competencies.'
     : primaryAction
       ? `Closing the gap in ${skillName(primaryAction.skill)} will yield the highest readiness impact.`
       : 'All targets for your current path are met. Retest periodically to maintain verified proof.');
-  const primaryNow = primaryAction
+  const primaryNow = dynamicNextAction?.explanation || (primaryAction
     ? (primaryAction.kind === 'PROVE' ? 'Launch the adaptive diagnostic quiz (Levels 0–5) to record authentic proof.' : 'Work through the hands-on project in your workspace.')
-    : 'All current benchmarks verified. Retest periodically to maintain proof.';
+    : 'All current benchmarks verified. Retest periodically to maintain proof.');
 
   // 2. Claimed vs Verified Skills
   const claimedSkills: string[] = useMemo(() => {
@@ -123,14 +138,14 @@ export function Today({
       num: '04',
       id: 'learn',
       title: 'Learn',
-      subtitle: 'Bite-Sized Practice & Projects',
+      subtitle: 'Continuous Lessons & Practice',
       status: isLearnDone ? 'completed' : isVerifyDone ? 'active' : 'upcoming',
-      badge: state.activity.length > 0 ? `${state.activity.length} Tasks Done` : 'Ready to Practice',
-      happening: 'Targeted hands-on practice: bite-sized tracing challenges, practical systems projects, and code debugging.',
-      why: 'True capability is built by applying concepts. Practical project verification elevates confidence beyond quizzes.',
-      now: primaryAction ? `Execute today's recommended action: ${primaryAction.title}` : 'Explore available practical projects in your workspace.',
-      actionLabel: primaryAction?.kind === 'PROVE' ? 'Start Assessment' : 'Open Projects',
-      actionRoute: primaryAction?.kind === 'PROVE' ? 'assess' : 'projects',
+      badge: state.activity.length > 0 ? `${state.activity.length} Tasks Done` : 'Ready to Learn',
+      happening: 'Interactive Socratic lessons, annotated code tracing walkthroughs, and infinite practice questions.',
+      why: 'True capability is built by applying concepts. Socratic practice elevates mental models beyond multiple choice guesses.',
+      now: dynamicNextAction?.title ? `Next: ${dynamicNextAction.title}` : 'Open the learning workspace to complete execution traces and lock in concept mastery.',
+      actionLabel: dynamicNextAction?.buttonLabel || 'Start Learning',
+      actionRoute: 'learn',
     },
     {
       num: '05',
@@ -234,11 +249,12 @@ export function Today({
           if (target.id === 'discover' && onOpenCalibration) onOpenCalibration();
           else if (target.id === 'verify') go('assess');
           else if (target.id === 'plan') go('roadmap');
-          else if (target.id === 'learn') go('projects');
+          else if (target.id === 'learn') go('learn', dynamicNextAction?.lessonId);
           else if (target.id === 'improve') go('passport');
         }}
         onActionClick={(stage) => {
           if (stage.id === 'discover' && onOpenCalibration) onOpenCalibration();
+          else if (stage.id === 'learn') go('learn', dynamicNextAction?.lessonId);
           else if (stage.actionRoute) go(stage.actionRoute as View);
         }}
       />
@@ -267,14 +283,26 @@ export function Today({
         <button
           className="primary priority-action-btn"
           onClick={() => {
-            if (primaryAction?.kind === 'BUILD') {
+            if (dynamicNextAction) {
+              if (dynamicNextAction.route === 'learn') {
+                go('learn', dynamicNextAction.lessonId);
+              } else if (dynamicNextAction.route === 'projects') {
+                go('projects', dynamicNextAction.projectSlug);
+              } else if (dynamicNextAction.route === 'assess') {
+                go('assess', dynamicNextAction.skillId);
+              } else if (dynamicNextAction.route === 'calibration' && onOpenCalibration) {
+                onOpenCalibration();
+              } else {
+                go(dynamicNextAction.route as View);
+              }
+            } else if (primaryAction?.kind === 'BUILD') {
               go('projects');
             } else {
               go('assess', primaryAction?.skill);
             }
           }}
         >
-          <Zap size={16} /> {primaryAction?.kind === 'BUILD' ? 'Open project workspace' : 'Start adaptive assessment'}
+          <Zap size={16} /> {dynamicNextAction?.buttonLabel || (primaryAction?.kind === 'BUILD' ? 'Open project workspace' : 'Start adaptive assessment')}
         </button>
       </section>
 
@@ -587,6 +615,21 @@ export function Roadmap({ state, actions, go, workflow }: {
     go: (v: View, focus?: string) => void;
     workflow?: any;
 }) {
+    const [actionableTask, setActionableTask] = useState<any | null>(null);
+
+    useEffect(() => {
+      let cancelled = false;
+      fetch('/api/learn/next-action', { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((d) => {
+          if (!cancelled && d.nextAction) setActionableTask(d.nextAction);
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }, [state.evidence.length, state.activity.length]);
+
     const skills = skillStates(state.evidence);
     const prog = STAGES.map((s) => stageProgress(skills, s.skills));
     const current = Math.max(0, prog.findIndex((p) => p < 90));
@@ -609,7 +652,7 @@ export function Roadmap({ state, actions, go, workflow }: {
       current === 2 ? 'MONTH 3: REST & DB' : 'MONTH 4: CODE REVIEWS';
 
     const weeklyTarget = `${workflow?.capabilityProfile?.weeklyHours || 5}H / WEEK (30-MIN DAILY PRACTICE)`;
-    const todayAction = top ? top.title : 'ALL BENCHMARKS VERIFIED';
+    const todayAction = actionableTask?.title || (top ? top.title : 'ALL BENCHMARKS VERIFIED');
 
     return <div className="wide">
     <PageIntro
@@ -619,7 +662,7 @@ export function Roadmap({ state, actions, go, workflow }: {
       contextTriad={{
         happening: `Roadmap for ${goalLabel} calibrated to your proven competencies and ${academicYear}.`,
         why: 'Dependencies ensure foundational syntax and memory management are verified before complex distributed architectures.',
-        now: top ? `Execute today's action: ${top.title}` : 'All roadmap milestones verified. Retest periodically to build higher confidence.',
+        now: actionableTask ? `Next: ${actionableTask.title}` : top ? `Execute today's action: ${top.title}` : 'All roadmap milestones verified. Retest periodically to build higher confidence.',
       }}
     />
 
@@ -660,13 +703,58 @@ export function Roadmap({ state, actions, go, workflow }: {
       <span className="hierarchy-active">TODAY: <b>{todayAction}</b></span>
     </div>
 
+    {actionableTask && (
+      <div className="roadmap-actionable-task-card" role="region" aria-label="First Actionable Learning Task">
+        <div className="task-kicker">
+          <Zap size={14} /> RECOMMENDED LEARNING TASK // ONE-CLICK LAUNCH
+        </div>
+        <div className="task-body">
+          <div className="task-main">
+            <h3 className="task-title">{actionableTask.title}</h3>
+            <p className="task-why"><b>Why it matters:</b> {actionableTask.whyItMatters}</p>
+            <div className="task-details-grid">
+              <div><span className="detail-label">WHAT YOU WILL LEARN:</span> {actionableTask.whatYouWillLearn}</div>
+              <div><span className="detail-label">PREREQUISITES:</span> {actionableTask.whatToKnowBefore}</div>
+              <div><span className="detail-label">ESTIMATED TIME:</span> {actionableTask.estimatedMinutes} minutes</div>
+              <div><span className="detail-label">COMPLETION REQUIRES:</span> {actionableTask.completionRequires}</div>
+            </div>
+          </div>
+          <div className="task-cta">
+            <button
+              type="button"
+              className="primary large-start-btn"
+              onClick={() => {
+                if (actionableTask.route === 'learn') {
+                  go('learn', actionableTask.lessonId);
+                } else if (actionableTask.route === 'projects') {
+                  go('projects', actionableTask.projectSlug);
+                } else if (actionableTask.route === 'assess') {
+                  go('assess', actionableTask.skillId);
+                } else {
+                  go(actionableTask.route as View);
+                }
+              }}
+            >
+              <Play size={14} fill="currentColor" /> {actionableTask.buttonLabel || 'Start Learning'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="roadmap-meta"><span><b>12 weeks</b> current cycle</span><span><b>{readiness(skills)}%</b> readiness</span><span><b>{actions.length}</b> open actions</span></div>
     <div className="roadmap-list">{STAGES.map((s, i) => (<div className={i === current ? 'roadmap-row current' : 'roadmap-row'} key={s.n}>
         <span className="road-num">{s.n}</span><div><small>{s.weeks}</small><h3>{s.name}</h3><p>{s.blurb}</p></div>
         <div className="road-progress"><b>{prog[i]}%</b><div><i style={{ width: `${prog[i]}%` }}/></div></div>
       </div>))}</div>
     <div className="agent-wide"><Sparkles /><div><span className="kicker">WHY THE PLAN LOOKS LIKE THIS</span><h3>{top ? top.title : 'Plan complete'}</h3><p>{state.planNote}</p></div>
-      {top && <button className="ghost" onClick={() => go(top.route === 'assess' ? 'assess' : 'today', top.route === 'assess' ? top.skill : undefined)}>{top.route === 'assess' ? 'Start retest' : 'Go to today'} <ArrowRight size={14}/></button>}</div>
+      {top && <button className="ghost" onClick={() => {
+        if (actionableTask?.route === 'learn') {
+          go('learn', actionableTask.lessonId);
+        } else {
+          go(top.route === 'assess' ? 'assess' : 'today', top.route === 'assess' ? top.skill : undefined);
+        }
+      }}>{actionableTask?.route === 'learn' ? 'Start learning task' : top.route === 'assess' ? 'Start retest' : 'Go to today'} <ArrowRight size={14}/></button>}</div>
   </div>;
 }
 export function Skills({ state, go }: {

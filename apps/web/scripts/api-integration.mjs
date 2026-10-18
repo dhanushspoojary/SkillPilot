@@ -304,6 +304,77 @@ check(clearConv.status === 200 && clearConv.data.deleted === true, 'clear conver
 const convAfterClear = await call('/api/conversations', { headers: auth });
 check(convAfterClear.data.messages.length === 0, 'conversation should be empty after clear');
 
+// --- Continuous AI Learning, Adaptive Practice & Next-Action Engine ---
+// 1. Fetch Lessons Catalog
+const lessonsRes = await call('/api/learn/lessons', { headers: auth });
+check(lessonsRes.status === 200, `get lessons catalog failed: ${lessonsRes.status}`);
+check(Array.isArray(lessonsRes.data.lessons) && lessonsRes.data.lessons.length >= 4, 'lessons catalog should contain at least 4 core tracks');
+
+// 2. Fetch specific lesson details (verify sanitized payload without answer leaks)
+const lessonRes = await call('/api/learn/lesson?id=ps-loop-tracing', { headers: auth });
+check(lessonRes.status === 200, `get lesson details failed: ${lessonRes.status}`);
+check(lessonRes.data.lesson?.title === 'Loop Tracing & Algorithmic State', 'lesson title mismatch');
+check(lessonRes.data.lesson?.exercises?.[0]?.correctIndex === undefined, 'exercise payload leaked correctIndex to client');
+
+// 3. Submit Practice Attempt (Incorrect Answer -> Socratic Explanation & Remediation)
+const wrongAttempt = await call('/api/learn/attempt', {
+  method: 'POST',
+  headers: auth,
+  body: {
+    lessonId: 'ps-loop-tracing',
+    exerciseId: 'ps-trace-q1',
+    concept: 'accumulator_pattern',
+    skillSlug: 'problem-solving',
+    chosenIndex: 1,
+    hintsUsed: 0
+  }
+});
+check(wrongAttempt.status === 200, `attempt submission failed: ${wrongAttempt.status}`);
+check(wrongAttempt.data.result?.isCorrect === false, 'wrong attempt should be evaluated as false');
+check(typeof wrongAttempt.data.result?.feedback === 'string' && wrongAttempt.data.result.feedback.length > 0, 'socratic feedback must be provided for wrong answer');
+check(wrongAttempt.data.result?.nextStepRecommendation, 'next step recommendation must be provided');
+
+// 4. Submit Practice Attempt (Correct Answer -> Mastery Credit Update)
+const correctAttempt = await call('/api/learn/attempt', {
+  method: 'POST',
+  headers: auth,
+  body: {
+    lessonId: 'ps-loop-tracing',
+    exerciseId: 'ps-trace-q1',
+    concept: 'accumulator_pattern',
+    skillSlug: 'problem-solving',
+    chosenIndex: 0,
+    hintsUsed: 0
+  }
+});
+check(correctAttempt.status === 200, `correct attempt submission failed: ${correctAttempt.status}`);
+check(correctAttempt.data.result?.isCorrect === true, 'correct attempt should be evaluated as true');
+check(correctAttempt.data.result?.conceptMastery?.problemsSolved >= 1, 'problems solved count should increment');
+
+// 5. Generate Dynamic Practice Question
+const genQuestion = await call('/api/learn/practice/generate', {
+  method: 'POST',
+  headers: auth,
+  body: {
+    topic: 'Loop State Tracing',
+    skillSlug: 'problem-solving',
+    concept: 'loop-invariants',
+    difficulty: 'beginner'
+  }
+});
+check(genQuestion.status === 200, `practice question generation failed: ${genQuestion.status}`);
+check(genQuestion.data.question?.prompt, 'generated question must have prompt');
+check(genQuestion.data.question?.fingerprint, 'generated question must have duplicate-detection fingerprint');
+check(genQuestion.data.question?.correctIndex === undefined, 'generated question must be sanitized for client');
+
+// 6. Autorun Next-Action Recommendation
+const nextActionRes = await call('/api/learn/next-action', { headers: auth });
+check(nextActionRes.status === 200, `next-action endpoint failed: ${nextActionRes.status}`);
+check(nextActionRes.data.nextAction?.type, 'next-action must return type');
+check(typeof nextActionRes.data.nextAction?.title === 'string', 'next-action must return title');
+check(typeof nextActionRes.data.nextAction?.explanation === 'string', 'next-action must explain recommendation in plain language');
+check(nextActionRes.data.nextAction?.buttonLabel, 'next-action must provide buttonLabel');
+
 await call('/api/auth/logout', { method: 'POST', headers: auth });
-console.log('api integration: PASS');
+console.log('api integration: PASS (all auth, assessment, learning, practice, projects, and next-action workflows verified)');
 

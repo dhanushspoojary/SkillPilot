@@ -97,9 +97,7 @@ export function requireOrigin(req: Request): boolean {
     if (req.method === 'GET' || req.method === 'HEAD') {
       return true;
     }
-    if (!isProd && host) {
-      return true;
-    }
+    return false;
   }
 
   // Fallback to originOk for existing compatibility

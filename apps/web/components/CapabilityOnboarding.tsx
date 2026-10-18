@@ -27,6 +27,33 @@ import {
   type OnboardingTurn,
 } from '../lib/onboarding-dialogue';
 
+export const ONBOARDING_SKILL_CATEGORIES = [
+  {
+    category: 'Programming Languages',
+    skills: ['C', 'C++', 'Python', 'JavaScript', 'Java', 'Go'],
+  },
+  {
+    category: 'Problem Solving & DSA',
+    skills: ['Loop Logic', 'Arrays & Strings', 'Stacks & Queues', 'Big-O Notation', 'Recursion & Trees'],
+  },
+  {
+    category: 'Web Development',
+    skills: ['HTML5 & CSS3', 'React & State', 'Node.js & Express', 'DOM & Async JS'],
+  },
+  {
+    category: 'Databases',
+    skills: ['SQL Queries', 'PostgreSQL', 'Schema Design', 'Relational Joins & Aggregations'],
+  },
+  {
+    category: 'APIs & Systems',
+    skills: ['REST APIs', 'Git & GitHub', 'Linux CLI', 'HTTP & Networking'],
+  },
+  {
+    category: 'Interview Prep & Projects',
+    skills: ['Mock Technical Interviews', 'System Design Basics', 'Code Tracing & Debugging'],
+  },
+];
+
 interface Props {
   initialProfile?: StudentCapabilityProfile;
   onSave: (profile: StudentCapabilityProfile) => Promise<void>;
@@ -62,6 +89,11 @@ export function CapabilityOnboarding({
   const [progExp, setProgExp] = useState(initialProfile?.programmingExperience || 'beginner');
   const [careerInterest, setCareerInterest] = useState(initialProfile?.careerInterests?.[0] || 'Software Engineer');
   const [weeklyHours, setWeeklyHours] = useState(initialProfile?.weeklyHours || 5);
+  const [skillsToLearn, setSkillsToLearn] = useState<string[]>(
+    initialProfile?.skillsToLearn || ['Problem Solving', 'Data Structures & Algorithms', 'Web Development']
+  );
+  const [skillsKnown, setSkillsKnown] = useState<string[]>(initialProfile?.skillsKnown || []);
+  const [skillSearchQuery, setSkillSearchQuery] = useState('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -281,7 +313,9 @@ export function CapabilityOnboarding({
         fieldOfStudy: 'computer_science',
         careerInterests: [chosenGoal],
         weeklyHours: hours,
-        focusAreas: [summary?.struggles || 'Programming Fundamentals'],
+        focusAreas: skillsToLearn.length > 0 ? skillsToLearn : [summary?.struggles || 'Programming Fundamentals'],
+        skillsToLearn,
+        skillsKnown,
         onboardingCompleted: true,
       });
 
@@ -312,11 +346,15 @@ export function CapabilityOnboarding({
         fieldOfStudy: 'computer_science',
         careerInterests: [careerInterest],
         weeklyHours,
-        focusAreas: careerInterest === 'Frontend Engineer'
+        focusAreas: skillsToLearn.length > 0
+          ? skillsToLearn
+          : careerInterest === 'Frontend Engineer'
           ? ['JavaScript', 'Frontend Engineering']
           : careerInterest === 'Backend Engineer'
           ? ['SQL', 'Backend Engineering']
           : ['Programming Fundamentals', 'Problem Solving'],
+        skillsToLearn,
+        skillsKnown,
         onboardingCompleted: true,
       });
       if (onClose) onClose();
@@ -714,6 +752,99 @@ export function CapabilityOnboarding({
                     <small>{item.note}</small>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Searchable Categorized Skill Selector */}
+            <div className="onboarding-group">
+              <label className="group-label">
+                <Sparkles size={16} /> Select Skills: Prior Knowledge vs What You Want to Learn
+              </label>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px 0' }}>
+                Click once to mark as <b>"Want to Learn"</b> (Green), click again to mark as <b>"Know Already"</b> (Blue).
+              </p>
+              <input
+                type="text"
+                value={skillSearchQuery}
+                onChange={(e) => setSkillSearchQuery(e.target.value)}
+                placeholder="Search skills (e.g. C, Python, SQL, React, Loops, APIs)..."
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-main)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 8,
+                  padding: '8px 14px',
+                  color: '#FFF',
+                  fontSize: 13,
+                  marginBottom: 14,
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {ONBOARDING_SKILL_CATEGORIES.map((cat, idx) => {
+                  const filtered = cat.skills.filter((s) =>
+                    s.toLowerCase().includes(skillSearchQuery.toLowerCase())
+                  );
+                  if (filtered.length === 0) return null;
+                  return (
+                    <div key={idx} style={{ background: 'var(--bg-main)', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--line)' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--cyan)', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>
+                        {cat.category.toUpperCase()}
+                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {filtered.map((skill) => {
+                          const isLearn = skillsToLearn.includes(skill);
+                          const isKnown = skillsKnown.includes(skill);
+                          let badgeBg = 'transparent';
+                          let badgeBorder = 'var(--line)';
+                          let badgeColor = 'var(--text-secondary)';
+                          let label = skill;
+
+                          if (isLearn) {
+                            badgeBg = 'rgba(16, 185, 129, 0.18)';
+                            badgeBorder = 'rgba(16, 185, 129, 0.4)';
+                            badgeColor = '#34D399';
+                            label = `${skill} ★ Want to Learn`;
+                          } else if (isKnown) {
+                            badgeBg = 'rgba(77, 141, 255, 0.18)';
+                            badgeBorder = 'rgba(77, 141, 255, 0.4)';
+                            badgeColor = '#60A5FA';
+                            label = `${skill} ✓ Know Already`;
+                          }
+
+                          return (
+                            <button
+                              key={skill}
+                              type="button"
+                              onClick={() => {
+                                if (!isLearn && !isKnown) {
+                                  setSkillsToLearn((prev) => [...prev, skill]);
+                                } else if (isLearn) {
+                                  setSkillsToLearn((prev) => prev.filter((s) => s !== skill));
+                                  setSkillsKnown((prev) => [...prev, skill]);
+                                } else {
+                                  setSkillsKnown((prev) => prev.filter((s) => s !== skill));
+                                }
+                              }}
+                              style={{
+                                background: badgeBg,
+                                border: `1px solid ${badgeBorder}`,
+                                color: badgeColor,
+                                padding: '5px 12px',
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
