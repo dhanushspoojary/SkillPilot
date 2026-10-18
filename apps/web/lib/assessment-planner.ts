@@ -11,8 +11,8 @@ import { skillStates } from './engine.ts';
  */
 export const PREREQUISITES: Record<string, string[]> = {
   'rest-apis': ['javascript', 'problem-solving'],
-  'sql': ['problem-solving'],
-  'javascript': ['problem-solving'],
+  'sql': [],
+  'javascript': [],
   'problem-solving': [],
   'git': [],
   'communication': [],
