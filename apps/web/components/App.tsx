@@ -153,6 +153,10 @@ export function App({ user, onLogout }: {
     }, [toast]);
     const actions = useMemo(() => planActions(state, careerGoal, capabilityProfile ?? undefined), [state, careerGoal, capabilityProfile]);
     const go = useCallback((v: View, f?: string) => {
+        if ((v as string) === 'calibration') {
+            setShowCalibration(true);
+            return;
+        }
         setView(v);
         setFocus(f);
         setMenu(false);
@@ -432,7 +436,7 @@ export function App({ user, onLogout }: {
             }}
           />
         )}
-        {view === 'roadmap' && <Roadmap state={state} actions={actions} go={go} workflow={workflow}/>}
+        {view === 'roadmap' && <Roadmap state={state} actions={actions} go={go} workflow={workflow} onOpenCalibration={() => setShowCalibration(true)}/>}
         {view === 'skills' && <Skills state={state} go={go}/>}
         {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} careerGoal={careerGoal} onFinish={onFinish} onDone={() => go('roadmap')}/>}
         {view === 'mentors' && <Mentors state={state} onSend={onSend} selfId={user.id}/>}
