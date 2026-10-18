@@ -316,11 +316,26 @@ export async function submitExerciseAttempt(params: {
       : `That answer is incorrect. Review the walkthrough and hint, then give it another try.`;
   }
 
+  // Check whether this exercise was already solved correctly by this user
+  let alreadySolved = false;
+  if (process.env.DATABASE_URL) {
+    try {
+      const prior = await one<{ count: string }>(
+        `select count(*)::text as count from student_practice_attempts 
+         where user_id = $1 and question_id = $2 and is_correct = true`,
+        [userId, exercise.id]
+      );
+      if (prior && parseInt(prior.count, 10) > 0) {
+        alreadySolved = true;
+      }
+    } catch {}
+  }
+
   // Update Lesson Progress
   const progressKey = `${userId}:${lesson.id}`;
   let currentProg = memLessonProgress.get(progressKey) || { exercisesCompleted: 0, status: 'in_progress' };
 
-  if (isCorrect) {
+  if (isCorrect && !alreadySolved) {
     currentProg.exercisesCompleted = Math.min(lesson.exercises.length, currentProg.exercisesCompleted + 1);
   }
   const isLessonCompleted = currentProg.exercisesCompleted >= lesson.exercises.length;
@@ -341,10 +356,12 @@ export async function submitExerciseAttempt(params: {
 
   currentMastery.attempted += 1;
   if (isCorrect) {
-    currentMastery.solved += 1;
-    // Hint penalty: full credit if hintsUsed === 0, partial if hints used
-    const credit = hintsUsed === 0 ? 35 : 20;
-    currentMastery.score = Math.min(100, currentMastery.score + credit);
+    if (!alreadySolved) {
+      currentMastery.solved += 1;
+      // Full credit if zero hints used, partial credit if hints used
+      const credit = hintsUsed === 0 ? 35 : 20;
+      currentMastery.score = Math.min(100, currentMastery.score + credit);
+    }
   } else {
     currentMastery.score = Math.max(0, currentMastery.score - 10);
   }
@@ -418,26 +435,33 @@ export async function submitExerciseAttempt(params: {
       ]
     );
 
-    // If concept was just mastered, award verified append-only skill evidence
+    // If concept was just mastered, award verified append-only skill evidence without duplicate entries
     if (currentMastery.status === 'mastered') {
       const skillRow = await database.query(`select id from skills where slug=$1`, [lesson.skillSlug]);
       if (skillRow.rowCount) {
-        await database.query(
-          `insert into user_skill_evidence(user_id, skill_id, source, score, confidence, metadata)
-           values($1, $2, 'practice', $3, $4, $5)`,
-          [
-            userId,
-            skillRow.rows[0].id,
-            currentMastery.score,
-            0.85,
-            JSON.stringify({
-              concept: exercise.concept,
-              lessonId: lesson.id,
-              solved: currentMastery.solved,
-              masteredAt: new Date().toISOString()
-            })
-          ]
+        const existingEvidence = await database.query(
+          `select id from user_skill_evidence 
+           where user_id = $1 and skill_id = $2 and metadata->>'concept' = $3`,
+          [userId, skillRow.rows[0].id, exercise.concept]
         );
+        if (existingEvidence.rowCount === 0) {
+          await database.query(
+            `insert into user_skill_evidence(user_id, skill_id, source, score, confidence, metadata)
+             values($1, $2, 'practice', $3, $4, $5)`,
+            [
+              userId,
+              skillRow.rows[0].id,
+              currentMastery.score,
+              0.85,
+              JSON.stringify({
+                concept: exercise.concept,
+                lessonId: lesson.id,
+                solved: currentMastery.solved,
+                masteredAt: new Date().toISOString()
+              })
+            ]
+          );
+        }
       }
     }
   } catch {

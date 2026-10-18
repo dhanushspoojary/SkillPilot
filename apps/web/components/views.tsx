@@ -609,11 +609,12 @@ export function Today({
   );
 }
 
-export function Roadmap({ state, actions, go, workflow }: {
+export function Roadmap({ state, actions, go, workflow, onOpenCalibration }: {
     state: AppState;
     actions: PlanAction[];
     go: (v: View, focus?: string) => void;
     workflow?: any;
+    onOpenCalibration?: () => void;
 }) {
     const [actionableTask, setActionableTask] = useState<any | null>(null);
 
@@ -730,6 +731,9 @@ export function Roadmap({ state, actions, go, workflow }: {
                   go('projects', actionableTask.projectSlug);
                 } else if (actionableTask.route === 'assess') {
                   go('assess', actionableTask.skillId);
+                } else if (actionableTask.route === 'calibration') {
+                  if (onOpenCalibration) onOpenCalibration();
+                  else go('learn');
                 } else {
                   go(actionableTask.route as View);
                 }

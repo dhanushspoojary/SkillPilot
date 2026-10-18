@@ -39,6 +39,24 @@ export function requireOrigin(req: Request): boolean {
     reqUrlOrigin = `${u.protocol}//${u.host}`.toLowerCase();
   } catch {}
 
+  const isTrustedHost = (h: string | null | undefined): boolean => {
+    if (!h) return false;
+    const hLower = h.toLowerCase().trim();
+    if (normAllowed) {
+      try {
+        const allowedHost = new URL(normAllowed).host.toLowerCase();
+        if (hLower === allowedHost) return true;
+      } catch {}
+    }
+    if (!isProd) {
+      const cleanH = hLower.split(':')[0];
+      if (['localhost', '127.0.0.1', '::1', '[::1]'].includes(cleanH)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   // 1. Direct match with configured allowed origin
   if (normOrigin && normAllowed && normOrigin === normAllowed) {
     return true;
@@ -49,9 +67,9 @@ export function requireOrigin(req: Request): boolean {
     return true;
   }
 
-  // 3. Match with request's Host header (legitimate same-origin request to this server)
-  if (normOrigin && host) {
-    const hostLower = host.toLowerCase();
+  // 3. Match with request's Host header ONLY IF host is verified as our own domain or local server
+  if (normOrigin && host && isTrustedHost(host)) {
+    const hostLower = host.toLowerCase().trim();
     if (normOrigin === `http://${hostLower}` || normOrigin === `https://${hostLower}`) {
       return true;
     }
@@ -68,7 +86,7 @@ export function requireOrigin(req: Request): boolean {
     }
     try {
       const u = new URL(normOrigin);
-      if (['localhost', '127.0.0.1', '::1'].includes(u.hostname) && host) {
+      if (['localhost', '127.0.0.1', '::1'].includes(u.hostname) && host && isTrustedHost(host)) {
         const hostPort = host.split(':')[1] || (u.protocol === 'https:' ? '443' : '80');
         const originPort = u.port || (u.protocol === 'https:' ? '443' : '80');
         if (originPort === hostPort) {
@@ -86,7 +104,7 @@ export function requireOrigin(req: Request): boolean {
     if (normReferer) {
       if (normAllowed && normReferer === normAllowed) return true;
       if (reqUrlOrigin && normReferer === reqUrlOrigin) return true;
-      if (host && (normReferer === `http://${host.toLowerCase()}` || normReferer === `https://${host.toLowerCase()}`)) {
+      if (host && isTrustedHost(host) && (normReferer === `http://${host.toLowerCase()}` || normReferer === `https://${host.toLowerCase()}`)) {
         return true;
       }
       if (!isProd) {

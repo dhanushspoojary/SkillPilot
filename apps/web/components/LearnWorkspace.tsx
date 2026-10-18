@@ -102,7 +102,7 @@ export function LearnWorkspace({
   onCompleted?: () => void;
 }) {
   const [lessons, setLessons] = useState<LessonSummary[]>([]);
-  const [activeLessonId, setActiveLessonId] = useState<string>(initialLessonId || 'loops-and-tracing');
+  const [activeLessonId, setActiveLessonId] = useState<string>(initialLessonId || 'ps-loop-tracing');
   const [lessonData, setLessonData] = useState<LessonDetail | null>(null);
   const [activeTab, setActiveTab] = useState<'walkthrough' | 'practice' | 'catalog'>('walkthrough');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -183,6 +183,12 @@ export function LearnWorkspace({
     void loadLessons();
     void loadNextAction();
   }, [loadLessons, loadNextAction]);
+
+  useEffect(() => {
+    if (initialLessonId) {
+      setActiveLessonId(initialLessonId);
+    }
+  }, [initialLessonId]);
 
   useEffect(() => {
     if (activeLessonId) {

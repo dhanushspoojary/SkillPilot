@@ -91,10 +91,10 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
       problems_attempted: number;
       problems_solved: number;
     }>(
-      `select concept, skill_slug, mastery_status, problems_attempted, problems_solved
+      `select concept, skill_slug, status as mastery_status, problems_attempted, problems_solved
        from student_concept_mastery
-       where user_id = $1 and (mastery_status = 'novice' or (problems_attempted > problems_solved and problems_attempted >= 2))
-       order by updated_at desc
+       where user_id = $1 and (status = 'novice' or (problems_attempted > problems_solved and problems_attempted >= 2))
+       order by last_practiced_at desc
        limit 1`,
       [userId]
     );
@@ -116,7 +116,7 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
         estimatedMinutes: 6,
         completionRequires: 'Solve 2 practice questions correctly with 0 hints to elevate mastery from Novice to Practicing.',
         route: 'learn',
-        lessonId: matchingLesson?.id || 'loops-and-tracing',
+        lessonId: matchingLesson?.id || 'ps-loop-tracing',
         conceptId: weakConcept.concept,
         buttonLabel: 'Practice Weak Concept',
         explanation: `You had difficulty with ${conceptReadable} on your recent attempts (${weakConcept.problems_solved}/${weakConcept.problems_attempted} passed). Let's practice with targeted hints before moving on so the gap does not snowball.`,
@@ -128,7 +128,7 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
   // 4. Check for In-Progress Lessons
   try {
     const inProgressLesson = await one<{ lesson_id: string; exercises_completed: number }>(
-      `select lesson_id, exercises_completed from student_lesson_progress where user_id = $1 and status = 'in_progress' order by updated_at desc limit 1`,
+      `select lesson_id, exercises_completed from student_lesson_progress where user_id = $1 and status = 'in_progress' order by last_attempted_at desc limit 1`,
       [userId]
     );
 

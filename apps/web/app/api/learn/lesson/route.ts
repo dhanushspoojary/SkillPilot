@@ -29,12 +29,13 @@ export async function GET(req: Request) {
   // Fetch recent attempts for this lesson
   let recentAttempts: any[] = [];
   try {
+    const exerciseIds = lesson.exercises.map((e) => e.id);
     recentAttempts = await many(
-      `select exercise_id, chosen_index, is_correct, hints_used, created_at
+      `select question_id as exercise_id, is_correct, hints_used, created_at
        from student_practice_attempts
-       where user_id = $1 and lesson_id = $2
+       where user_id = $1 and question_id = any($2)
        order by created_at desc limit 20`,
-      [u.id, lesson.id]
+      [u.id, exerciseIds]
     );
   } catch {}
 
@@ -44,12 +45,12 @@ export async function GET(req: Request) {
     const conceptNames = lesson.exercises.map((e) => e.concept);
     const masteryRows = await many<{
       concept: string;
-      mastery_status: string;
+      status: string;
       mastery_score: number;
       problems_solved: number;
       problems_attempted: number;
     }>(
-      `select concept, mastery_status, mastery_score, problems_solved, problems_attempted
+      `select concept, status, mastery_score, problems_solved, problems_attempted
        from student_concept_mastery
        where user_id = $1 and concept = any($2)`,
       [u.id, conceptNames]
@@ -57,7 +58,7 @@ export async function GET(req: Request) {
 
     for (const m of masteryRows) {
       conceptsMastery[m.concept] = {
-        status: m.mastery_status,
+        status: m.status,
         score: m.mastery_score,
         solved: m.problems_solved,
         attempted: m.problems_attempted,
@@ -88,16 +89,27 @@ export async function GET(req: Request) {
       difficulty: lesson.difficulty,
       estimatedMinutes: typeof lesson.estimatedMinutes === 'number' ? lesson.estimatedMinutes : parseInt(String(lesson.estimatedMinutes).replace(/\D/g, '') || '15', 10),
       keyDefinitions: lesson.keyDefinitions,
-      walkthroughSteps: lesson.walkthroughSteps || [
-        {
-          step: 1,
-          title: 'Code Mechanics',
-          codeSnippet: lesson.codeWalkthrough.code,
-          highlightLines: lesson.codeWalkthrough.annotations.map(a => a.line),
-          explanation: lesson.codeWalkthrough.annotations.map(a => `Line ${a.line}: ${a.note}`).join('. '),
-          mentalModelNote: lesson.whyItMatters,
-        }
-      ],
+      walkthroughSteps: lesson.walkthroughSteps || (
+        lesson.codeWalkthrough.annotations.length > 0
+          ? lesson.codeWalkthrough.annotations.map((ann, idx) => ({
+              step: idx + 1,
+              title: `Line ${ann.line} Execution Trace`,
+              codeSnippet: lesson.codeWalkthrough.code,
+              highlightLines: [ann.line],
+              explanation: ann.note,
+              mentalModelNote: `Simulate line ${ann.line} state changes carefully in memory.`,
+            }))
+          : [
+              {
+                step: 1,
+                title: 'Code Mechanics',
+                codeSnippet: lesson.codeWalkthrough.code,
+                highlightLines: [1],
+                explanation: 'Inspect the code structure and state evolution.',
+                mentalModelNote: lesson.whyItMatters,
+              }
+            ]
+      ),
       commonPitfalls: lesson.commonPitfalls.map(p => ({
         misconception: p.misconception || p.title || 'Common Misunderstanding',
         whyItFails: p.whyItFails || p.explanation || 'Fails to model state accurately',
