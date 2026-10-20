@@ -23,9 +23,46 @@ export async function POST(req: Request) {
         if (!isUuid(aid) || !qid || (!isSkip && (!Number.isInteger(choice) || choice < 0 || choice > 5)))
             return json({ error: 'Invalid answer' }, 400);
         const out = await tx(async (c) => {
-            const a = await c.query<any>(`select id,started_at from assessments where id=$1 and user_id=$2 and status='started' for update`, [aid, u.id]);
+            const a = await c.query<any>(`select id,started_at,status,server_score from assessments where id=$1 and user_id=$2 for update`, [aid, u.id]);
             if (!a.rowCount)
                 throw new Error('assessment');
+            if (a.rows[0].status === 'completed') {
+                const rows = await c.query<any>(`select skill_slug,position,prompt,response,score from assessment_items where assessment_id=$1 order by position`, [aid]);
+                const bySkill = new Map<string, any[]>();
+                for (const r of rows.rows) {
+                    const list = bySkill.get(r.skill_slug) ?? [];
+                    list.push(r);
+                    bySkill.set(r.skill_slug, list);
+                }
+                const results = [...bySkill.entries()].map(([sSlug, items]) => {
+                    const skillItems = items.map((it: any) => {
+                        const promptObj = typeof it.prompt === 'string' ? JSON.parse(it.prompt) : it.prompt;
+                        const questionObj = QUESTIONS.find((x) => x.id === promptObj?.id) || {
+                            id: promptObj?.id || 'q',
+                            skill: sSlug,
+                            level: Number(promptObj?.level ?? 1),
+                            q: promptObj?.q || '',
+                            options: promptObj?.options || [],
+                            answer: 0,
+                            why: '',
+                        };
+                        const respObj = typeof it.response === 'string' ? JSON.parse(it.response) : it.response;
+                        return { question: questionObj, response: respObj || {} };
+                    });
+                    const summary = computeSkillAdaptiveSummary({ skill: sSlug, items: skillItems });
+                    return {
+                        skill: sSlug,
+                        asked: items.length,
+                        score: summary.proficiency,
+                        confidence: summary.confidence,
+                        verifiedConcepts: summary.verifiedConcepts,
+                        conceptsNeedingEvidence: summary.conceptsNeedingEvidence,
+                        misconceptions: summary.misconceptions,
+                        nextAction: summary.nextAction,
+                    };
+                });
+                return { recorded: true, done: true, results, overall: a.rows[0].server_score ?? 100, workflowStage: 'SKILL_BASELINE_REVIEW' };
+            }
             if (Date.now() - new Date(a.rows[0].started_at).getTime() > 30 * 60000) {
                 await c.query(`update assessments set status='abandoned' where id=$1`, [aid]);
                 throw new Error('expired');
@@ -34,26 +71,52 @@ export async function POST(req: Request) {
             if (!item.rowCount)
                 throw new Error('question');
             if (item.rows[0].response) {
-                let prevChoice: number | null = null;
-                try {
-                    const parsed = typeof item.rows[0].response === 'string' ? JSON.parse(item.rows[0].response) : item.rows[0].response;
-                    prevChoice = parsed?.choice;
-                } catch {}
-                if (prevChoice === choice) {
-                    const answered = await c.query<any>(`select question_id,skill_slug,prompt,response,score from assessment_items where assessment_id=$1 order by position`, [aid]);
-                    const answeredCount = countAnswered(answered.rows);
-                    const totalQuestions = countTotal(answered.rows);
-                    const remaining = await c.query<any>(`select question_id,skill_slug,prompt from assessment_items where assessment_id=$1 and response is null order by position limit 1`, [aid]);
-                    if (remaining.rowCount) {
-                        const promptObj = typeof remaining.rows[0].prompt === 'string' ? JSON.parse(remaining.rows[0].prompt) : remaining.rows[0].prompt;
-                        return { recorded: true, done: false, index: answeredCount, total: totalQuestions, question: promptObj };
-                    }
-                    const comp = await c.query<any>(`select server_score from assessments where id=$1 and status='completed'`, [aid]);
-                    if (comp.rowCount) {
-                        return { recorded: true, done: true, overall: comp.rows[0].server_score };
-                    }
+                const answered = await c.query<any>(`select question_id,skill_slug,prompt,response,score from assessment_items where assessment_id=$1 order by position`, [aid]);
+                const answeredCount = countAnswered(answered.rows);
+                const totalQuestions = countTotal(answered.rows);
+                const remaining = await c.query<any>(`select question_id,skill_slug,prompt from assessment_items where assessment_id=$1 and response is null order by position limit 1`, [aid]);
+                if (remaining.rowCount) {
+                    const promptObj = typeof remaining.rows[0].prompt === 'string' ? JSON.parse(remaining.rows[0].prompt) : remaining.rows[0].prompt;
+                    return { recorded: true, done: false, index: answeredCount, total: totalQuestions, question: promptObj };
                 }
-                throw new Error('answered');
+                const comp = await c.query<any>(`select server_score from assessments where id=$1 and status='completed'`, [aid]);
+                if (comp.rowCount) {
+                    const rows = await c.query<any>(`select skill_slug,position,prompt,response,score from assessment_items where assessment_id=$1 order by position`, [aid]);
+                    const bySkill = new Map<string, any[]>();
+                    for (const r of rows.rows) {
+                        const list = bySkill.get(r.skill_slug) ?? [];
+                        list.push(r);
+                        bySkill.set(r.skill_slug, list);
+                    }
+                    const results = [...bySkill.entries()].map(([sSlug, items]) => {
+                        const skillItems = items.map((it: any) => {
+                            const promptObj = typeof it.prompt === 'string' ? JSON.parse(it.prompt) : it.prompt;
+                            const questionObj = QUESTIONS.find((x) => x.id === promptObj?.id) || {
+                                id: promptObj?.id || 'q',
+                                skill: sSlug,
+                                level: Number(promptObj?.level ?? 1),
+                                q: promptObj?.q || '',
+                                options: promptObj?.options || [],
+                                answer: 0,
+                                why: '',
+                            };
+                            const respObj = typeof it.response === 'string' ? JSON.parse(it.response) : it.response;
+                            return { question: questionObj, response: respObj || {} };
+                        });
+                        const summary = computeSkillAdaptiveSummary({ skill: sSlug, items: skillItems });
+                        return {
+                            skill: sSlug,
+                            asked: items.length,
+                            score: summary.proficiency,
+                            confidence: summary.confidence,
+                            verifiedConcepts: summary.verifiedConcepts,
+                            conceptsNeedingEvidence: summary.conceptsNeedingEvidence,
+                            misconceptions: summary.misconceptions,
+                            nextAction: summary.nextAction,
+                        };
+                    });
+                    return { recorded: true, done: true, results, overall: comp.rows[0].server_score ?? 100, workflowStage: 'SKILL_BASELINE_REVIEW' };
+                }
             }
             const q = QUESTIONS.find(x => x.id === qid);
             if (!q)

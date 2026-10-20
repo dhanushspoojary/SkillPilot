@@ -45,10 +45,14 @@ async function fetchWithRetry(
 ): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const res = await fetch(url, options);
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
       return res;
     } catch (err) {
+      clearTimeout(timeout);
       lastError = err;
       if (attempt < retries) {
         await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
@@ -103,6 +107,7 @@ export function Assess({
   const [submitError, setSubmitError] = useState('');
   const isMountedRef = useRef(true);
   const startInFlightRef = useRef(false);
+  const submitInFlightRef = useRef(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -171,8 +176,9 @@ export function Assess({
   }, [start]);
 
   const submit = useCallback(async () => {
-    if (!q || picked === null || !assessmentId || busy) return;
+    if (!q || picked === null || !assessmentId || busy || submitInFlightRef.current) return;
 
+    submitInFlightRef.current = true;
     setBusy(true);
     setBusyMessage('Recording and scoring answer…');
     setSubmitError('');
@@ -203,22 +209,33 @@ export function Assess({
 
       if (data.done) {
         setFeedback('Assessment complete! Computing your authoritative results…');
-        setResults(data.results);
-        await onFinish(data.results);
+        const resList = Array.isArray(data.results) ? data.results : [];
+        setResults(resList);
+        await onFinish(resList);
+        setBusy(false);
+        submitInFlightRef.current = false;
       } else {
         setFeedback('Answer recorded. Next adaptive question selected.');
         window.setTimeout(() => {
           if (!isMountedRef.current) return;
-          const nextQ =
-            typeof data.question === 'string'
-              ? JSON.parse(data.question)
-              : data.question;
-          setQ(nextQ);
-          setIndex(typeof data.index === 'number' ? data.index : index + 1);
-          if (data.total) setTotal(data.total);
-          setPicked(null);
-          setFeedback(null);
-          setBusy(false);
+          try {
+            const nextQ =
+              typeof data.question === 'string'
+                ? JSON.parse(data.question)
+                : data.question;
+            if (nextQ && nextQ.id) {
+              setQ(nextQ);
+              setIndex(typeof data.index === 'number' ? data.index : index + 1);
+              if (data.total) setTotal(data.total);
+            }
+          } catch (parseErr) {
+            console.error('Error parsing next question', parseErr);
+          } finally {
+            setPicked(null);
+            setFeedback(null);
+            setBusy(false);
+            submitInFlightRef.current = false;
+          }
         }, 300);
       }
     } catch (e) {
@@ -226,6 +243,7 @@ export function Assess({
       // Preserve picked answer and question, display inline retry
       setSubmitError(friendlyErrorMessage(e, 'Could not submit your answer. Please retry.'));
       setBusy(false);
+      submitInFlightRef.current = false;
     }
   }, [q, picked, assessmentId, busy, index, onFinish]);
 
@@ -245,9 +263,13 @@ export function Assess({
       } else if (!isNaN(num) && num >= 1 && num <= (q.options?.length ?? 0)) {
         setPicked(num - 1);
         setSubmitError('');
-      } else if (e.key === 'Enter' && picked !== null) {
+      } else if (e.key === 'Enter') {
         e.preventDefault();
-        void submit();
+        if (picked === null) {
+          setSubmitError('Please select an answer option above before proceeding to the next question.');
+        } else {
+          void submit();
+        }
       }
     };
 
@@ -562,17 +584,17 @@ export function Assess({
           const isSelected = picked === i;
           return (
             <button
-              key={option}
+              key={`${q.id}-opt-${i}`}
               type="button"
               className={`option-btn ${isSelected ? 'selected-answer' : ''}`}
               aria-pressed={isSelected}
               onClick={() => {
-                if (!busy && !feedback) {
+                if (!busy) {
                   setPicked(i);
                   setSubmitError('');
                 }
               }}
-              disabled={busy || feedback !== null}
+              disabled={busy}
             >
               <span className="option-letter">{String.fromCharCode(65 + i)}</span>
               <span className="option-content">{option}</span>
@@ -615,9 +637,16 @@ export function Assess({
 
         <button
           type="button"
-          className="primary submit-btn"
-          onClick={submit}
-          disabled={!answered || busy || feedback !== null}
+          className={`primary submit-btn ${!answered ? 'needs-answer' : ''}`}
+          onClick={() => {
+            if (!answered) {
+              setSubmitError('Please select an answer option above before proceeding to the next question.');
+              return;
+            }
+            void submit();
+          }}
+          disabled={busy || feedback !== null}
+          aria-label={index + 1 === total ? 'Finish diagnostic assessment' : 'Advance to next assessment question'}
         >
           {busy ? (
             <>
