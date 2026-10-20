@@ -18,7 +18,8 @@ if (fs.existsSync(envPath)) {
 }
 
 const { db } = await import('../lib/db.ts');
-const { PRACTICE_PROBLEMS, executeCodeSafely } = await import('../lib/practice-arena.ts');
+const { PRACTICE_PROBLEMS } = await import('../lib/practice-arena.ts');
+const { executeCodeSafely } = await import('../lib/practice-arena-server.ts');
 const { getPublicPassportByHandle } = await import('../lib/passport.ts');
 
 async function run() {

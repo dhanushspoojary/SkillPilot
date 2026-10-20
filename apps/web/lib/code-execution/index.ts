@@ -9,15 +9,38 @@ import {
 } from './types.ts';
 import { Judge0ExecutionProvider } from './judge0-provider.ts';
 import { PistonExecutionProvider } from './piston-provider.ts';
+import { OnlineCompilerExecutionProvider } from './onlinecompiler-provider.ts';
+import { SqliteExecutionProvider } from './sqlite-provider.ts';
 
 export * from './types.ts';
 export { Judge0ExecutionProvider } from './judge0-provider.ts';
 export { PistonExecutionProvider } from './piston-provider.ts';
+export { OnlineCompilerExecutionProvider } from './onlinecompiler-provider.ts';
+export { SqliteExecutionProvider } from './sqlite-provider.ts';
 
 let judge0Instance: Judge0ExecutionProvider | null = null;
 let pistonInstance: PistonExecutionProvider | null = null;
+let onlinecompilerInstance: OnlineCompilerExecutionProvider | null = null;
+let sqliteInstance: SqliteExecutionProvider | null = null;
 
-export function getActiveExecutionProvider(): CodeExecutionProvider | null {
+export function getActiveExecutionProvider(language?: ProgrammingLanguage): CodeExecutionProvider | null {
+  // If the language is SQL, use the isolated in-memory practice database sandbox
+  if (language === 'sql') {
+    if (!sqliteInstance) {
+      sqliteInstance = new SqliteExecutionProvider();
+    }
+    return sqliteInstance;
+  }
+
+  // 1. OnlineCompiler.io (if configured via ONLINECOMPILER_API_KEY)
+  if (process.env.ONLINECOMPILER_API_KEY) {
+    if (!onlinecompilerInstance) {
+      onlinecompilerInstance = new OnlineCompilerExecutionProvider();
+    }
+    return onlinecompilerInstance;
+  }
+
+  // 2. Judge0 (if configured via JUDGE0_API_URL)
   if (process.env.JUDGE0_API_URL) {
     if (!judge0Instance) {
       judge0Instance = new Judge0ExecutionProvider();
@@ -25,6 +48,7 @@ export function getActiveExecutionProvider(): CodeExecutionProvider | null {
     return judge0Instance;
   }
 
+  // 3. Piston (if configured via PISTON_API_URL)
   if (process.env.PISTON_API_URL) {
     if (!pistonInstance) {
       pistonInstance = new PistonExecutionProvider();
@@ -92,7 +116,7 @@ export async function executePracticeSubmission(params: {
     : allTestCases.filter((tc) => !tc.isHidden);
 
   // 4. Retrieve active provider
-  const provider = getActiveExecutionProvider();
+  const provider = getActiveExecutionProvider(language);
 
   if (!provider) {
     // When no isolated external runner is configured:
@@ -119,7 +143,7 @@ export async function executePracticeSubmission(params: {
       isRunnerAvailable: false,
       status: 'provider_unavailable',
       message:
-        'Sandboxed code execution is offline. A configured runner (JUDGE0_API_URL or PISTON_API_URL) is required for dynamic execution. Solution drafting and hint progression remain fully available.',
+        'Sandboxed code execution is offline. A configured runner (ONLINECOMPILER_API_KEY, JUDGE0_API_URL, or PISTON_API_URL) is required for dynamic execution. Solution drafting and hint progression remain fully available.',
     };
   }
 
@@ -168,35 +192,49 @@ export async function executePracticeSubmission(params: {
 
     const totalPassed = results.filter((r) => r.passed).length;
     const allPassed = totalPassed === testCasesToRun.length;
+    const providerUnavailable = results.find((r) => r.status === 'provider_unavailable');
+    const malformedResponse = results.find((r) => r.status === 'malformed_response');
+    const rateLimited = results.find((r) => r.status === 'rate_limited');
     const compilationError = results.find((r) => r.status === 'compilation_error');
     const runtimeError = results.find((r) => r.status === 'runtime_error');
     const timeoutError = results.find((r) => r.status === 'time_limit_exceeded');
-    const rateLimited = results.find((r) => r.status === 'rate_limited');
 
-    const overallStatus = compilationError
+    const overallStatus = providerUnavailable
+      ? 'provider_unavailable'
+      : malformedResponse
+      ? 'malformed_response'
+      : rateLimited
+      ? 'rate_limited'
+      : compilationError
       ? 'compilation_error'
       : timeoutError
       ? 'time_limit_exceeded'
       : runtimeError
       ? 'runtime_error'
-      : rateLimited
-      ? 'rate_limited'
       : allPassed
       ? 'success'
       : 'wrong_answer';
 
+    const isAvailable = !providerUnavailable && !malformedResponse && !rateLimited;
+
     return {
-      success: allPassed,
+      success: allPassed && isAvailable,
       provider: provider.name,
-      isRunnerAvailable: true,
-      runnerType: 'sandbox',
+      isRunnerAvailable: isAvailable,
+      runnerType: isAvailable ? 'sandbox' : 'disabled_no_sandbox',
       status: overallStatus,
       testCaseResults: results,
-      totalPassed,
+      totalPassed: isAvailable ? totalPassed : 0,
       totalTests: testCasesToRun.length,
       runtimeMs: results.reduce((sum, r) => sum + r.runtimeMs, 0),
       memoryKb: results.reduce((max, r) => Math.max(max, r.memoryKb || 0), 0),
-      message: allPassed
+      message: providerUnavailable
+        ? (providerUnavailable.error || 'Code execution runner is currently unavailable or requires whitelisted authorization.')
+        : malformedResponse
+        ? 'Runner returned an unexpected or malformed response.'
+        : rateLimited
+        ? `${rateLimited.error ? `${rateLimited.error} ` : ''}SkillPilot is operating in Solution Drafting Mode until quota resets.`
+        : allPassed
         ? 'All test cases passed on the isolated runner!'
         : compilationError
         ? 'Compilation error on runner'

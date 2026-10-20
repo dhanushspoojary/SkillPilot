@@ -5,6 +5,19 @@ const nextConfig = {
   output: 'standalone',
   // Keep these as real node_modules in the standalone image so scripts/bootstrap-admin.mjs can import them.
   serverExternalPackages: ['bcryptjs', 'pg'],
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      const existingExternals = Array.isArray(config.externals)
+        ? config.externals
+        : typeof config.externals === 'function'
+        ? [config.externals]
+        : config.externals
+        ? [config.externals]
+        : [];
+      config.externals = [...existingExternals, 'node:sqlite'];
+    }
+    return config;
+  },
   async headers() {
     return [{
       source: '/(.*)',

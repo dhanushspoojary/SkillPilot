@@ -46,7 +46,7 @@ export interface SingleTestExecution {
 
 export interface CodeExecutionResult {
   success: boolean;
-  provider: 'judge0' | 'piston' | 'none';
+  provider: 'judge0' | 'piston' | 'onlinecompiler' | 'sqlite_internal' | 'none';
   isRunnerAvailable: boolean;
   runnerType: 'sandbox' | 'disabled_no_sandbox';
   status: ExecutionStatus;
@@ -67,7 +67,7 @@ export interface TestCaseDefinition {
 }
 
 export interface CodeExecutionProvider {
-  name: 'judge0' | 'piston';
+  name: 'judge0' | 'piston' | 'onlinecompiler' | 'sqlite_internal';
   isConfigured(): boolean;
   checkHealth(): Promise<{ ok: boolean; message?: string }>;
   getSupportedLanguages(): ProgrammingLanguage[];

@@ -377,8 +377,8 @@ export function getActiveLLMProvider(): {
   // 1. Google Gemini (Primary)
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   if (geminiKey) {
-    const fastModel = process.env.GEMINI_MODEL_FAST || 'gemini-2.5-flash';
-    const strongModel = process.env.GEMINI_MODEL_STRONG || 'gemini-2.5-flash';
+    const fastModel = process.env.GEMINI_MODEL_FAST || 'gemini-3.5-flash-lite';
+    const strongModel = process.env.GEMINI_MODEL_STRONG || 'gemini-3.5-flash';
     return {
       provider: new GeminiProviderAdapter(geminiKey),
       providerName: 'gemini',

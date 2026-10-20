@@ -4,7 +4,7 @@
  */
 
 export type ProblemDifficulty = 'easy' | 'medium' | 'hard';
-export type ProgrammingLanguage = 'python' | 'javascript' | 'c' | 'cpp' | 'java';
+export type ProgrammingLanguage = 'python' | 'javascript' | 'c' | 'cpp' | 'java' | 'sql';
 
 export interface TestCase {
   id: string;
@@ -30,7 +30,7 @@ export interface PracticeProblem {
     explanation?: string;
   }>;
   constraints: string[];
-  starterCode: Record<ProgrammingLanguage, string>;
+  starterCode: Partial<Record<ProgrammingLanguage, string>>;
   testCases: TestCase[];
   hintLadder: [
     string, // Level 1: Nudge question
@@ -329,7 +329,7 @@ export const PRACTICE_PROBLEMS: PracticeProblem[] = [
     title: 'Second Highest Salary Query',
     difficulty: 'medium',
     track: 'sql-databases',
-    languages: ['javascript'], // Query represented in SQL
+    languages: ['sql', 'javascript'], // Query represented in SQL
     tags: ['SQL', 'Aggregates', 'Subquery'],
     estimatedMinutes: 15,
     statement:
@@ -345,6 +345,7 @@ export const PRACTICE_PROBLEMS: PracticeProblem[] = [
       'Handle duplicate highest salaries gracefully.',
     ],
     starterCode: {
+      sql: 'SELECT MAX(salary) AS SecondHighestSalary\nFROM Employee\nWHERE salary < (SELECT MAX(salary) FROM Employee);\n',
       javascript: '-- Write your SQL query below\nSELECT DISTINCT salary AS SecondHighestSalary\nFROM Employee\n',
       python: '# SQL Query\nQUERY = """SELECT DISTINCT salary AS SecondHighestSalary FROM Employee"""\n',
       c: '/* SQL Query representation */\n',
@@ -377,14 +378,6 @@ export const PRACTICE_PROBLEMS: PracticeProblem[] = [
   },
 ];
 
-import {
-  executePracticeSubmission,
-  type CodeExecutionResult,
-  type ExecutionStatus,
-} from './code-execution/index.ts';
-
-export type { CodeExecutionResult };
-
 export interface ExecutionResult {
   success: boolean;
   testCaseResults: Array<{
@@ -395,7 +388,7 @@ export interface ExecutionResult {
     actual: string;
     runtimeMs: number;
     error?: string;
-    status?: ExecutionStatus;
+    status?: string;
     compileOutput?: string;
   }>;
   totalPassed: number;
@@ -404,58 +397,8 @@ export interface ExecutionResult {
   memoryKb: number;
   runnerType: 'sandbox' | 'disabled_no_sandbox';
   isRunnerAvailable: boolean;
-  status?: ExecutionStatus;
-  provider?: 'judge0' | 'piston' | 'none';
+  status?: string;
+  provider?: 'judge0' | 'piston' | 'onlinecompiler' | 'sqlite_internal' | 'none';
   message?: string;
 }
 
-/**
- * Execute student code against test cases with safe execution boundary.
- * Never executes untrusted code directly inside the main Next.js process.
- * Uses Judge0 as the primary runner (or Piston as fallback) when configured.
- * When runner is offline, enters Solution Drafting Mode without awarding fake evidence.
- */
-export async function executeCodeSafely(
-  code: string,
-  problemId: string,
-  language: ProgrammingLanguage,
-  isSubmission: boolean = false
-): Promise<ExecutionResult> {
-  const problem = PRACTICE_PROBLEMS.find((p) => p.id === problemId);
-  if (!problem) {
-    throw new Error('Problem not found');
-  }
-
-  const result = await executePracticeSubmission({
-    code,
-    problemId,
-    language,
-    testCases: problem.testCases,
-    isSubmission,
-    timeLimitSec: 4.0,
-  });
-
-  return {
-    success: result.success,
-    provider: result.provider,
-    testCaseResults: result.testCaseResults.map((tc) => ({
-      testCaseId: tc.testCaseId,
-      passed: tc.passed,
-      input: tc.input,
-      expected: tc.expected,
-      actual: tc.actual,
-      runtimeMs: tc.runtimeMs,
-      error: tc.error,
-      status: tc.status,
-      compileOutput: tc.compileOutput,
-    })),
-    totalPassed: result.totalPassed,
-    totalTests: result.totalTests,
-    runtimeMs: result.runtimeMs,
-    memoryKb: result.memoryKb,
-    runnerType: result.runnerType,
-    isRunnerAvailable: result.isRunnerAvailable,
-    status: result.status,
-    message: result.message,
-  };
-}

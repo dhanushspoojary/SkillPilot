@@ -29,6 +29,10 @@ export function buildExecutableProgram(
     return wrapJavaScript(userCode, cleanProblemId, stdin);
   } else if (language === 'c') {
     return wrapC(userCode, cleanProblemId, stdin);
+  } else if (language === 'cpp') {
+    return wrapCpp(userCode, cleanProblemId, stdin);
+  } else if (language === 'java') {
+    return wrapJava(userCode, cleanProblemId, stdin);
   } else if (language === 'sql') {
     return wrapSql(userCode, cleanProblemId, stdin);
   }
@@ -65,25 +69,38 @@ if __name__ == '__main__':
     raw = sys.stdin.read().strip()
     try:
         if "${problem}" == "two-sum-target":
-            parts = raw.split("],")
-            nums = json.loads(parts[0] + "]")
-            target = int(parts[1].strip())
-            fn = globals().get("two_sum") or globals().get("twoSum")
+            split_idx = raw.rfind("],")
+            if split_idx != -1:
+                nums = json.loads(raw[:split_idx + 1])
+                target = int(raw[split_idx + 2:].strip())
+            else:
+                parsed = json.loads(raw)
+                nums = parsed[0]
+                target = int(parsed[1])
+            fn = globals().get("two_sum") or globals().get("twoSum") or globals().get("solution")
+            if not fn:
+                raise Exception("Function two_sum or solution not defined")
             out = fn(nums, target)
             print(json.dumps(out))
         elif "${problem}" == "reverse-linked-list":
             arr = json.loads(raw)
             head = _list_to_nodes(arr)
-            fn = globals().get("reverse_list") or globals().get("reverseList")
+            fn = globals().get("reverse_list") or globals().get("reverseList") or globals().get("solution")
+            if not fn:
+                raise Exception("Function reverse_list or solution not defined")
             out_head = fn(head)
             print(json.dumps(_nodes_to_list(out_head)))
         elif "${problem}" == "valid-parentheses":
             val = json.loads(raw) if (raw.startswith('"') and raw.endswith('"')) else raw.strip()
-            fn = globals().get("is_valid") or globals().get("isValid")
+            fn = globals().get("is_valid") or globals().get("isValid") or globals().get("solution")
+            if not fn:
+                raise Exception("Function is_valid or solution not defined")
             print("true" if fn(val) else "false")
         elif "${problem}" == "maximum-subarray":
             arr = json.loads(raw)
-            fn = globals().get("max_sub_array") or globals().get("maxSubArray")
+            fn = globals().get("max_sub_array") or globals().get("maxSubArray") or globals().get("solution")
+            if not fn:
+                raise Exception("Function max_sub_array or solution not defined")
             print(fn(arr))
         else:
             print("Unknown problem harness")
@@ -125,26 +142,33 @@ try {
   const raw = fs.readFileSync(0, 'utf-8').trim();
   if ("${problem}" === "two-sum-target") {
     const splitIdx = raw.lastIndexOf('],');
-    const nums = JSON.parse(raw.slice(0, splitIdx + 1));
-    const target = parseInt(raw.slice(splitIdx + 2).trim(), 10);
-    const fn = typeof twoSum === 'function' ? twoSum : typeof two_sum === 'function' ? two_sum : null;
-    if (!fn) throw new Error("Function twoSum not defined");
+    let nums, target;
+    if (splitIdx !== -1) {
+      nums = JSON.parse(raw.slice(0, splitIdx + 1));
+      target = parseInt(raw.slice(splitIdx + 2).trim(), 10);
+    } else {
+      const parsed = JSON.parse(raw);
+      nums = parsed[0];
+      target = parseInt(parsed[1], 10);
+    }
+    const fn = typeof twoSum === 'function' ? twoSum : typeof two_sum === 'function' ? two_sum : typeof solution === 'function' ? solution : null;
+    if (!fn) throw new Error("Function twoSum or solution not defined");
     console.log(JSON.stringify(fn(nums, target)));
   } else if ("${problem}" === "reverse-linked-list") {
     const arr = JSON.parse(raw);
     const head = _listToNodes(arr);
-    const fn = typeof reverseList === 'function' ? reverseList : typeof reverse_list === 'function' ? reverse_list : null;
-    if (!fn) throw new Error("Function reverseList not defined");
+    const fn = typeof reverseList === 'function' ? reverseList : typeof reverse_list === 'function' ? reverse_list : typeof solution === 'function' ? solution : null;
+    if (!fn) throw new Error("Function reverseList or solution not defined");
     console.log(JSON.stringify(_nodesToList(fn(head))));
   } else if ("${problem}" === "valid-parentheses") {
     const val = (raw.startsWith('"') && raw.endsWith('"')) ? JSON.parse(raw) : raw;
-    const fn = typeof isValid === 'function' ? isValid : typeof is_valid === 'function' ? is_valid : null;
-    if (!fn) throw new Error("Function isValid not defined");
+    const fn = typeof isValid === 'function' ? isValid : typeof is_valid === 'function' ? is_valid : typeof solution === 'function' ? solution : null;
+    if (!fn) throw new Error("Function isValid or solution not defined");
     console.log(fn(val) ? "true" : "false");
   } else if ("${problem}" === "maximum-subarray") {
     const arr = JSON.parse(raw);
-    const fn = typeof maxSubArray === 'function' ? maxSubArray : typeof max_sub_array === 'function' ? max_sub_array : null;
-    if (!fn) throw new Error("Function maxSubArray not defined");
+    const fn = typeof maxSubArray === 'function' ? maxSubArray : typeof max_sub_array === 'function' ? max_sub_array : typeof solution === 'function' ? solution : null;
+    if (!fn) throw new Error("Function maxSubArray or solution not defined");
     console.log(fn(arr));
   } else {
     console.log("Unknown problem harness");
@@ -189,6 +213,65 @@ int main() {
   }
   return { sourceCode: code, stdin };
 }
+
+function wrapCpp(code: string, problem: string, stdin: string): { sourceCode: string; stdin: string } {
+  if (problem === 'maximum-subarray') {
+    const harness = `
+#include <iostream>
+#include <vector>
+#include <string>
+#include <sstream>
+
+int main() {
+    std::string line;
+    if (std::getline(std::cin, line)) {
+        std::vector<int> nums;
+        for (size_t i = 0; i < line.size(); ++i) {
+            if (line[i] == '-' || (line[i] >= '0' && line[i] <= '9')) {
+                size_t nextIdx = 0;
+                int val = std::stoi(line.substr(i), &nextIdx);
+                nums.push_back(val);
+                i += (nextIdx > 0 ? nextIdx - 1 : 0);
+            }
+        }
+        std::cout << maxSubArray(nums) << std::endl;
+    }
+    return 0;
+}
+`;
+    return { sourceCode: `${code}\n${harness}`, stdin };
+  }
+  return { sourceCode: code, stdin };
+}
+
+function wrapJava(code: string, problem: string, stdin: string): { sourceCode: string; stdin: string } {
+  if (problem === 'maximum-subarray') {
+    const harness = `
+import java.util.*;
+import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        String line = reader.readLine();
+        if (line == null) return;
+        line = line.replaceAll("[\\[\\],]", " ").trim();
+        if (line.isEmpty()) return;
+        String[] parts = line.split("\\\\s+");
+        int[] nums = new int[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            nums[i] = Integer.parseInt(parts[i]);
+        }
+        Solution sol = new Solution();
+        System.out.println(sol.maxSubArray(nums));
+    }
+}
+`;
+    return { sourceCode: `${code}\n${harness}`, stdin };
+  }
+  return { sourceCode: code, stdin };
+}
+
 
 function wrapSql(query: string, problem: string, stdin: string): { sourceCode: string; stdin: string } {
   // Build a self-contained SQLite script for isolated evaluation

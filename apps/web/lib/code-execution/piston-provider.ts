@@ -21,6 +21,33 @@ export class PistonExecutionProvider implements CodeExecutionProvider {
     return (process.env.PISTON_API_URL || '').replace(/\/$/, '');
   }
 
+  private getExecuteUrl(): string {
+    const base = this.getBaseUrl();
+    if (base.endsWith('/execute')) return base;
+    if (base.endsWith('/api/v2/piston')) return `${base}/execute`;
+    if (base.endsWith('/api/v2')) return `${base}/execute`;
+    return `${base}/api/v2/execute`;
+  }
+
+  private getRuntimesUrl(): string {
+    const base = this.getBaseUrl();
+    if (base.endsWith('/execute')) return base.replace(/\/execute$/, '/runtimes');
+    if (base.endsWith('/api/v2/piston')) return `${base}/runtimes`;
+    if (base.endsWith('/api/v2')) return `${base}/runtimes`;
+    return `${base}/api/v2/runtimes`;
+  }
+
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const apiKey = process.env.PISTON_API_KEY;
+    if (apiKey) {
+      headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+    }
+    return headers;
+  }
+
   isConfigured(): boolean {
     return Boolean(this.getBaseUrl());
   }
@@ -35,15 +62,42 @@ export class PistonExecutionProvider implements CodeExecutionProvider {
     }
 
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v2/runtimes`, {
+      const res = await fetch(this.getRuntimesUrl(), {
         method: 'GET',
+        headers: this.getHeaders(),
         signal: AbortSignal.timeout(4000),
       });
 
-      if (res.ok) {
-        return { ok: true, message: 'Piston online' };
+      if (!res.ok) {
+        return { ok: false, message: `Piston returned HTTP ${res.status}` };
       }
-      return { ok: false, message: `Piston returned HTTP ${res.status}` };
+
+      try {
+        const probe = await fetch(this.getExecuteUrl(), {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify({
+            language: 'python',
+            version: '*',
+            files: [{ content: 'print(1)' }],
+          }),
+          signal: AbortSignal.timeout(3000),
+        });
+
+        if (probe.status === 401) {
+          return {
+            ok: false,
+            message: 'Piston runner requires IP whitelisting or authorization (HTTP 401)',
+          };
+        }
+        if (probe.ok) {
+          return { ok: true, message: 'Piston online and execution active' };
+        }
+      } catch {
+        // Fall back to runtimes status if probe times out
+      }
+
+      return { ok: true, message: 'Piston online' };
     } catch (err) {
       return {
         ok: false,
@@ -97,9 +151,9 @@ export class PistonExecutionProvider implements CodeExecutionProvider {
     );
 
     try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v2/execute`, {
+      const res = await fetch(this.getExecuteUrl(), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           language: pistonLang,
           version: '*',
@@ -121,12 +175,18 @@ export class PistonExecutionProvider implements CodeExecutionProvider {
       }
 
       if (!res.ok) {
+        const errorMsg =
+          res.status === 401
+            ? 'Piston API requires IP whitelisting or authorization (HTTP 401)'
+            : res.status === 403
+            ? 'Piston API access forbidden (HTTP 403)'
+            : `Piston returned HTTP ${res.status}`;
         return {
           passed: false,
           actual: `Runner HTTP ${res.status}`,
           runtimeMs: 0,
           status: 'provider_unavailable',
-          error: `Piston returned HTTP ${res.status}`,
+          error: errorMsg,
         };
       }
 

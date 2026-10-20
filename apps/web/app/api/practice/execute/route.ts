@@ -1,5 +1,6 @@
 import { json, requireOrigin, readJsonBody } from '../../../../lib/server-security';
-import { executeCodeSafely, type ProgrammingLanguage } from '../../../../lib/practice-arena';
+import { executeCodeSafely } from '../../../../lib/practice-arena-server';
+import { type ProgrammingLanguage } from '../../../../lib/practice-arena';
 import { currentUser } from '../../../../lib/auth';
 import { dbRateLimit } from '../../../../lib/guard';
 import { db } from '../../../../lib/db';
