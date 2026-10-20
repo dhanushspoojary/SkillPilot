@@ -23,7 +23,7 @@ async function testFast(model) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: 'Hello' }] }] }),
-      signal: AbortSignal.timeout(6000)
+      signal: AbortSignal.timeout(15000)
     });
     console.log(`[${model}] HTTP status: ${res.status}`);
     const data = await res.json();
@@ -38,4 +38,5 @@ async function testFast(model) {
 }
 
 await testFast('gemini-3.5-flash-lite');
+await testFast('gemini-2.5-flash');
 await testFast('gemini-3.5-flash');

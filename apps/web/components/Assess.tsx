@@ -102,6 +102,7 @@ export function Assess({
   const [startError, setStartError] = useState('');
   const [submitError, setSubmitError] = useState('');
   const isMountedRef = useRef(true);
+  const startInFlightRef = useRef(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -111,6 +112,8 @@ export function Assess({
   }, []);
 
   const start = useCallback(async () => {
+    if (startInFlightRef.current) return;
+    startInFlightRef.current = true;
     setBusy(true);
     setBusyMessage('Preparing your diagnostic…');
     setStartError('');
@@ -156,6 +159,7 @@ export function Assess({
       if (!isMountedRef.current) return;
       setStartError(friendlyErrorMessage(e, 'Could not start diagnostic'));
     } finally {
+      startInFlightRef.current = false;
       if (isMountedRef.current) {
         setBusy(false);
       }

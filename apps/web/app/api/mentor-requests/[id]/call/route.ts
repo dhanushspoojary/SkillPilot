@@ -2,7 +2,13 @@ import { currentUser } from '../../../../../lib/auth';
 import { one } from '../../../../../lib/db';
 import { dbRateLimit } from '../../../../../lib/guard';
 import { json, readJsonBody, requireOrigin, safeText, isUuid, validMeetingUrl } from '../../../../../lib/server-security';
-import { isLiveKitConfigured, getLiveKitServerUrl, deriveLiveKitRoomName, createLiveKitToken } from '../../../../../lib/livekit';
+import {
+  isLiveKitConfigured,
+  validateLiveKitConfig,
+  getLiveKitServerUrl,
+  deriveLiveKitRoomName,
+  createLiveKitToken,
+} from '../../../../../lib/livekit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,12 +30,14 @@ export async function GET(_req: Request, ctx: Ctx) {
   );
   if (!r) return json({ error: 'Call is available once a request is accepted' }, 404);
 
+  const configCheck = validateLiveKitConfig();
   let livekitInfo: any = {
     available: false,
-    message: 'LiveKit credentials (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET) are not configured on this server.',
+    message: configCheck.reason || 'LiveKit credentials are not configured on this server.',
+    code: configCheck.code || 'LIVEKIT_NOT_CONFIGURED',
   };
 
-  if (isLiveKitConfigured()) {
+  if (configCheck.valid) {
     try {
       const role = u.id === r.mentorId ? 'mentor' : 'student';
       const token = await createLiveKitToken({

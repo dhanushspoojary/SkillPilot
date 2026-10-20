@@ -84,9 +84,26 @@ async function run() {
     assert(false, `Execution API request failed: ${err.message}`);
   }
 
-  // Safe runner honesty check: when no sandbox runner URL is configured, execution is disabled without faking results
+  // Safe runner honesty check: verify configured runner or test offline fallback
   const runnerCheck = await executeCodeSafely('return 1;', 'prob-two-sum-target', 'javascript', false);
-  assert(!runnerCheck.isRunnerAvailable && runnerCheck.runnerType === 'disabled_no_sandbox', 'Offline runner safely disables execution without fabricating fake passes');
+  if (process.env.ONLINECOMPILER_API_KEY) {
+    assert(runnerCheck.isRunnerAvailable && runnerCheck.runnerType === 'sandbox' && runnerCheck.provider === 'onlinecompiler', `Configured OnlineCompiler runner is active (provider: ${runnerCheck.provider}, runnerType: ${runnerCheck.runnerType})`);
+    
+    // Also test offline fallback by temporarily clearing runner credentials
+    const savedKey = process.env.ONLINECOMPILER_API_KEY;
+    const savedProvider = process.env.CODE_EXECUTION_PROVIDER;
+    delete process.env.ONLINECOMPILER_API_KEY;
+    delete process.env.CODE_EXECUTION_PROVIDER;
+    try {
+      const offlineCheck = await executeCodeSafely('return 1;', 'prob-two-sum-target', 'javascript', false);
+      assert(!offlineCheck.isRunnerAvailable && offlineCheck.runnerType === 'disabled_no_sandbox', 'Offline runner safely disables execution without fabricating fake passes');
+    } finally {
+      process.env.ONLINECOMPILER_API_KEY = savedKey;
+      if (savedProvider) process.env.CODE_EXECUTION_PROVIDER = savedProvider;
+    }
+  } else {
+    assert(!runnerCheck.isRunnerAvailable && runnerCheck.runnerType === 'disabled_no_sandbox', 'Offline runner safely disables execution without fabricating fake passes');
+  }
 
   // TEST SUITE 3: Public Skill Passport at /p/[handle]
   console.log('\n[TEST SUITE 3] Public Skill Passport at /p/[handle]');
@@ -97,7 +114,7 @@ async function run() {
 
     // Test public page HTTP response
     const pageRes = await fetch('http://localhost:3000/p/nonexistent-student-handle-xyz');
-    assert(pageRes.status === 200, `/p/[handle] route handles missing profile gracefully (status 200 with Private/Not Found card)`);
+    assert(pageRes.status === 200, `/p/[handle] route handles missing profile gracefully (status 200 with Private/Not Found card, received: ${pageRes.status})`);
     const pageHtml = await pageRes.text();
     assert(pageHtml.includes('Profile Is Private or Not Found') || pageHtml.includes('SkillPilot'), 'Renders branded privacy notice');
   } catch (err) {

@@ -4,6 +4,7 @@ import { dbRateLimit } from '../../../../../../lib/guard';
 import { json, requireOrigin, isUuid } from '../../../../../../lib/server-security';
 import {
   isLiveKitConfigured,
+  validateLiveKitConfig,
   getLiveKitServerUrl,
   deriveLiveKitRoomName,
   createLiveKitToken,
@@ -58,11 +59,12 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   // 4. Verify LiveKit configuration
-  if (!isLiveKitConfigured()) {
+  const configCheck = validateLiveKitConfig();
+  if (!configCheck.valid) {
     return json(
       {
-        error: 'LiveKit video infrastructure is not configured on this server.',
-        code: 'LIVEKIT_NOT_CONFIGURED',
+        error: configCheck.reason || 'LiveKit video infrastructure is not configured on this server.',
+        code: configCheck.code || 'LIVEKIT_NOT_CONFIGURED',
       },
       503
     );

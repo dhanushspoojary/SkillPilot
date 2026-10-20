@@ -88,27 +88,65 @@ test('livekit: createLiveKitToken generates signed JWT with room grants', async 
   }
 });
 
-test('livekit: throws informative error when credentials missing', async () => {
-  delete process.env.LIVEKIT_API_KEY;
-  delete process.env.LIVEKIT_API_SECRET;
+test('livekit: throws informative error when credentials missing or invalid', async () => {
+  const oldUrl = process.env.LIVEKIT_URL;
+  const oldKey = process.env.LIVEKIT_API_KEY;
+  const oldSecret = process.env.LIVEKIT_API_SECRET;
 
-  await assert.rejects(
-    async () => {
-      await createLiveKitToken({
-        requestId: 'req-1',
-        userId: 'u-1',
-        userName: 'User',
-        role: 'student',
-      });
-    },
-    /LiveKit credentials .* are not configured/
-  );
+  try {
+    delete process.env.LIVEKIT_API_KEY;
+    delete process.env.LIVEKIT_API_SECRET;
+
+    await assert.rejects(
+      async () => {
+        await createLiveKitToken({
+          requestId: 'req-1',
+          userId: 'u-1',
+          userName: 'User',
+          role: 'student',
+        });
+      },
+      /LiveKit is not configured properly|LiveKit credentials .* are not configured/
+    );
+
+    // Test rejection of masked bullet dots (•)
+    process.env.LIVEKIT_URL = 'wss://valid.livekit.cloud';
+    process.env.LIVEKIT_API_KEY = 'APIvalidkey12345';
+    process.env.LIVEKIT_API_SECRET = '••••••••••••••••••••••••••••••••';
+
+    assert.equal(isLiveKitConfigured(), false);
+    await assert.rejects(
+      async () => {
+        await createLiveKitToken({
+          requestId: 'req-1',
+          userId: 'u-1',
+          userName: 'User',
+          role: 'student',
+        });
+      },
+      /contains masked bullet dots/
+    );
+
+    // Test rejection of placeholder domain
+    process.env.LIVEKIT_URL = 'wss://your-project.livekit.cloud';
+    process.env.LIVEKIT_API_SECRET = 'real_secret_32_characters_long_1234';
+    assert.equal(isLiveKitConfigured(), false);
+  } finally {
+    if (oldUrl) process.env.LIVEKIT_URL = oldUrl; else delete process.env.LIVEKIT_URL;
+    if (oldKey) process.env.LIVEKIT_API_KEY = oldKey; else delete process.env.LIVEKIT_API_KEY;
+    if (oldSecret) process.env.LIVEKIT_API_SECRET = oldSecret; else delete process.env.LIVEKIT_API_SECRET;
+  }
 });
 
 test('livekit: mentor role token has correct metadata and grants', async () => {
+  const oldUrl = process.env.LIVEKIT_URL;
+  const oldKey = process.env.LIVEKIT_API_KEY;
+  const oldSecret = process.env.LIVEKIT_API_SECRET;
+
   const testKey = 'mentor_test_key';
   const testSecret = 'mentor_test_secret_32_characters_long_12345';
 
+  process.env.LIVEKIT_URL = 'wss://mock.livekit.cloud';
   process.env.LIVEKIT_API_KEY = testKey;
   process.env.LIVEKIT_API_SECRET = testSecret;
 
@@ -130,7 +168,8 @@ test('livekit: mentor role token has correct metadata and grants', async () => {
     const metadata = JSON.parse(claims.metadata || '{}');
     assert.equal(metadata.role, 'mentor');
   } finally {
-    delete process.env.LIVEKIT_API_KEY;
-    delete process.env.LIVEKIT_API_SECRET;
+    if (oldUrl) process.env.LIVEKIT_URL = oldUrl; else delete process.env.LIVEKIT_URL;
+    if (oldKey) process.env.LIVEKIT_API_KEY = oldKey; else delete process.env.LIVEKIT_API_KEY;
+    if (oldSecret) process.env.LIVEKIT_API_SECRET = oldSecret; else delete process.env.LIVEKIT_API_SECRET;
   }
 });

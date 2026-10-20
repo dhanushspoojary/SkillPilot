@@ -120,6 +120,7 @@ async function run() {
       async () => await import('../lib/livekit.ts')
     );
 
+    process.env.LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://mock.livekit.cloud';
     process.env.LIVEKIT_API_KEY = testApiKey;
     process.env.LIVEKIT_API_SECRET = testSecret;
 
@@ -181,21 +182,48 @@ async function run() {
     assert.equal(langRes.status, 'rejected_unsupported_language');
     recordPass('Unsupported language strictly rejected against allowlist');
 
-    // Test offline runner safe behavior
-    const offlineRes = await executePracticeSubmission({
-      code: 'function twoSum() { return [0, 1]; }',
-      problemId: 'two-sum-target',
-      language: 'javascript',
-      testCases: [
-        { id: 'tc-1', input: '[2, 7], 9', expectedOutput: '[0, 1]', isHidden: false },
-        { id: 'tc-2', input: 'SECRET', expectedOutput: 'SECRET', isHidden: true },
-      ],
-      isSubmission: true,
-    });
-    assert.equal(offlineRes.success, false);
-    assert.equal(offlineRes.isRunnerAvailable, false);
-    assert.equal(offlineRes.runnerType, 'disabled_no_sandbox');
-    recordPass('Offline runner safely disables execution without fabricating fake passes');
+    // Test active runner or offline fallback
+    if (provider) {
+      assert.equal(provider.name, 'onlinecompiler');
+      recordPass('Configured OnlineCompiler runner is active with sandbox');
+
+      // Test offline runner safe behavior by temporarily clearing key
+      const savedKey = process.env.ONLINECOMPILER_API_KEY;
+      delete process.env.ONLINECOMPILER_API_KEY;
+      try {
+        const offlineRes = await executePracticeSubmission({
+          code: 'function twoSum() { return [0, 1]; }',
+          problemId: 'two-sum-target',
+          language: 'javascript',
+          testCases: [
+            { id: 'tc-1', input: '[2, 7], 9', expectedOutput: '[0, 1]', isHidden: false },
+            { id: 'tc-2', input: 'SECRET', expectedOutput: 'SECRET', isHidden: true },
+          ],
+          isSubmission: true,
+        });
+        assert.equal(offlineRes.success, false);
+        assert.equal(offlineRes.isRunnerAvailable, false);
+        assert.equal(offlineRes.runnerType, 'disabled_no_sandbox');
+        recordPass('Offline runner safely disables execution without fabricating fake passes');
+      } finally {
+        process.env.ONLINECOMPILER_API_KEY = savedKey;
+      }
+    } else {
+      const offlineRes = await executePracticeSubmission({
+        code: 'function twoSum() { return [0, 1]; }',
+        problemId: 'two-sum-target',
+        language: 'javascript',
+        testCases: [
+          { id: 'tc-1', input: '[2, 7], 9', expectedOutput: '[0, 1]', isHidden: false },
+          { id: 'tc-2', input: 'SECRET', expectedOutput: 'SECRET', isHidden: true },
+        ],
+        isSubmission: true,
+      });
+      assert.equal(offlineRes.success, false);
+      assert.equal(offlineRes.isRunnerAvailable, false);
+      assert.equal(offlineRes.runnerType, 'disabled_no_sandbox');
+      recordPass('Offline runner safely disables execution without fabricating fake passes');
+    }
   } catch (e) {
     recordFail('Code Execution Provider Abstraction', e);
   }

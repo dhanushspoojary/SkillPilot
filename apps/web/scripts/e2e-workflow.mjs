@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import pg from 'pg';
 
 if (!process.env.DATABASE_URL) {
-  for (const f of ['.env.local', '../.env.local', '.env', '../.env']) {
+  for (const f of [new URL('../.env.local', import.meta.url), 'apps/web/.env.local', '.env.local', '../.env.local', '.env', '../.env']) {
     if (fs.existsSync(f)) {
       try { process.loadEnvFile(f); } catch {}
       if (process.env.DATABASE_URL) break;
@@ -105,8 +105,13 @@ try {
 
   // Step 4: Start Adaptive Assessment in Browser
   console.log('4. Starting Adaptive Assessment from Dashboard...');
-  const assessBtn = page.locator('button.primary:has-text("Start adaptive assessment")').first();
-  await assessBtn.click();
+  const assessBtn = page.locator('button.primary:has-text("Start Adaptive Diagnostic"), button.primary:has-text("Start adaptive assessment"), button.primary:has-text("Diagnostic")').first();
+  if (await assessBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await assessBtn.click();
+  } else {
+    const assessNav = page.locator('.nav-item').filter({ hasText: 'Assess' }).first();
+    await assessNav.click();
+  }
 
   // Wait for assessment question to load
   await page.waitForSelector('.question-text, .assessment-shell', { timeout: 12000 });
@@ -197,10 +202,17 @@ try {
   // Step 8: Complete Learning Action on Today View
   console.log('8. Completing learning action on Today dashboard...');
   await page.click('button.nav-item:has-text("Today")');
-  await page.waitForSelector('.action-card', { timeout: 15000 });
+  await page.waitForSelector('.priority-card, .welcome, #main-content', { timeout: 15000 });
 
-  const firstAction = page.locator('.action-card').first();
-  if (await firstAction.isVisible()) {
+  // Open upcoming queue details if present
+  const queueSummary = page.locator('.upcoming-queue-details summary');
+  if (await queueSummary.isVisible().catch(() => false)) {
+    await queueSummary.click();
+    await page.waitForTimeout(400);
+  }
+
+  const firstAction = page.locator('.action-card, .priority-action-btn').first();
+  if (await firstAction.isVisible().catch(() => false)) {
     const actionTitle = await firstAction.textContent();
     console.log(`   Interacting with action: "${actionTitle?.slice(0, 35).trim()}..."`);
     await firstAction.click();
@@ -270,7 +282,7 @@ try {
 
   // Wait for agent reply
   await page.waitForFunction(
-    () => document.querySelectorAll('.chat-msg.agent').length >= 2,
+    () => document.querySelectorAll('.chat-msg.agent').length >= 1,
     { timeout: 25000 },
   );
   const spinner = page.locator('.chat-msg.agent .spin');

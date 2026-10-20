@@ -164,8 +164,8 @@ export class GeminiProviderAdapter implements LLMProvider {
   constructor(apiKey: string) {
     const cleanKey = (apiKey || '').trim().replace(/^["']|["']$/g, '');
     this.client = new GoogleGenAI({ apiKey: cleanKey });
-    this.fastModel = (process.env.GEMINI_MODEL_FAST || 'gemini-flash-latest').trim().replace(/^["']|["']$/g, '');
-    this.strongModel = (process.env.GEMINI_MODEL_STRONG || 'gemini-flash-latest').trim().replace(/^["']|["']$/g, '');
+    this.fastModel = (process.env.GEMINI_MODEL_FAST || 'gemini-3.5-flash-lite').trim().replace(/^["']|["']$/g, '');
+    this.strongModel = (process.env.GEMINI_MODEL_STRONG || 'gemini-3.5-flash').trim().replace(/^["']|["']$/g, '');
   }
 
   public getModelName(tier: 'fast' | 'strong' = 'strong'): string {
@@ -206,6 +206,7 @@ export class GeminiProviderAdapter implements LLMProvider {
     }));
 
     const systemInstruction = options.systemPrompt ? sanitizePII(options.systemPrompt) : undefined;
+    const signal = options.signal || AbortSignal.timeout(options.timeoutMs ?? 20000);
 
     const response = await retryWithBackoff(
       async () => {
@@ -220,9 +221,9 @@ export class GeminiProviderAdapter implements LLMProvider {
           },
         });
       },
-      3,
-      1200,
-      options.signal,
+      2,
+      1000,
+      signal,
     );
 
     // Extract tool calls and text response

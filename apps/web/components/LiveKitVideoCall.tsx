@@ -41,6 +41,7 @@ export function LiveKitVideoCall({
   const [error, setError] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState<boolean>(true);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+  const [mediaWarning, setMediaWarning] = useState<string | null>(null);
 
   const fetchToken = useCallback(async () => {
     setLoading(true);
@@ -348,23 +349,63 @@ export function LiveKitVideoCall({
               </div>
             </div>
           ) : token && serverUrl ? (
-            <LiveKitRoom
-              video={true}
-              audio={true}
-              token={token}
-              serverUrl={serverUrl}
-              data-lk-theme="default"
-              style={{ height: '100%' }}
-              onDisconnected={() => {
-                onClose();
-              }}
-              onError={(err) => {
-                setError(err.message || 'LiveKit media error');
-              }}
-            >
-              <VideoConference />
-              <RoomAudioRenderer />
-            </LiveKitRoom>
+            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+              {mediaWarning && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 100,
+                    backgroundColor: 'rgba(234, 179, 8, 0.95)',
+                    color: '#000',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    maxWidth: '90%',
+                  }}
+                >
+                  <AlertCircle size={16} />
+                  <span>{mediaWarning}</span>
+                  <button
+                    onClick={() => setMediaWarning(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#000' }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              <LiveKitRoom
+                video={true}
+                audio={true}
+                token={token}
+                serverUrl={serverUrl}
+                connectOptions={{ autoSubscribe: true }}
+                data-lk-theme="default"
+                style={{ height: '100%' }}
+                onDisconnected={() => {
+                  onClose();
+                }}
+                onError={(err) => {
+                  const msg = err.message || 'LiveKit media error';
+                  const isDeviceError = /permission|notallowed|devicesnotfound|notfound|overconstrained|track/i.test(msg);
+                  if (isDeviceError) {
+                    setMediaWarning(`Media device notice: ${msg}. You can continue the session in audio or listen-only mode.`);
+                  } else {
+                    setError(msg);
+                  }
+                }}
+              >
+                <VideoConference />
+                <RoomAudioRenderer />
+              </LiveKitRoom>
+            </div>
           ) : (
             <div
               style={{

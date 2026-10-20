@@ -11,23 +11,106 @@ export interface LiveKitCallConfig {
   message?: string;
 }
 
+export interface LiveKitValidationResult {
+  valid: boolean;
+  reason?: string;
+  code?: 'MISSING_ENV' | 'INVALID_URL' | 'MASKED_SECRET' | 'PLACEHOLDER' | 'SHORT_SECRET';
+}
+
 /**
- * Check if all required server-side LiveKit credentials are configured.
+ * Validates that LiveKit credentials are real, unmasked, and properly formatted.
+ * Specifically detects if a secret was accidentally copied as masked bullet dots (•) from a browser UI.
+ */
+export function validateLiveKitConfig(): LiveKitValidationResult {
+  const url = (process.env.LIVEKIT_URL || '').trim().replace(/^['"]|['"]$/g, '');
+  const key = (process.env.LIVEKIT_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  const secret = (process.env.LIVEKIT_API_SECRET || '').trim().replace(/^['"]|['"]$/g, '');
+
+  if (!url || !key || !secret) {
+    return {
+      valid: false,
+      code: 'MISSING_ENV',
+      reason: 'LiveKit credentials (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET) are not fully configured in environment.',
+    };
+  }
+
+  if (!/^(wss?|https?):\/\//i.test(url)) {
+    return {
+      valid: false,
+      code: 'INVALID_URL',
+      reason: 'LIVEKIT_URL must start with wss://, ws://, https://, or http://',
+    };
+  }
+
+  if (url.includes('your-project') || url.includes('example.com') || url.includes('mock.invalid')) {
+    return {
+      valid: false,
+      code: 'PLACEHOLDER',
+      reason: 'LIVEKIT_URL contains placeholder domain text.',
+    };
+  }
+
+  const isMaskedDots = (val: string) => {
+    return (
+      val.includes('\u2022') || // Bullet •
+      val.includes('\u25CF') || // Black circle ●
+      val.includes('•••') ||
+      /^[•●\*]+$/.test(val)
+    );
+  };
+
+  const isPlaceholderText = (val: string) => {
+    return /^(placeholder|your_|test_secret|none$)/i.test(val);
+  };
+
+  if (isMaskedDots(key) || isPlaceholderText(key)) {
+    return {
+      valid: false,
+      code: 'PLACEHOLDER',
+      reason: 'LIVEKIT_API_KEY appears to contain masked dots or placeholder text.',
+    };
+  }
+
+  if (isMaskedDots(secret)) {
+    return {
+      valid: false,
+      code: 'MASKED_SECRET',
+      reason: 'LIVEKIT_API_SECRET contains masked bullet dots (•) copied from a password field. Please reveal or copy the plaintext API secret from your LiveKit Cloud dashboard.',
+    };
+  }
+
+  if (isPlaceholderText(secret)) {
+    return {
+      valid: false,
+      code: 'PLACEHOLDER',
+      reason: 'LIVEKIT_API_SECRET is set to placeholder text.',
+    };
+  }
+
+  if (secret.length < 16) {
+    return {
+      valid: false,
+      code: 'SHORT_SECRET',
+      reason: 'LIVEKIT_API_SECRET must be at least 16 characters long.',
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Check if all required server-side LiveKit credentials are valid and unmasked.
  * Never expose LIVEKIT_API_SECRET to the client.
  */
 export function isLiveKitConfigured(): boolean {
-  return Boolean(
-    process.env.LIVEKIT_URL &&
-    process.env.LIVEKIT_API_KEY &&
-    process.env.LIVEKIT_API_SECRET
-  );
+  return validateLiveKitConfig().valid;
 }
 
 /**
  * Get the public WebRTC WebSocket server URL for client connection.
  */
 export function getLiveKitServerUrl(): string {
-  return process.env.LIVEKIT_URL || '';
+  return (process.env.LIVEKIT_URL || '').trim().replace(/^['"]|['"]$/g, '');
 }
 
 /**
@@ -49,12 +132,13 @@ export async function createLiveKitToken(params: {
   role: 'student' | 'mentor';
   ttlMinutes?: number;
 }): Promise<string> {
-  const apiKey = process.env.LIVEKIT_API_KEY;
-  const apiSecret = process.env.LIVEKIT_API_SECRET;
-
-  if (!apiKey || !apiSecret) {
-    throw new Error('LiveKit credentials (LIVEKIT_API_KEY, LIVEKIT_API_SECRET) are not configured.');
+  const validation = validateLiveKitConfig();
+  if (!validation.valid) {
+    throw new Error(`LiveKit is not configured properly: ${validation.reason}`);
   }
+
+  const apiKey = (process.env.LIVEKIT_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  const apiSecret = (process.env.LIVEKIT_API_SECRET || '').trim().replace(/^['"]|['"]$/g, '');
 
   const roomName = deriveLiveKitRoomName(params.requestId);
 

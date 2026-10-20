@@ -279,7 +279,7 @@ Respond ONLY with a valid JSON object matching this exact schema:
   "explanation": "Clear educational explanation of why the correct option is right and others are wrong"
 }`;
 
-      const raw = await active.provider.generateText(prompt, { tier: 'fast', temperature: 0.3, maxTokens: 800 });
+      const raw = await active.provider.generateText(prompt, { tier: 'fast', temperature: 0.3, maxTokens: 800, timeoutMs: 15000 });
       // Clean JSON formatting
       const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleaned);

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import pg from 'pg';
 
 if (!process.env.DATABASE_URL) {
-  for (const f of ['.env.local', '../.env.local', '.env', '../.env']) {
+  for (const f of [new URL('../.env.local', import.meta.url), 'apps/web/.env.local', '.env.local', '../.env.local', '.env', '../.env']) {
     if (fs.existsSync(f)) {
       try { process.loadEnvFile(f); } catch {}
       if (process.env.DATABASE_URL) break;

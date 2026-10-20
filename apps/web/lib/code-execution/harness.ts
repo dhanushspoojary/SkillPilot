@@ -21,7 +21,10 @@ export function buildExecutableProgram(
     return { sourceCode: userCode, stdin };
   }
 
-  const cleanProblemId = problemId.replace(/^prob-/, '');
+  const cleanProblemId = (problemId || '').replace(/^prob-/, '').trim();
+  if (!cleanProblemId) {
+    return { sourceCode: userCode, stdin };
+  }
 
   if (language === 'python') {
     return wrapPython(userCode, cleanProblemId, stdin);
@@ -103,7 +106,8 @@ if __name__ == '__main__':
                 raise Exception("Function max_sub_array or solution not defined")
             print(fn(arr))
         else:
-            print("Unknown problem harness")
+            # No specific problem wrapper needed
+            pass
     except Exception as e:
         sys.stderr.write(f"Harness execution error: {e}\\n")
         sys.exit(1)
@@ -171,7 +175,7 @@ try {
     if (!fn) throw new Error("Function maxSubArray or solution not defined");
     console.log(fn(arr));
   } else {
-    console.log("Unknown problem harness");
+    // No specific problem wrapper needed
   }
 } catch (err) {
   console.error("Harness error: " + (err && err.message ? err.message : String(err)));
