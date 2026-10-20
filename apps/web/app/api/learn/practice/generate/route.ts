@@ -36,6 +36,7 @@ export async function POST(req: Request) {
         questionType: question.questionType,
         prompt: question.prompt,
         codeSnippet: question.codeSnippet,
+        language: question.language || 'c',
         choices: question.choices,
         hints: question.hints,
         source: question.source,

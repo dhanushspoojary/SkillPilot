@@ -33,6 +33,7 @@ export interface GeneratedQuestion {
   questionType: 'conceptual' | 'code_tracing' | 'debugging' | 'fill_in_the_blank';
   prompt: string;
   codeSnippet?: string;
+  language?: string;
   choices: string[];
   correctIndex: number;
   hints: string[];
@@ -72,6 +73,88 @@ export function validateQuestionSchema(q: any): q is GeneratedQuestion {
  * Generates an algorithmic problem from a template with varied inputs.
  */
 export function generateTemplatedProblem(concept: string, skillSlug: string): GeneratedQuestion {
+  // 1. JavaScript Closures & Lexical Scope Template
+  if (skillSlug === 'javascript' || skillSlug === 'modern-javascript' || concept.includes('closure')) {
+    const factor = 2 + Math.floor(Math.random() * 3); // 2, 3, 4
+    const inputVal = 3 + Math.floor(Math.random() * 4); // 3, 4, 5, 6
+    const expected = factor * inputVal;
+    const choices = [
+      String(expected),
+      String(expected + factor),
+      String(inputVal * 2),
+      'undefined'
+    ];
+    const correctVal = choices[0];
+    choices.sort(() => Math.random() - 0.5);
+    const correctIndex = choices.indexOf(correctVal);
+
+    const prompt = 'What will be output to the console when this JavaScript script executes?';
+    const codeSnippet = `function makeMultiplier(factor) {\n    return function(number) {\n        return number * factor;\n    };\n}\nconst multiply = makeMultiplier(${factor});\nconsole.log(multiply(${inputVal}));`;
+    const fingerprint = computeQuestionFingerprint(prompt + codeSnippet, choices);
+
+    return {
+      id: `tmpl-js-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      skillSlug: 'javascript',
+      topic: 'closures',
+      difficulty: 'foundational',
+      questionType: 'code_tracing',
+      language: 'javascript',
+      prompt,
+      codeSnippet,
+      choices,
+      correctIndex,
+      hints: [
+        `Identify what value \`factor\` holds when makeMultiplier(${factor}) is called.`,
+        `The returned inner function forms a closure over \`factor\`.`,
+        `Multiply ${inputVal} by ${factor}.`
+      ],
+      explanation: `\`multiply\` closes over \`factor = ${factor}\`. When called with \`number = ${inputVal}\`, it evaluates ${inputVal} * ${factor} = ${expected}.`,
+      source: 'template',
+      fingerprint
+    };
+  }
+
+  // 2. C Systems & Pointers Template
+  if (skillSlug === 'c-systems' || concept.includes('pointer')) {
+    const initial = 10 * (1 + Math.floor(Math.random() * 5)); // 10, 20, 30...
+    const modified = initial + 25;
+    const choices = [
+      String(modified),
+      String(initial),
+      '0',
+      'Segmentation Fault'
+    ];
+    const correctVal = choices[0];
+    choices.sort(() => Math.random() - 0.5);
+    const correctIndex = choices.indexOf(correctVal);
+
+    const prompt = 'What will be printed when this C code executes?';
+    const codeSnippet = `int value = ${initial};\nint *ptr = &value;\n*ptr = ${modified};\nprintf("%d", value);`;
+    const fingerprint = computeQuestionFingerprint(prompt + codeSnippet, choices);
+
+    return {
+      id: `tmpl-ptr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      skillSlug: 'c-systems',
+      topic: 'pointers',
+      difficulty: 'foundational',
+      questionType: 'code_tracing',
+      language: 'c',
+      prompt,
+      codeSnippet,
+      choices,
+      correctIndex,
+      hints: [
+        `ptr holds the memory address of value (&value).`,
+        `*ptr dereferences the address and writes ${modified} directly to that cell.`,
+        `When value is read in printf, what is inside its memory cell?`
+      ],
+      explanation: `Dereferencing \`*ptr = ${modified}\` updates the memory location where \`value\` resides. Printing \`value\` outputs ${modified}.`,
+      source: 'template',
+      fingerprint
+    };
+  }
+
+  // 3. Problem Solving / Loop Tracing in C
   if (skillSlug === 'problem-solving' || concept.includes('loop')) {
     const start = Math.floor(Math.random() * 3); // 0 or 1 or 2
     const end = start + 4 + Math.floor(Math.random() * 3); // e.g. 5, 6, 7
@@ -101,6 +184,7 @@ export function generateTemplatedProblem(concept: string, skillSlug: string): Ge
       topic: 'loop_tracing',
       difficulty: 'foundational',
       questionType: 'code_tracing',
+      language: 'c',
       prompt,
       codeSnippet,
       choices,
@@ -124,6 +208,7 @@ export function generateTemplatedProblem(concept: string, skillSlug: string): Ge
     topic: 'loop_tracing',
     difficulty: fallback.difficulty,
     questionType: fallback.type,
+    language: fallback.language || 'c',
     prompt: fallback.prompt,
     codeSnippet: fallback.codeSnippet,
     choices: fallback.choices,

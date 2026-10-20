@@ -3,6 +3,7 @@ export interface LessonExercise {
   type: 'code_tracing' | 'debugging' | 'conceptual' | 'fill_in_the_blank';
   prompt: string;
   codeSnippet?: string;
+  language?: string;
   choices: string[];
   correctIndex: number;
   hints: string[];
@@ -12,9 +13,26 @@ export interface LessonExercise {
   difficulty: 'introductory' | 'foundational' | 'intermediate' | 'advanced';
 }
 
+export interface WalkthroughStep {
+  step: number;
+  title: string;
+  codeSnippet: string;
+  language?: string;
+  highlightLines?: number[];
+  explanation: string;
+  mentalModelNote: string;
+  traceTable?: {
+    iteration: string;
+    currentValue: string;
+    condition: string;
+    updatedValue: string;
+  }[];
+}
+
 export interface LessonDefinition {
   id: string;
   skillSlug: string;
+  language: string;
   title: string;
   subtitle: string;
   summary?: string;
@@ -31,14 +49,7 @@ export interface LessonDefinition {
     code: string;
     annotations: { line: number; note: string }[];
   };
-  walkthroughSteps?: {
-    step: number;
-    title: string;
-    codeSnippet: string;
-    highlightLines?: number[];
-    explanation: string;
-    mentalModelNote: string;
-  }[];
+  walkthroughSteps?: WalkthroughStep[];
   commonPitfalls: {
     title?: string;
     explanation?: string;
@@ -58,6 +69,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
   {
     id: 'ps-loop-tracing',
     skillSlug: 'problem-solving',
+    language: 'c',
     title: 'Loop Tracing & Algorithmic State',
     subtitle: 'Step-by-step mental execution of variables across iterations',
     topic: 'loop_tracing',
@@ -82,6 +94,73 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         { line: 5, note: 'Odd numbers are added directly: pass 1: +1 (1), pass 2: +4 (5), pass 3: +3 (8), pass 4: +8 (16).' }
       ]
     },
+    walkthroughSteps: [
+      {
+        step: 1,
+        title: 'Initializing the Accumulator',
+        codeSnippet: `int total = 0;\nfor (int i = 1; i <= 4; i++) {\n    if (i % 2 == 0) {\n        total += i * 2;\n    } else {\n        total += i;\n    }\n}`,
+        language: 'c',
+        highlightLines: [1],
+        explanation: 'We create an integer variable named `total` and set it to 0. This variable is an "accumulator" — a designated storage box that collects running totals as the loop runs.',
+        mentalModelNote: 'Always initialize accumulators before the loop. In C, an uninitialized variable contains unpredictable garbage memory.',
+        traceTable: [
+          { iteration: 'Start', currentValue: 'uninitialized', condition: 'Before loop', updatedValue: 'total = 0' }
+        ]
+      },
+      {
+        step: 2,
+        title: 'Loop Header & Range (i from 1 to 4)',
+        codeSnippet: `int total = 0;\nfor (int i = 1; i <= 4; i++) {\n    if (i % 2 == 0) {\n        total += i * 2;\n    } else {\n        total += i;\n    }\n}`,
+        language: 'c',
+        highlightLines: [2],
+        explanation: 'The loop counter `i` starts at 1. The condition `i <= 4` checks if `i` is at most 4. After each iteration, `i++` increments `i` by 1. The loop executes for i = 1, 2, 3, and 4.',
+        mentalModelNote: 'Pay close attention to boundaries: `<= 4` includes 4, whereas `< 4` would stop early at 3.',
+        traceTable: [
+          { iteration: '1', currentValue: 'i = 1', condition: '1 <= 4 (True)', updatedValue: 'Enters loop body' }
+        ]
+      },
+      {
+        step: 3,
+        title: 'First Iteration (i = 1, Odd Branch)',
+        codeSnippet: `int total = 0;\nfor (int i = 1; i <= 4; i++) {\n    if (i % 2 == 0) {\n        total += i * 2;\n    } else {\n        total += i;\n    }\n}`,
+        language: 'c',
+        highlightLines: [5, 6],
+        explanation: 'For i = 1, `1 % 2 == 0` evaluates to false (1 is odd). Control jumps to the else branch: `total += i`, so total = 0 + 1 = 1.',
+        mentalModelNote: 'The modulo operator % calculates the remainder. When dividing by 2, remainder 0 means even, remainder 1 means odd.',
+        traceTable: [
+          { iteration: '1', currentValue: 'total = 0, i = 1', condition: '1 % 2 != 0 (Odd)', updatedValue: 'total = 1' }
+        ]
+      },
+      {
+        step: 4,
+        title: 'Second Iteration (i = 2, Even Branch)',
+        codeSnippet: `int total = 0;\nfor (int i = 1; i <= 4; i++) {\n    if (i % 2 == 0) {\n        total += i * 2;\n    } else {\n        total += i;\n    }\n}`,
+        language: 'c',
+        highlightLines: [3, 4],
+        explanation: 'For i = 2, `2 % 2 == 0` is true (2 is even). The if branch runs: `total += 2 * 2`, adding 4. Total becomes 1 + 4 = 5.',
+        mentalModelNote: 'Even passes double the value before adding it to the running accumulator.',
+        traceTable: [
+          { iteration: '1', currentValue: 'total = 0, i = 1', condition: 'Odd: +1', updatedValue: 'total = 1' },
+          { iteration: '2', currentValue: 'total = 1, i = 2', condition: 'Even: +(2 * 2 = 4)', updatedValue: 'total = 5' }
+        ]
+      },
+      {
+        step: 5,
+        title: 'Passes 3 & 4 and Termination',
+        codeSnippet: `int total = 0;\nfor (int i = 1; i <= 4; i++) {\n    if (i % 2 == 0) {\n        total += i * 2;\n    } else {\n        total += i;\n    }\n}`,
+        language: 'c',
+        highlightLines: [2, 4, 6],
+        explanation: 'Pass 3 (i = 3, odd): adds 3 -> total = 5 + 3 = 8. Pass 4 (i = 4, even): adds 4 * 2 = 8 -> total = 8 + 8 = 16. Finally i becomes 5; 5 <= 4 is false. Loop ends with total = 16.',
+        mentalModelNote: 'Trace row-by-row on paper: never guess or try to calculate all loop iterations in your head at once.',
+        traceTable: [
+          { iteration: '1', currentValue: 'total = 0, i = 1', condition: 'Odd: +1', updatedValue: 'total = 1' },
+          { iteration: '2', currentValue: 'total = 1, i = 2', condition: 'Even: +4', updatedValue: 'total = 5' },
+          { iteration: '3', currentValue: 'total = 5, i = 3', condition: 'Odd: +3', updatedValue: 'total = 8' },
+          { iteration: '4', currentValue: 'total = 8, i = 4', condition: 'Even: +8', updatedValue: 'total = 16' },
+          { iteration: 'End', currentValue: 'total = 16, i = 5', condition: '5 <= 4 (False)', updatedValue: 'Terminated with total = 16' }
+        ]
+      }
+    ],
     commonPitfalls: [
       {
         title: 'Off-By-One Boundary Error',
@@ -100,6 +179,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'code_tracing',
         concept: 'accumulator_pattern',
         difficulty: 'introductory',
+        language: 'c',
         prompt: 'Trace the following loop. What is the value of `count` after execution terminates?',
         codeSnippet: `int count = 0;\nfor (int i = 0; i < 5; i++) {\n    if (i % 2 != 0) {\n        count += i;\n    }\n}`,
         choices: ['4', '6', '9', '10'],
@@ -120,6 +200,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'debugging',
         concept: 'off_by_one_boundaries',
         difficulty: 'foundational',
+        language: 'c',
         prompt: 'We want to calculate the sum of numbers from 1 to 5 inclusive (1 + 2 + 3 + 4 + 5 = 15). What is the bug in this code?',
         codeSnippet: `int sum = 0;\nfor (int i = 1; i < 5; i++) {\n    sum += i;\n}`,
         choices: [
@@ -143,6 +224,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'conceptual',
         concept: 'loop_invariants',
         difficulty: 'foundational',
+        language: 'c',
         prompt: 'Why is it dangerous to modify the loop counter `i` inside the body of a `for (int i = 0; i < N; i++)` loop?',
         choices: [
           'It makes the number of iterations unpredictable and can easily cause an infinite loop or skip critical data.',
@@ -169,6 +251,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
   {
     id: 'c-pointers-basics',
     skillSlug: 'c-systems',
+    language: 'c',
     title: 'C Pointers & Memory Addressing',
     subtitle: 'Understanding the & (address-of) and * (dereference) operators',
     topic: 'pointers',
@@ -193,6 +276,56 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         { line: 4, note: 'score is now 99 because ptr modified its exact memory location.' }
       ]
     },
+    walkthroughSteps: [
+      {
+        step: 1,
+        title: 'Allocating a Variable in Memory',
+        codeSnippet: `int score = 42;\nint *ptr = &score;\n*ptr = 99;\nprintf("%d", score);`,
+        language: 'c',
+        highlightLines: [1],
+        explanation: 'The computer assigns a memory location (e.g., address 0x7ffd00 in RAM) to store the integer value 42 under the variable name `score`.',
+        mentalModelNote: 'Every variable lives in a memory house. The variable name is the resident; the memory address is the house number.',
+        traceTable: [
+          { iteration: 'Alloc', currentValue: 'score', condition: 'int score = 42', updatedValue: 'Address: 0x7ffd00, Value: 42' }
+        ]
+      },
+      {
+        step: 2,
+        title: 'Storing the Address in a Pointer',
+        codeSnippet: `int score = 42;\nint *ptr = &score;\n*ptr = 99;\nprintf("%d", score);`,
+        language: 'c',
+        highlightLines: [2],
+        explanation: 'The `&` (address-of) operator retrieves score’s address (0x7ffd00). The pointer `int *ptr` is created to hold this address.',
+        mentalModelNote: 'A pointer does not store the number 42; it stores the address where 42 lives.',
+        traceTable: [
+          { iteration: '&score', currentValue: 'ptr', condition: 'int *ptr = &score', updatedValue: 'ptr = 0x7ffd00 (points to score)' }
+        ]
+      },
+      {
+        step: 3,
+        title: 'Dereferencing with the * Operator',
+        codeSnippet: `int score = 42;\nint *ptr = &score;\n*ptr = 99;\nprintf("%d", score);`,
+        language: 'c',
+        highlightLines: [3],
+        explanation: 'The asterisk `*ptr` means "go to the address held by ptr and access the value there". Setting `*ptr = 99` overwrites the contents of address 0x7ffd00.',
+        mentalModelNote: '*ptr is an alias for the memory location of score. Changing *ptr changes score directly.',
+        traceTable: [
+          { iteration: '*ptr = 99', currentValue: 'score was 42', condition: 'Dereference & write', updatedValue: 'score is now 99 at 0x7ffd00' }
+        ]
+      },
+      {
+        step: 4,
+        title: 'Confirming the Modification',
+        codeSnippet: `int score = 42;\nint *ptr = &score;\n*ptr = 99;\nprintf("%d", score);`,
+        language: 'c',
+        highlightLines: [4],
+        explanation: 'When `printf("%d", score)` executes, it prints 99! Even though we did not write `score = 99`, the pointer updated the exact memory cell where `score` resides.',
+        mentalModelNote: 'Pointers allow functions and remote code to directly update variables without copying them.',
+        traceTable: [
+          { iteration: 'Output', currentValue: 'score', condition: 'printf("%d", score)', updatedValue: 'Prints: 99' }
+        ]
+      }
+    ],
     commonPitfalls: [
       {
         title: 'Dereferencing an Uninitialized Pointer',
@@ -211,6 +344,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'code_tracing',
         concept: 'dereference_operator',
         difficulty: 'foundational',
+        language: 'c',
         prompt: 'What will be printed when this C code runs?',
         codeSnippet: `int a = 10;\nint b = 20;\nint *p = &a;\n*p = 50;\np = &b;\n*p = 70;\nprintf("%d %d", a, b);`,
         choices: ['50 70', '10 20', '50 20', '70 70'],
@@ -229,6 +363,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'debugging',
         concept: 'pointer_assignment',
         difficulty: 'foundational',
+        language: 'c',
         prompt: 'Which line in the following code causes a dangerous undefined behavior / segmentation fault?',
         codeSnippet: `1: int main() {\n2:     int *ptr;\n3:     int val = 15;\n4:     *ptr = 20;\n5:     ptr = &val;\n6:     return 0;\n7: }`,
         choices: [
@@ -252,6 +387,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'fill_in_the_blank',
         concept: 'address_of_operator',
         difficulty: 'foundational',
+        language: 'c',
         prompt: 'To pass a variable `int count` to a function `void increment(int *p)` so that the function can permanently modify `count`, what argument must be passed?',
         choices: [
           '&count (the memory address of count)',
@@ -278,6 +414,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
   {
     id: 'js-closures-scoping',
     skillSlug: 'javascript',
+    language: 'javascript',
     title: 'JavaScript Closures & Lexical Scope',
     subtitle: 'How functions retain access to outer variables even after execution returns',
     topic: 'closures',
@@ -302,6 +439,45 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         { line: 8, note: 'Even though createCounter finished, counter() still reads and mutates count.' }
       ]
     },
+    walkthroughSteps: [
+      {
+        step: 1,
+        title: 'The Outer Factory Function',
+        codeSnippet: `function createCounter() {\n    let count = 0; // private variable\n    return function() {\n        count++;\n        return count;\n    };\n}\nconst counter = createCounter();\nconsole.log(counter()); // 1\nconsole.log(counter()); // 2`,
+        language: 'javascript',
+        highlightLines: [1, 2],
+        explanation: '`createCounter` defines an outer scope containing `let count = 0`. Outside code has no direct way to access or change `count`.',
+        mentalModelNote: 'Variables declared with let inside a function are shielded from global scope (encapsulation).',
+        traceTable: [
+          { iteration: 'Outer Call', currentValue: 'count = 0', condition: 'Local scope allocated', updatedValue: 'count initialized to 0' }
+        ]
+      },
+      {
+        step: 2,
+        title: 'Returning the Inner Function (Closure)',
+        codeSnippet: `function createCounter() {\n    let count = 0; // private variable\n    return function() {\n        count++;\n        return count;\n    };\n}\nconst counter = createCounter();\nconsole.log(counter()); // 1\nconsole.log(counter()); // 2`,
+        language: 'javascript',
+        highlightLines: [3, 4, 5],
+        explanation: 'The function returns a new anonymous inner function. Because the inner function references `count`, JavaScript bundles the function together with its surrounding scope: this bundle is a Closure.',
+        mentalModelNote: 'A closure is like a function carrying an invisible backpack holding the variables from the room where it was born.',
+        traceTable: [
+          { iteration: 'Return', currentValue: 'inner function', condition: 'Closure formed over count', updatedValue: 'counter variable holds closure' }
+        ]
+      },
+      {
+        step: 3,
+        title: 'Invoking the Closure Across Time',
+        codeSnippet: `function createCounter() {\n    let count = 0; // private variable\n    return function() {\n        count++;\n        return count;\n    };\n}\nconst counter = createCounter();\nconsole.log(counter()); // 1\nconsole.log(counter()); // 2`,
+        language: 'javascript',
+        highlightLines: [8, 9],
+        explanation: 'Even though `createCounter()` has finished, calling `counter()` still increments and returns the private `count`. First call returns 1, second call returns 2.',
+        mentalModelNote: 'Closures keep variables alive in memory as long as the returned function is referenced.',
+        traceTable: [
+          { iteration: '1st counter()', currentValue: 'count = 0', condition: 'count++ executes', updatedValue: 'Returns 1, count is now 1' },
+          { iteration: '2nd counter()', currentValue: 'count = 1', condition: 'count++ executes', updatedValue: 'Returns 2, count is now 2' }
+        ]
+      }
+    ],
     commonPitfalls: [
       {
         title: 'Accidental Shared State in Loops with var',
@@ -320,6 +496,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'code_tracing',
         concept: 'function_factories',
         difficulty: 'foundational',
+        language: 'javascript',
         prompt: 'What will be output to the console when this script runs?',
         codeSnippet: `function makeMultiplier(factor) {\n    return function(number) {\n        return number * factor;\n    };\n}\nconst double = makeMultiplier(2);\nconst triple = makeMultiplier(3);\nconsole.log(double(5) + triple(4));`,
         choices: ['22', '20', '30', 'NaN'],
@@ -339,6 +516,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'conceptual',
         concept: 'state_encapsulation',
         difficulty: 'foundational',
+        language: 'javascript',
         prompt: 'How do closures provide data privacy in JavaScript modules?',
         choices: [
           'Variables declared inside the outer function cannot be accessed directly from the outside, only through returned methods.',
@@ -365,6 +543,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
   {
     id: 'sql-joins-filtering',
     skillSlug: 'sql',
+    language: 'sql',
     title: 'SQL Relational Joins & Aggregations',
     subtitle: 'Combining data across tables with INNER JOIN, LEFT JOIN, and GROUP BY',
     topic: 'sql_joins',
@@ -389,6 +568,46 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         { line: 4, note: 'GROUP BY u.name collapses multiple orders per user into a single summarized row.' }
       ]
     },
+    walkthroughSteps: [
+      {
+        step: 1,
+        title: 'Identifying the Primary Left Table',
+        codeSnippet: `SELECT u.name, COUNT(o.id) as order_count\nFROM users u\nLEFT JOIN orders o ON u.id = o.user_id\nGROUP BY u.name;`,
+        language: 'sql',
+        highlightLines: [2],
+        explanation: 'We designate `users u` as the primary (left) table. In reporting, we usually want to include all registered users even if they have made zero orders.',
+        mentalModelNote: 'In a LEFT JOIN, every row from the left table is guaranteed to appear in the output.',
+        traceTable: [
+          { iteration: 'From', currentValue: 'users u', condition: 'Left Table', updatedValue: 'All users preserved' }
+        ]
+      },
+      {
+        step: 2,
+        title: 'Connecting Related Rows with LEFT JOIN',
+        codeSnippet: `SELECT u.name, COUNT(o.id) as order_count\nFROM users u\nLEFT JOIN orders o ON u.id = o.user_id\nGROUP BY u.name;`,
+        language: 'sql',
+        highlightLines: [3],
+        explanation: 'The join matches `u.id = o.user_id`. If user "Alice" has 2 orders, both orders match. If user "Bob" has 0 orders, the order fields become NULL instead of being dropped.',
+        mentalModelNote: 'INNER JOIN silently deletes users with 0 orders. LEFT JOIN keeps them with NULL values.',
+        traceTable: [
+          { iteration: 'Alice', currentValue: 'Orders in DB: 2', condition: 'u.id = o.user_id', updatedValue: '2 rows matched' },
+          { iteration: 'Bob', currentValue: 'Orders in DB: 0', condition: 'u.id = o.user_id', updatedValue: '1 row with NULL order' }
+        ]
+      },
+      {
+        step: 3,
+        title: 'Aggregating & Grouping Summary Metrics',
+        codeSnippet: `SELECT u.name, COUNT(o.id) as order_count\nFROM users u\nLEFT JOIN orders o ON u.id = o.user_id\nGROUP BY u.name;`,
+        language: 'sql',
+        highlightLines: [1, 4],
+        explanation: '`GROUP BY u.name` groups Alice’s rows together and Bob’s row together. `COUNT(o.id)` counts order IDs: Alice gets 2, Bob gets 0 (because COUNT ignores NULLs!).',
+        mentalModelNote: 'COUNT(column) ignores NULLs, while COUNT(*) counts all rows. Use COUNT(o.id) for accurate counts on left joins.',
+        traceTable: [
+          { iteration: 'Group Alice', currentValue: '2 matched order IDs', condition: 'COUNT(o.id)', updatedValue: 'order_count = 2' },
+          { iteration: 'Group Bob', currentValue: 'NULL order ID', condition: 'COUNT(o.id)', updatedValue: 'order_count = 0' }
+        ]
+      }
+    ],
     commonPitfalls: [
       {
         title: 'Selecting Non-Aggregated Columns Without GROUP BY',
@@ -407,6 +626,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'conceptual',
         concept: 'left_join',
         difficulty: 'foundational',
+        language: 'sql',
         prompt: 'If you want a list of all students, including those who have not yet submitted any assignments, which join should you use between `students` (left) and `submissions` (right)?',
         choices: [
           'LEFT JOIN submissions ON students.id = submissions.student_id',
@@ -429,6 +649,7 @@ export const LESSONS_CATALOG: LessonDefinition[] = [
         type: 'code_tracing',
         concept: 'group_by_aggregation',
         difficulty: 'foundational',
+        language: 'sql',
         prompt: 'Consider a table `sales`: Product A ($10), Product B ($20), Product A ($15). What is the output of `SELECT product, SUM(amount) FROM sales GROUP BY product;`?',
         choices: [
           'Product A: 25, Product B: 20',

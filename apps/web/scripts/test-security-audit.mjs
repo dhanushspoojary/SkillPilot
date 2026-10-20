@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import { requireOrigin } from '../lib/server-security.ts';
 import { submitExerciseAttempt } from '../lib/practice-engine.ts';
 
-for (const f of ['.env.local', '../.env.local', '.env', '../.env']) {
+for (const f of [new URL('../.env.local', import.meta.url), '.env.local', 'apps/web/.env.local', '../.env.local', '.env', '../.env']) {
   if (fsSync.existsSync(f)) {
     try { process.loadEnvFile(f); } catch {}
     if (process.env.DATABASE_URL) break;
@@ -157,5 +157,6 @@ function assert(condition, message) {
     // Cleanup test users
     await pool.query(`delete from users where id in ($1, $2)`, [studentAId, studentBId]).catch(() => {});
     await pool.end();
+    process.exit(0);
   }
 })();

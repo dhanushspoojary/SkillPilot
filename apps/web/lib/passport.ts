@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { db, one } from './db.ts';
+import { db, one, many } from './db.ts';
 import { skillStates, readiness } from './engine.ts';
 import type { Evidence } from './types.ts';
 
@@ -214,4 +214,45 @@ export async function getPublicPassport(shareToken: string): Promise<PublicPassp
     authenticityHash,
     verifiedAt: new Date().toISOString(),
   };
+}
+
+export async function getPublicPassportByHandle(handle: string): Promise<PublicPassportData | null> {
+  if (!handle || typeof handle !== 'string') return null;
+  const cleanHandle = handle.trim().toLowerCase();
+
+  // 1. Direct share token match
+  const byToken = await getPublicPassport(handle);
+  if (byToken) return byToken;
+
+  // 2. Lookup user by ID if valid UUID
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(handle);
+  let userId: string | null = null;
+
+  if (isUuid) {
+    const user = await one<{ id: string }>(`select id from users where id = $1 and status = 'active'`, [handle]);
+    if (user) userId = user.id;
+  }
+
+  // 3. Lookup user by slugified name (e.g. john-doe -> John Doe)
+  if (!userId) {
+    const users = await many<{ id: string; name: string }>(
+      `select id, name from users where status = 'active' limit 100`
+    );
+    const matched = users.find((u) => {
+      const slug = u.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      return slug === cleanHandle;
+    });
+    if (matched) userId = matched.id;
+  }
+
+  if (!userId) return null;
+
+  // Find active share token for this user
+  const share = await one<{ share_token: string }>(
+    `select share_token from passport_shares where user_id = $1 and status = 'active' order by created_at desc limit 1`,
+    [userId]
+  );
+  if (!share) return null;
+
+  return getPublicPassport(share.share_token);
 }

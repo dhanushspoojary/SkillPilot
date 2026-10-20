@@ -40,6 +40,9 @@ export async function POST(req: Request) {
     if (typeof parsed?.question !== 'string' || !parsed.question.trim() || parsed.question.length > 500)
         return json({ error: 'Question must be 1-500 characters' }, 400);
     try {
+    const idempotencyKey = req.headers.get('idempotency-key') || (typeof parsed?.idempotencyKey === 'string' ? parsed.idempotencyKey.trim() : null);
+
+    const { result } = await withIdempotency(u.id, idempotencyKey, 'agent_chat', async () => {
         const threadId = typeof parsed?.threadId === 'string' && parsed.threadId.trim() ? parsed.threadId.trim() : undefined;
         const studentMsg = await appendConversationMessage(u.id, 'student', parsed.question, {}, threadId).catch(() => null);
         const activeThreadId = studentMsg?.threadId || threadId;
@@ -101,7 +104,7 @@ export async function POST(req: Request) {
                     );
                 } catch {}
                 void maybeRunRetention();
-                return json({ ...prefBody, threadId: activeThreadId }, 200);
+                return { status: 200, body: { ...prefBody, threadId: activeThreadId } };
             }
         }
         const activeProvider = getActiveLLMProvider();
@@ -172,7 +175,10 @@ export async function POST(req: Request) {
         }
         void maybeRunRetention();
         const responseData = isReply && activeThreadId ? { ...body, threadId: activeThreadId } : body;
-        return json(responseData, status);
+        return { status, body: responseData };
+    });
+
+    return json(result.body, result.status);
     }
     catch (e) {
         console.error('agent route failed', e);

@@ -139,25 +139,47 @@ Then open the configured web origin.
 
 ## Verification performed for this package
 
-- **42/42 unit tests pass** across the roadmap engine, auth, server security, career agent, mailer, config, and diagnostic parser (`npm test`).
+- **157/157 unit tests pass** across roadmap engine, auth, server security, career agent, mailer, config, practice arena, diagnostic parser, isolated code execution provider, and LiveKit token issuance (`npm test`).
 - **Strict TypeScript typecheck passes with 0 errors** (`npm run typecheck`).
-- **Next.js production build compiles cleanly** with 32 dynamic API routes and 8 static pages (`npm run build`).
-- **Database integration suite passes** testing transactions, Neon connection pooling, and append-only constraints (`npm run db:integration`).
-- **API integration suite passes** against the live server endpoints (`npm run api:integration`).
-- **End-to-end browser verification passes** (`npm run test:e2e`) executing real student registration, full 12-question adaptive assessment, roadmap recalculation, interactive learning actions, mock interview navigation, and responsive viewport checks from 320px to 1440px with zero horizontal overflow.
+- **Next.js production build compiles cleanly** with 49 dynamic and static routes (`npm run build`).
+- **Isolated Execution & LiveKit Security Suite (8/8) passes** testing sandbox length caps, language allowlist, CSRF, auth rejection, deterministic room isolation, and LiveKit JWT token crypto (`node apps/web/scripts/test-execution-and-livekit-security.mjs`).
+- **Final Product Suite (13/13) passes** testing Practice Arena, `/p/[handle]`, and database integrity (`node apps/web/scripts/test-final-product-suite.mjs`).
+- **Next Action Audit (7/7) passes** testing complete deterministic recommendation engine state coverage (`node apps/web/scripts/test-next-action-audit.mjs`).
+- **Security Penetration Audit (17/17) passes** testing origin validation, answer key secrecy, and cross-student isolation (`node apps/web/scripts/test-security-audit.mjs`).
+- **End-to-end browser verification passes** (`node apps/web/scripts/test-redesigned-workspace-e2e.mjs`) executing real student registration, full 14-step learning journey, mock interview navigation, and responsive viewport checks from 320px to 1440px with zero horizontal overflow.
 
-See:
+## Four-Member Team Collaboration & Presentation Architecture
 
-- `SECURITY.md` — threat model and hardening
-- `DEPLOYMENT.md` — production setup
-- `AGENT_CONTRACT.md` — agent permissions and safety boundary
+SkillPilot is structured into four cohesive engineering domains suitable for team presentation:
 
-## Final architecture
+1. **Member 1 (Frontend Design System, Dashboard & Responsive UX)**:
+   - Design token architecture (`globals.css`), app shell navigation, and mobile bottom bar (`App.tsx`).
+   - Streamlined `Today` dashboard with ONE primary next action, estimated time, and *"Why this?"* toggle.
+   - Conversational student onboarding (`CapabilityOnboarding.tsx`).
 
-SkillPilot is a server-authoritative multi-user platform. Students, mentors and administrators have separate roles. Mentors are never seeded into production: they register, complete a profile, and become discoverable only after administrator approval. Assessments are scored on the server, and mentor reviews become append-only evidence through an authenticated database transaction.
+2. **Member 2 (Assessments, Learning Workspace, Practice Arena & Evidence)**:
+   - 3-stage learning flow (`LearnWorkspace.tsx`) with variable trace table and Socratic feedback.
+   - Practice Arena (`PracticeArena.tsx`, `lib/practice-arena.ts`) with 5 original problems and 5-stage Hint Ladder.
+   - Deterministic next-action recommendation engine (`lib/next-action-engine.ts`).
 
-The Career Agent is an agentic orchestration layer over that evidence. It can read server-derived state, reason with an LLM when configured, use a small allow-listed tool set, and propose next actions. It cannot manufacture evidence or silently perform privileged actions.
+3. **Member 3 (AI Companion, Mock Interview Experience & Mentorship)**:
+   - Natural conversational AI companion (`AgentPanel.tsx`, `api/agent/route.ts`) with speech input and voice synthesis.
+   - Dual-mode mock interview system (`MockInterview.tsx`) with 6 tracks, real-time waveform canvas, and STAR reports.
+   - Multi-tier mentor matching, mutual agreement, and secure communications (`MentorsWorkspace.tsx`).
 
+4. **Member 4 (Backend, Database, Security, Administration & Deployment)**:
+   - PostgreSQL schema, connection pooling, and append-only evidence constraints (`lib/db.ts`, `schema.sql`).
+   - Security controls: bcrypt hashing, HttpOnly sessions, CSRF validation, rate limiting, and RBAC (`server-security.ts`).
+   - Public Skill Passport at `/p/[handle]` with 5 verification tiers and cryptographic fingerprints (`app/p/[handle]`, `lib/passport.ts`).
+   - Admin workspace (`AdminWorkspace.tsx`), deployment readiness (`docs/DEPLOYMENT.md`), and Docker configuration.
+
+## Documentation Index
+
+- `docs/AUDIT.md` — Complete 14-phase repository audit and baseline findings
+- `docs/IMPLEMENTATION_PLAN.md` — System vision, 4-member team architecture, and implementation checklist
+- `docs/ACCEPTANCE_MATRIX.md` — Requirement traceability and actual test evidence (23/23 PASS)
+- `docs/DEPLOYMENT.md` — Production hosting, environment variable names, and Docker guide
+- `docs/SECURITY.md` — Security audit, threat model, RBAC, and penetration defenses
 
 ### Dependency lockfile
 

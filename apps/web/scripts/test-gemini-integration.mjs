@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import { getActiveLLMProvider, GeminiProviderAdapter, sanitizePII, redactSecrets } from '../lib/llm-provider.ts';
 import { generateContinuousPracticeQuestion, validateQuestionSchema, computeQuestionFingerprint } from '../lib/practice-engine.ts';
 
-for (const f of ['.env.local', '../.env.local', '.env', '../.env']) {
+for (const f of [new URL('../.env.local', import.meta.url), '.env.local', 'apps/web/.env.local', '../.env.local', '.env', '../.env']) {
   if (fsSync.existsSync(f)) {
     try { process.loadEnvFile(f); } catch {}
     if (process.env.GEMINI_API_KEY) break;
@@ -88,4 +88,5 @@ console.log('✓ SHA-256 Fingerprint Determinism verified (Equal normalized fing
     console.log(`✓ Verified template prompt: "${fallbackQ.prompt.slice(0, 80)}..."`);
   }
   console.log('\nPHASE 3 COMPLETE: Gemini Provider & Fallback Pipeline Verified.');
+  process.exit(0);
 })();

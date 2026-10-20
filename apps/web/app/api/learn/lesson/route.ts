@@ -73,6 +73,7 @@ export async function GET(req: Request) {
     concept: ex.concept,
     prompt: ex.prompt,
     codeSnippet: ex.codeSnippet,
+    language: ex.language || lesson.language || lesson.codeWalkthrough.language || 'c',
     choices: ex.choices,
     hints: ex.hints,
     // Do NOT include correctIndex or explanation here to prevent cheating/inspection
@@ -82,6 +83,7 @@ export async function GET(req: Request) {
     lesson: {
       id: lesson.id,
       skillSlug: lesson.skillSlug,
+      language: lesson.language || lesson.codeWalkthrough.language || 'c',
       title: lesson.title,
       summary: lesson.summary || lesson.subtitle || lesson.introduction,
       whyItMatters: lesson.whyItMatters,
@@ -95,6 +97,7 @@ export async function GET(req: Request) {
               step: idx + 1,
               title: `Line ${ann.line} Execution Trace`,
               codeSnippet: lesson.codeWalkthrough.code,
+              language: lesson.language || lesson.codeWalkthrough.language || 'c',
               highlightLines: [ann.line],
               explanation: ann.note,
               mentalModelNote: `Simulate line ${ann.line} state changes carefully in memory.`,
@@ -104,6 +107,7 @@ export async function GET(req: Request) {
                 step: 1,
                 title: 'Code Mechanics',
                 codeSnippet: lesson.codeWalkthrough.code,
+                language: lesson.language || lesson.codeWalkthrough.language || 'c',
                 highlightLines: [1],
                 explanation: 'Inspect the code structure and state evolution.',
                 mentalModelNote: lesson.whyItMatters,

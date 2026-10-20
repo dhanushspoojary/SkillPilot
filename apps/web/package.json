@@ -17,7 +17,11 @@
   },
   "dependencies": {
     "@google/genai": "^2.30.0",
+    "@livekit/components-react": "^2.9.24",
+    "@livekit/components-styles": "^1.2.0",
     "bcryptjs": "2.4.3",
+    "livekit-client": "^2.23.0",
+    "livekit-server-sdk": "^2.19.1",
     "lucide-react": "0.474.0",
     "next": "15.5.27",
     "pg": "8.16.3",

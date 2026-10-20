@@ -20,6 +20,9 @@ import {
   RotateCcw,
   X,
   Code2,
+  Volume2,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 import type { AppState, AgentAudit } from '../lib/engine';
 import type { AgentReply, Proposal } from '../lib/agent';
@@ -278,6 +281,66 @@ export function AgentPanel({
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastQuestionRef = useRef<string>('');
+  const [listening, setListening] = useState(false);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleVoiceInput = () => {
+    if (listening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+      setListening(false);
+      return;
+    }
+    const SpeechRecognition =
+      typeof window !== 'undefined'
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null;
+    if (!SpeechRecognition) {
+      setError('Speech recognition is not supported in this browser.');
+      return;
+    }
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      recognition.onstart = () => setListening(true);
+      recognition.onresult = (event: any) => {
+        const transcript = event.results?.[0]?.[0]?.transcript;
+        if (transcript) {
+          setQ((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        }
+      };
+      recognition.onerror = () => setListening(false);
+      recognition.onend = () => setListening(false);
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch {
+      setListening(false);
+      setError('Could not access microphone.');
+    }
+  };
+
+  const speakText = (msgId: string, text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      if (speakingMsgId === msgId) {
+        setSpeakingMsgId(null);
+        return;
+      }
+    }
+    const cleanText = text.replace(/[`*#_>~-]/g, ' ').slice(0, 500);
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.onend = () => setSpeakingMsgId(null);
+    utterance.onerror = () => setSpeakingMsgId(null);
+    setSpeakingMsgId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
 
   // Load threads list on mount
   const loadThreads = async (selectLatest = false) => {
@@ -509,13 +572,18 @@ export function AgentPanel({
     setMessages((prev) => [...prev, userMsg]);
 
     try {
+      const idempotencyKey = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const res = await fetch('/api/agent', {
         method: 'POST',
         signal: ctl.signal,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
         body: JSON.stringify({
           question: userText,
           threadId: activeThreadId || undefined,
+          idempotencyKey,
           state: { v: 2, activity: state.activity, requests: state.requests },
         }),
       });
@@ -852,33 +920,26 @@ export function AgentPanel({
                   )}
 
                   {m.sender === 'agent' && (
-                    <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 11, color: 'var(--muted)' }}>
+                    <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 11, color: 'var(--muted)' }}>
                       <button
                         type="button"
-                        onClick={() => {
-                          const idx = messages.findIndex((msg) => msg.id === m.id);
-                          const prevStudent = messages.slice(0, idx).reverse().find((msg) => msg.sender === 'student');
-                          if (prevStudent) {
-                            ask(prevStudent.text);
-                          }
+                        onClick={() => speakText(m.id, m.text)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: speakingMsgId === m.id ? 'var(--cyan)' : 'var(--muted)',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11,
                         }}
-                        style={{ background: 'none', border: 'none', color: 'var(--cyan)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+                        title={speakingMsgId === m.id ? 'Stop reading aloud' : 'Read aloud'}
                       >
-                        <RotateCcw size={11} /> Regenerate response
+                        <Volume2 size={12} />
+                        <span>{speakingMsgId === m.id ? 'Stop reading' : 'Read aloud'}</span>
                       </button>
-                    </div>
-                  )}
-
-                  {/* Trace Box */}
-                  {m.replyData?.steps && m.replyData.steps.length > 0 && (
-                    <div className="trace-box" style={{ marginTop: 10 }}>
-                      <span className="trace-title">Verified Server Tools:</span>
-                      {m.replyData.steps.map((s, idx) => (
-                        <div key={idx} className="trace-item">
-                          <code>{s.tool}</code>
-                          <span>{s.summary}</span>
-                        </div>
-                      ))}
                     </div>
                   )}
 
@@ -1028,6 +1089,27 @@ export function AgentPanel({
                 onChange={(e) => setQ(e.target.value)}
                 disabled={busy}
               />
+              <button
+                type="button"
+                onClick={toggleVoiceInput}
+                disabled={busy}
+                style={{
+                  background: listening ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                  border: listening ? '1px solid #EF4444' : '1px solid var(--line)',
+                  color: listening ? '#EF4444' : 'var(--text-secondary)',
+                  borderRadius: 6,
+                  padding: '0 10px',
+                  height: 38,
+                  cursor: busy ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title={listening ? 'Listening... click to stop' : 'Dictate with microphone'}
+                aria-label={listening ? 'Stop listening' : 'Dictate question with microphone'}
+              >
+                {listening ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
               {busy ? (
                 <button
                   type="button"

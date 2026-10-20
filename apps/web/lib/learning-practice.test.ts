@@ -21,6 +21,52 @@ describe('Continuous AI Learning & Lessons Catalog', () => {
     assert.ok(skills.has('sql'), 'Should include SQL databases');
   });
 
+  it('guarantees language accuracy and prevents language mismatches across all lessons', () => {
+    const loopLesson = getLessonById('ps-loop-tracing');
+    assert.ok(loopLesson, 'ps-loop-tracing must exist');
+    assert.equal(loopLesson?.language, 'c', 'ps-loop-tracing must be explicitly declared as C, not JavaScript');
+    assert.ok(loopLesson?.codeWalkthrough.code.includes('int total = 0'), 'C code contains typed declarations');
+    assert.ok(!loopLesson?.codeWalkthrough.language.includes('javascript'), 'C code must never be labeled JavaScript');
+
+    const pointerLesson = getLessonById('c-pointers-basics');
+    assert.ok(pointerLesson);
+    assert.equal(pointerLesson?.language, 'c', 'c-pointers-basics must be C');
+    assert.ok(pointerLesson?.codeWalkthrough.code.includes('int *ptr = &score;'));
+
+    const closureLesson = getLessonById('js-closures-scoping');
+    assert.ok(closureLesson);
+    assert.equal(closureLesson?.language, 'javascript', 'js-closures-scoping must be JavaScript');
+    assert.ok(closureLesson?.codeWalkthrough.code.includes('let count = 0;'));
+
+    const sqlLesson = getLessonById('sql-joins-filtering');
+    assert.ok(sqlLesson);
+    assert.equal(sqlLesson?.language, 'sql', 'sql-joins-filtering must be SQL');
+    assert.ok(sqlLesson?.codeWalkthrough.code.includes('SELECT'));
+  });
+
+  it('verifies beginner-friendly walkthrough steps and execution trace tables', () => {
+    const loopLesson = getLessonById('ps-loop-tracing');
+    assert.ok(loopLesson?.walkthroughSteps && loopLesson.walkthroughSteps.length >= 4);
+
+    for (const step of loopLesson!.walkthroughSteps!) {
+      assert.ok(step.title, 'Walkthrough step must have title');
+      assert.ok(step.codeSnippet, 'Walkthrough step must have codeSnippet');
+      assert.equal(step.language, 'c', 'Loop tracing steps must be tagged as C');
+      assert.ok(step.explanation.length > 20, 'Walkthrough step must have a plain-English explanation');
+      assert.ok(step.mentalModelNote.length > 10, 'Walkthrough step must have a mental model takeaway');
+    }
+
+    // Verify trace table structure for loop tracing
+    const stepWithTrace = loopLesson!.walkthroughSteps!.find((s) => s.traceTable && s.traceTable.length > 0);
+    assert.ok(stepWithTrace, 'At least one step in ps-loop-tracing must provide an execution trace table');
+    for (const row of stepWithTrace!.traceTable!) {
+      assert.ok(row.iteration, 'Trace table row must have iteration');
+      assert.ok(row.currentValue, 'Trace table row must have currentValue');
+      assert.ok(row.condition, 'Trace table row must have condition');
+      assert.ok(row.updatedValue, 'Trace table row must have updatedValue');
+    }
+  });
+
   it('validates lesson structural completeness (whyItMatters, walkthroughs, pitfalls, exercises)', () => {
     for (const lesson of LESSONS_CATALOG) {
       assert.ok(lesson.title.length > 5, `${lesson.id} should have a descriptive title`);

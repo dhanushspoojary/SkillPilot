@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, Share2, Copy, ExternalLink, Lock, Send, Clock, BookOpen, AlertCircle, Play } from 'lucide-react';
+import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, Share2, Copy, ExternalLink, Lock, Send, Clock, BookOpen, AlertCircle, Play, Layers } from 'lucide-react';
 import { STAGES, SKILLS, passportSummary, readiness, skillStates, stageProgress, type AppState, type PlanAction, } from '../lib/engine';
 import { ProgressRing } from './ProgressRing';
 import { ChatPanel } from './ChatPanel';
@@ -8,7 +8,7 @@ import { PageIntro, Signal, SkillBar, VerifiedBadge } from './ui';
 import { AnimatedMarquee, ConnectedSkillNetwork, ScrollReveal, GuidedJourneyProgress, type JourneyStageConfig } from './motion';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
 import { extractClaimedSkills } from '../lib/assessment-planner';
-export type View = 'today' | 'learn' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
+export type View = 'today' | 'practice' | 'learn' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
 
 export function Today({
@@ -39,6 +39,7 @@ export function Today({
   refreshProfile?: () => Promise<void>;
 }) {
   const [dynamicNextAction, setDynamicNextAction] = useState<any | null>(null);
+  const [snoozedActionId, setSnoozedActionId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -220,12 +221,12 @@ export function Today({
 
   return (
     <div className="today-dashboard">
-      {/* PRIORITY 1: STATUS & GUIDED JOURNEY STEPPER */}
+      {/* PRIORITY 1: WARM GREETING & COMPACT PROGRESS STRIP */}
       <section className="welcome dashboard-header">
         <div className="greeting-col">
-          <div className="eyebrow"><span className="live-dot" /> SKILLPILOT — CAREER INTELLIGENCE SYSTEM</div>
-          <h1>YOUR POTENTIAL. <em>ENGINEERED.</em></h1>
-          <p>Understand your strengths. Close your skill gaps. Build evidence of what you can do.</p>
+          <div className="eyebrow"><span className="live-dot" /> SKILLPILOT — CAREER OPERATING SYSTEM</div>
+          <h1>Welcome back, <em>{state.name?.trim() || 'Student'}.</em></h1>
+          <p>Here is your single highest-impact action today to prove your skills with verifiable evidence.</p>
         </div>
         <div className="goal-badge-wrap">
           <div className="goal-pill">
@@ -240,114 +241,197 @@ export function Today({
         </div>
       </section>
 
-      {/* Guided 5-Stage Stepper: 01 Discover, 02 Verify, 03 Plan, 04 Learn, 05 Improve */}
-      <GuidedJourneyProgress
-        stages={journeyStages}
-        activeStageIndex={activeStageIndex}
-        onStageClick={(idx) => {
-          const target = journeyStages[idx];
-          if (target.id === 'discover' && onOpenCalibration) onOpenCalibration();
-          else if (target.id === 'verify') go('assess');
-          else if (target.id === 'plan') go('roadmap');
-          else if (target.id === 'learn') go('learn', dynamicNextAction?.lessonId);
-          else if (target.id === 'improve') go('passport');
+      {/* COMPACT PROGRESS STRIP */}
+      <div
+        className="compact-progress-strip"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 12,
+          padding: '12px 16px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--line)',
+          borderRadius: 10,
+          fontSize: 12,
         }}
-        onActionClick={(stage) => {
-          if (stage.id === 'discover' && onOpenCalibration) onOpenCalibration();
-          else if (stage.id === 'learn') go('learn', dynamicNextAction?.lessonId);
-          else if (stage.actionRoute) go(stage.actionRoute as View);
-        }}
-      />
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Target size={15} color="var(--cyan)" />
+          <div>
+            <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Target Goal</span>
+            <b style={{ color: '#FFFFFF' }}>{careerGoal}</b>
+          </div>
+        </div>
 
-      <AnimatedMarquee items={[
-        'ASSESS COMPETENCIES',
-        'LEARN WITH SOCRATIC AI',
-        'BUILD PRACTICAL SYSTEMS',
-        'DEMONSTRATE RUNTIME EVIDENCE',
-        'GROW CAREER READINESS',
-        'AUTONOMOUS CAREER SYSTEM',
-      ]} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Award size={15} color="#34D399" />
+          <div>
+            <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Verified Skills</span>
+            <b style={{ color: '#FFFFFF' }}>{skills.filter((s) => s.verified).length} of {skills.length} verified</b>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Layers size={15} color="#FBBF24" />
+          <div>
+            <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Current Milestone</span>
+            <b style={{ color: '#FFFFFF' }}>Phase {currentStage.n}: {currentStage.name}</b>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Sparkles size={15} color="var(--cyan)" />
+          <div>
+            <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Daily Streak</span>
+            <b style={{ color: '#FFFFFF' }}>1-day streak • ❄️ 1 freeze</b>
+          </div>
+        </div>
+      </div>
 
       {/* PRIORITY 2: TODAY'S ACTION (ONE PRIMARY ACTION CARD) */}
-      <section className="priority-card" role="region" aria-label="Today's Primary Action">
-        <div className="priority-copy">
-          <div className="priority-eyebrow">
-            <Zap size={14} /> RECOMMENDED NEXT STEP // ONE PRIMARY ACTION
-          </div>
-          <h2>{primaryTitle}</h2>
-          <p>{primaryReason}</p>
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--cyan)' }}>
-            <b>What to do now:</b> {primaryNow}
-          </div>
-        </div>
-        <button
-          className="primary priority-action-btn"
-          onClick={() => {
-            if (dynamicNextAction) {
-              if (dynamicNextAction.route === 'learn') {
-                go('learn', dynamicNextAction.lessonId);
-              } else if (dynamicNextAction.route === 'projects') {
-                go('projects', dynamicNextAction.projectSlug);
-              } else if (dynamicNextAction.route === 'assess') {
-                go('assess', dynamicNextAction.skillId);
-              } else if (dynamicNextAction.route === 'calibration' && onOpenCalibration) {
-                onOpenCalibration();
-              } else {
-                go(dynamicNextAction.route as View);
-              }
-            } else if (primaryAction?.kind === 'BUILD') {
-              go('projects');
-            } else {
-              go('assess', primaryAction?.skill);
-            }
-          }}
-        >
-          <Zap size={16} /> {dynamicNextAction?.buttonLabel || (primaryAction?.kind === 'BUILD' ? 'Open project workspace' : 'Start adaptive assessment')}
-        </button>
-      </section>
-
-      {/* Secondary Tasks Stack (if any) */}
-      {top.slice(1).length > 0 && (
-        <div className="panel-block" style={{ marginBottom: 24 }}>
-          <div className="panel-head">
-            <div>
-              <span className="kicker">UPCOMING QUEUE</span>
-              <h3 style={{ margin: 0, fontSize: 16 }}>Secondary Learning Actions</h3>
+      {snoozedActionId === (dynamicNextAction?.id || primaryTitle) ? (
+        <section className="priority-card" style={{ borderLeftColor: 'var(--muted)' }} role="region" aria-label="Snoozed Action">
+          <div className="priority-copy">
+            <div className="priority-eyebrow" style={{ color: 'var(--muted)' }}>
+              <Clock size={14} /> RECOMMENDATION SNOOZED FOR THIS SESSION
             </div>
-            <button className="link" onClick={() => go('roadmap')}>See full roadmap <ArrowRight size={14} /></button>
+            <h2 style={{ fontSize: 18, color: 'var(--text-secondary)' }}>You snoozed: {primaryTitle}</h2>
+            <p>You have full autonomy over your learning path. Explore any milestone from your roadmap or practice arena.</p>
           </div>
-          <div className="action-stack task-list">
-            {top.slice(1).map((a, i) => (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="primary" onClick={() => setSnoozedActionId(null)} style={{ background: '#1F2937', color: '#FFF' }}>
+              <RotateCcw size={14} /> Resume recommendation
+            </button>
+            <button className="primary priority-action-btn" onClick={() => go('roadmap')}>
+              <ArrowRight size={14} /> Open full roadmap
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="priority-card" role="region" aria-label="Today's Primary Action">
+          <div className="priority-copy">
+            <div className="priority-eyebrow">
+              <Zap size={14} /> RECOMMENDED NEXT STEP // ONE PRIMARY ACTION
+            </div>
+            <h2>{primaryTitle}</h2>
+            <p>{primaryReason}</p>
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--cyan)' }}>
+              <b>What to do now:</b> {primaryNow}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-secondary)' }}>
+                <Clock size={13} color="var(--cyan)" />
+                Estimated time: <b>{dynamicNextAction?.estimatedMinutes ? `${dynamicNextAction.estimatedMinutes} mins` : (primaryAction?.time || '15 mins')}</b>
+              </span>
+              <details className="why-this-toggle" style={{ display: 'inline-block', fontSize: 12 }}>
+                <summary style={{ cursor: 'pointer', color: 'var(--cyan)', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500 }}>
+                  <CircleHelp size={13} /> Why this recommendation?
+                </summary>
+                <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: 6, borderLeft: '2px solid var(--cyan)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.5 }}>
+                  {dynamicNextAction?.whyItMatters || primaryReason}
+                </div>
+              </details>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+            <button
+              className="primary priority-action-btn"
+              onClick={() => {
+                if (dynamicNextAction) {
+                  if (dynamicNextAction.route === 'learn') {
+                    go('learn', dynamicNextAction.lessonId);
+                  } else if (dynamicNextAction.route === 'projects') {
+                    go('projects', dynamicNextAction.projectSlug);
+                  } else if (dynamicNextAction.route === 'assess') {
+                    go('assess', dynamicNextAction.skillId);
+                  } else if (dynamicNextAction.route === 'calibration' && onOpenCalibration) {
+                    onOpenCalibration();
+                  } else {
+                    go(dynamicNextAction.route as View);
+                  }
+                } else if (primaryAction?.kind === 'BUILD') {
+                  go('projects');
+                } else {
+                  go('assess', primaryAction?.skill);
+                }
+              }}
+            >
+              <Zap size={16} /> {dynamicNextAction?.buttonLabel || (primaryAction?.kind === 'BUILD' ? 'Open project workspace' : 'Start adaptive assessment')}
+            </button>
+            <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
               <button
-                className="action-card task-row"
-                key={a.id}
-                onClick={() => onAction(a)}
-                aria-label={`${a.title}. ${a.detail}`}
+                type="button"
+                className="link"
+                style={{ color: 'var(--muted)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                onClick={() => setSnoozedActionId(dynamicNextAction?.id || primaryTitle)}
               >
-                <span className="task-index">0{i + 2}</span>
-                <span className="action-icon">
-                  {a.kind === 'PROVE' ? <Crosshair size={18} /> : a.kind === 'BUILD' ? <Zap size={18} /> : <MessageCircle size={18} />}
-                </span>
-                <span className="task-info">
-                  <b>{a.title}</b>
-                  <small>{a.detail} · ~{a.time || '15 mins'} · {a.kind === 'PROVE' ? 'starts quiz' : 'mark complete'}</small>
-                </span>
-                <span className="task-impact">+{a.upTo}% readiness</span>
+                Snooze for now
               </button>
-            ))}
+              <span style={{ color: 'var(--line)' }}>•</span>
+              <button
+                type="button"
+                className="link"
+                style={{ color: 'var(--cyan)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                onClick={() => go('roadmap')}
+              >
+                Pick another task
+              </button>
+            </div>
           </div>
-          {state.activity.length > 0 && (
-            <div className="done-strip" style={{ marginTop: 12 }}>
-              <small>DONE THIS CYCLE</small>
-              {state.activity.map((a) => (
-                <span key={a.id}>
-                  <Check size={13} /> {a.id.split(':')[0] === 'MENTOR' ? 'Mentor feedback' : skillName(a.skill)}{' '}
-                  <button className="link" onClick={() => onUndo(a.id)}>Undo</button>
-                </span>
+        </section>
+      )}
+
+      {/* Secondary Tasks Stack (Progressive Disclosure) */}
+      {top.slice(1).length > 0 && (
+        <details className="upcoming-queue-details" style={{ marginBottom: 24, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
+          <summary style={{ cursor: 'pointer', padding: '12px 16px', background: 'rgba(255, 255, 255, 0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, userSelect: 'none' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#FFFFFF', fontWeight: 600 }}>
+              <Layers size={14} color="var(--cyan)" />
+              Upcoming Queue ({top.slice(1).length} secondary actions)
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--cyan)' }}>Toggle queue details</span>
+          </summary>
+          <div className="panel-block" style={{ border: 'none', borderRadius: 0, margin: 0, padding: 16 }}>
+            <div className="panel-head" style={{ marginBottom: 12 }}>
+              <div>
+                <span className="kicker">UPCOMING QUEUE</span>
+                <h3 style={{ margin: 0, fontSize: 15 }}>Secondary Learning Actions</h3>
+              </div>
+              <button className="link" onClick={() => go('roadmap')}>See full roadmap <ArrowRight size={14} /></button>
+            </div>
+            <div className="action-stack task-list">
+              {top.slice(1).map((a, i) => (
+                <button
+                  className="action-card task-row"
+                  key={a.id}
+                  onClick={() => onAction(a)}
+                  aria-label={`${a.title}. ${a.detail}`}
+                >
+                  <span className="task-index">0{i + 2}</span>
+                  <span className="action-icon">
+                    {a.kind === 'PROVE' ? <Crosshair size={18} /> : a.kind === 'BUILD' ? <Zap size={18} /> : <MessageCircle size={18} />}
+                  </span>
+                  <span className="task-info">
+                    <b>{a.title}</b>
+                    <small>{a.detail} · ~{a.time || '15 mins'} · {a.kind === 'PROVE' ? 'starts quiz' : 'mark complete'}</small>
+                  </span>
+                  <span className="task-impact">+{a.upTo}% readiness</span>
+                </button>
               ))}
             </div>
-          )}
-        </div>
+            {state.activity.length > 0 && (
+              <div className="done-strip" style={{ marginTop: 12 }}>
+                <small>DONE THIS CYCLE</small>
+                {state.activity.map((a) => (
+                  <span key={a.id}>
+                    <Check size={13} /> {a.id.split(':')[0] === 'MENTOR' ? 'Mentor feedback' : skillName(a.skill)}{' '}
+                    <button className="link" onClick={() => onUndo(a.id)}>Undo</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </details>
       )}
 
       {/* Interactive Procedural Vector Topology */}
@@ -568,13 +652,6 @@ export function Today({
             {companionReply && !companionBusy && (
               <div className="companion-output companion-reply">
                 <p style={{ margin: 0 }} className="companion-reply-text">{companionReply}</p>
-                {companionTools.length > 0 && (
-                  <div className="companion-tools-trace">
-                    {companionTools.map((t, idx) => (
-                      <span key={idx} className="tool-tag">{t}</span>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </div>

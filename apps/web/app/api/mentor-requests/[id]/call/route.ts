@@ -2,12 +2,12 @@ import { currentUser } from '../../../../../lib/auth';
 import { one } from '../../../../../lib/db';
 import { dbRateLimit } from '../../../../../lib/guard';
 import { json, readJsonBody, requireOrigin, safeText, isUuid, validMeetingUrl } from '../../../../../lib/server-security';
+import { isLiveKitConfigured, getLiveKitServerUrl, deriveLiveKitRoomName, createLiveKitToken } from '../../../../../lib/livekit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
-
 
 export async function GET(_req: Request, ctx: Ctx) {
   const u = await currentUser();
@@ -15,13 +15,55 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!(await dbRateLimit(`call-read:${u.id}`, 30, 60000))) return json({ error: 'Too many refreshes' }, 429);
   const { id } = await ctx.params;
   if (!isUuid(id)) return json({ error: 'Invalid request id' }, 400);
+
   const r = await one<any>(
-    `select call_url as "callUrl",call_scheduled_at as "callAt"
+    `select id, student_id as "studentId", mentor_id as "mentorId", status,
+            call_url as "callUrl", call_scheduled_at as "callAt"
      from mentor_requests where id=$1 and (student_id=$2 or mentor_id=$2) and status in ('accepted','completed')`,
     [id, u.id],
   );
-  if (!r) return json({ error: 'Call link is available once a request is accepted' }, 404);
-  return json({ call: r });
+  if (!r) return json({ error: 'Call is available once a request is accepted' }, 404);
+
+  let livekitInfo: any = {
+    available: false,
+    message: 'LiveKit credentials (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET) are not configured on this server.',
+  };
+
+  if (isLiveKitConfigured()) {
+    try {
+      const role = u.id === r.mentorId ? 'mentor' : 'student';
+      const token = await createLiveKitToken({
+        requestId: id,
+        userId: u.id,
+        userName: u.name,
+        role,
+        ttlMinutes: 45,
+      });
+
+      livekitInfo = {
+        available: true,
+        serverUrl: getLiveKitServerUrl(),
+        roomName: deriveLiveKitRoomName(id),
+        token,
+        participantIdentity: u.id,
+        participantName: u.name,
+        role,
+      };
+    } catch (err) {
+      livekitInfo = {
+        available: false,
+        message: err instanceof Error ? err.message : 'Could not generate room token',
+      };
+    }
+  }
+
+  return json({
+    call: {
+      callUrl: r.callUrl,
+      callAt: r.callAt,
+      livekit: livekitInfo,
+    },
+  });
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {

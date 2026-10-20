@@ -1,11 +1,12 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrainCircuit, Bell, CheckCircle2, ChevronRight, ChevronUp, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2, LogOut, GraduationCap, Play, BookOpen } from 'lucide-react';
+import { BrainCircuit, Bell, CheckCircle2, ChevronRight, ChevronUp, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2, LogOut, GraduationCap, Play, BookOpen, Terminal } from 'lucide-react';
 import { defaultState, explainPlan, planActions, toggleActivity, type AppState, type PlanAction, } from '../lib/engine';
 import { Assess } from './Assess';
 import { AgentPanel } from './AgentPanel';
 import { ProjectWorkspace } from './ProjectWorkspace';
 import { LearnWorkspace } from './LearnWorkspace';
+import { PracticeArena } from './PracticeArena';
 import type { Proposal } from '../lib/agent';
 import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } from './views';
 import { MockInterview } from './MockInterview';
@@ -19,16 +20,17 @@ const NAV: [
     typeof Gauge
 ][] = [
     ['today', '01', 'Today', LayoutDashboard],
-    ['learn', '02', 'Learn', BookOpen],
-    ['projects', '03', 'Projects', Code2],
-    ['roadmap', '04', 'Roadmap', Activity],
-    ['agent', '05', 'Agent', BrainCircuit],
-    ['skills', '06', 'Skills', Gauge],
-    ['assess', '07', 'Assess', Crosshair],
-    ['mentors', '08', 'Mentors', Users],
-    ['interview', '09', 'Mock interview', Mic],
-    ['passport', '10', 'Passport', Award],
-    ['settings', '11', 'Settings', Settings],
+    ['practice', '02', 'Practice', Terminal],
+    ['learn', '03', 'Learn', BookOpen],
+    ['projects', '04', 'Projects', Code2],
+    ['roadmap', '05', 'Roadmap', Activity],
+    ['agent', '06', 'Agent', BrainCircuit],
+    ['skills', '07', 'Skills', Gauge],
+    ['assess', '08', 'Assess', Crosshair],
+    ['mentors', '09', 'Mentors', Users],
+    ['interview', '10', 'Mock interview', Mic],
+    ['passport', '11', 'Passport', Award],
+    ['settings', '12', 'Settings', Settings],
 ];
 export function App({ user, onLogout }: {
     user: {
@@ -413,6 +415,16 @@ export function App({ user, onLogout }: {
       </header>
       <div className="page">
         {view === 'today' && <Today state={state} actions={actions} go={go} onAction={onAction} onUndo={onUndoSaved} runAgent={runAgent} running={running} careerGoal={careerGoal} onOpenCalibration={() => setShowCalibration(true)} workflow={workflow} capabilityProfile={capabilityProfile} refreshProfile={refreshProfile}/>}
+        {view === 'practice' && (
+          <PracticeArena
+            initialProblemSlug={focus}
+            onGoToLearn={(id) => go('learn', id)}
+            onRequestMentorReview={(problemTitle) => {
+              go('mentors');
+              setToast(`Requested mentor review for "${problemTitle}". Select an approved mentor to dispatch.`);
+            }}
+          />
+        )}
         {view === 'learn' && (
           <LearnWorkspace
             initialLessonId={focus}
@@ -455,6 +467,53 @@ export function App({ user, onLogout }: {
         {view === 'settings' && <SettingsView state={state} onExport={exportData}/>}
       </div>
     </main>
+    <nav className="mobile-bottom-bar" aria-label="Mobile quick navigation">
+      <button
+        type="button"
+        className={`mobile-tab-item ${view === 'today' ? 'active' : ''}`}
+        onClick={() => go('today')}
+        aria-label="Home"
+      >
+        <LayoutDashboard size={20} />
+        <span>Home</span>
+      </button>
+      <button
+        type="button"
+        className={`mobile-tab-item ${view === 'practice' ? 'active' : ''}`}
+        onClick={() => go('practice')}
+        aria-label="Practice"
+      >
+        <Terminal size={20} />
+        <span>Practice</span>
+      </button>
+      <button
+        type="button"
+        className={`mobile-tab-item ${view === 'learn' ? 'active' : ''}`}
+        onClick={() => go('learn')}
+        aria-label="Learn"
+      >
+        <BookOpen size={20} />
+        <span>Learn</span>
+      </button>
+      <button
+        type="button"
+        className={`mobile-tab-item ${view === 'mentors' ? 'active' : ''}`}
+        onClick={() => go('mentors')}
+        aria-label="Mentors"
+      >
+        <Users size={20} />
+        <span>Mentors</span>
+      </button>
+      <button
+        type="button"
+        className={`mobile-tab-item ${menu ? 'active' : ''}`}
+        onClick={() => setMenu((prev) => !prev)}
+        aria-label="More navigation"
+      >
+        <Menu size={20} />
+        <span>More</span>
+      </button>
+    </nav>
     {showCalibration && view === 'today' && (
       <CapabilityOnboarding
         initialProfile={capabilityProfile ?? undefined}
