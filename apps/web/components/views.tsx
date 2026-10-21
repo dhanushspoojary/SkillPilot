@@ -290,6 +290,19 @@ export function Today({
         </div>
       </div>
 
+      {/* 5-STAGE GUIDED JOURNEY PROGRESS */}
+      <GuidedJourneyProgress
+        stages={journeyStages}
+        activeStageIndex={activeStageIndex}
+        onActionClick={(stage) => {
+          if (stage.actionRoute === 'calibration' && onOpenCalibration) {
+            onOpenCalibration();
+          } else if (stage.actionRoute) {
+            go(stage.actionRoute as View);
+          }
+        }}
+      />
+
       {/* PRIORITY 2: TODAY'S ACTION (ONE PRIMARY ACTION CARD) */}
       {snoozedActionId === (dynamicNextAction?.id || primaryTitle) ? (
         <section className="priority-card" style={{ borderLeftColor: 'var(--border-color)' }} role="region" aria-label="Snoozed Action">

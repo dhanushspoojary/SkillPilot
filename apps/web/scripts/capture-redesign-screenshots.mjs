@@ -1,7 +1,17 @@
 import { chromium } from 'playwright';
 import path from 'node:path';
 
-const BASE_URL = 'http://localhost:3003';
+async function detectActiveBaseUrl() {
+  if (process.env.API_URL) return process.env.API_URL;
+  for (const port of [3000, 3003, 3001, 3002]) {
+    try {
+      const res = await fetch(`http://localhost:${port}/api/health`);
+      if (res.ok) return `http://localhost:${port}`;
+    } catch {}
+  }
+  return 'http://localhost:3000';
+}
+const BASE_URL = await detectActiveBaseUrl();
 const ARTIFACT_DIR = path.resolve('C:/Users/Dhanush S Poojary/.gemini/antigravity-ide/brain/df4a9773-11d5-40c8-b581-bbff2f7f2d2f');
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true });

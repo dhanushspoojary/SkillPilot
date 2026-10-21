@@ -765,7 +765,7 @@ export function GuidedJourneyProgress({
           )}
         </div>
 
-        <div className="context-triad-grid">
+        <div className="context-triad-grid context-triad-card">
           <div className="triad-col">
             <span className="triad-col-label">WHAT'S HAPPENING</span>
             <p>{current.happening}</p>

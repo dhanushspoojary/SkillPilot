@@ -19,7 +19,17 @@ const pool = new Pool({
   connectionTimeoutMillis: 15000,
 });
 
-const BASE_URL = process.env.API_URL || 'http://localhost:3003';
+async function detectActiveBaseUrl() {
+  if (process.env.API_URL) return process.env.API_URL;
+  for (const port of [3000, 3003, 3001, 3002]) {
+    try {
+      const res = await fetch(`http://localhost:${port}/api/health`);
+      if (res.ok) return `http://localhost:${port}`;
+    } catch {}
+  }
+  return 'http://localhost:3000';
+}
+const BASE_URL = await detectActiveBaseUrl();
 const stamp = Date.now();
 const testStudentEmail = `verify_student_${stamp}@e2e.test`;
 const testMentorEmail = `verify_mentor_${stamp}@e2e.test`;
