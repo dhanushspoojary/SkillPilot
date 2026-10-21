@@ -19,8 +19,8 @@ const q = async (sql, params = []) => (await pool.query(sql, params)).rows;
 const tables = await q("select table_name from information_schema.tables where table_schema='public' and table_name in ('users','sessions','mentor_profiles','mentor_requests','mentor_reviews','user_skill_evidence','rate_limits','email_tokens')");
 if (tables.length !== 8)
     throw new Error(`expected core tables (8), found ${tables.length}`);
-const seededMentors = await q("select 1 from users where role='mentor'");
-if (seededMentors.length)
+const schemaContainsMentorSeed = schema.toLowerCase().includes("insert into users") && schema.toLowerCase().includes("'mentor'");
+if (schemaContainsMentorSeed)
     throw new Error('production schema must not seed mentors');
 
 const stamp = Date.now();

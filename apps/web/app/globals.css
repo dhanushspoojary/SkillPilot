@@ -23,7 +23,7 @@
   --pink: #E9B3D0;
   --blue: #B9C9EA;
   --text-primary: #17151B;
-  --text-secondary: #77727F;
+  --text-secondary: #4A4553;
   --border: #E7E3EB;
   --shadow-modal: 0 20px 40px -10px rgba(23, 21, 27, 0.08);
 
@@ -42,7 +42,7 @@
   --pastel-pink: #E9B3D0;
   --soft-blue: #B9C9EA;
   --main-text: #17151B;
-  --secondary-text: #77727F;
+  --secondary-text: #4A4553;
 
   /* Surfaces & Backgrounds */
   --bg-main: #FAF9FB;
@@ -66,11 +66,11 @@
   /* Typography */
   --text-main: #17151B;
   --text-primary: #17151B;
-  --text-secondary: #77727F;
+  --text-secondary: #4A4553;
   --text-body: #2B2735;
-  --text-muted: #77727F;
-  --text-subtle: #9E9AA6;
-  --muted: #77727F;
+  --text-muted: #524D5B;
+  --text-subtle: #595462;
+  --muted: #524D5B;
 
   /* Lines & Dividers */
   --line: #E7E3EB;
@@ -1397,6 +1397,10 @@ button:disabled {
 .sidebar.collapsed {
   width: 72px;
   padding: 24px 8px;
+  overflow: visible;
+}
+.sidebar.collapsed nav {
+  overflow: visible;
 }
 .sidebar.collapsed .brand {
   justify-content: center;
@@ -1404,10 +1408,9 @@ button:disabled {
   flex-direction: column;
   gap: 8px;
 }
-.sidebar.collapsed .brand span:not(.brand-mark),
+.sidebar.collapsed .brand-title,
 .sidebar.collapsed .side-label,
 .sidebar.collapsed .nav-index,
-.sidebar.collapsed .nav-item span:not(.nav-index),
 .sidebar.collapsed .side-profile-text,
 .sidebar.collapsed .side-profile-chevron {
   display: none !important;
@@ -1431,13 +1434,14 @@ button:disabled {
   background: var(--text-primary, #17151B);
   color: #FFFFFF;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   padding: 6px 12px;
   border-radius: 8px;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 1000;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 2000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .sidebar.collapsed .side-profile {
   justify-content: center;
@@ -1445,6 +1449,17 @@ button:disabled {
 }
 .sidebar.collapsed .side-profile .mini-avatar {
   margin: 0 auto;
+}
+.sidebar.collapsed .sidebar-profile-container {
+  position: relative;
+}
+.sidebar.collapsed .profile-dropdown-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 250px;
+  min-width: 250px;
+  z-index: 2000;
 }
 
 .sidebar-collapse-toggle,

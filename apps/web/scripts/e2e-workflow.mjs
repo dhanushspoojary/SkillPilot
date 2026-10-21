@@ -84,20 +84,17 @@ try {
   const welcomeText = await page.textContent('.welcome h1, h1');
   console.log(`   Dashboard loaded successfully: "${welcomeText?.replace(/\s+/g, ' ').trim()}"`);
 
-  // Step 3.5: Complete Capability Discovery Onboarding
+  // Step 3.5: Handle Capability Discovery Onboarding if present
   try {
-    await page.waitForSelector('.onboarding-modal', { timeout: 6000 });
-    console.log('   Completing Capability Discovery Onboarding...');
-    const switchBtn = page.locator('button:has-text("Switch to Quick Form")');
-    if (await switchBtn.isVisible()) {
-      await switchBtn.click();
-      await page.waitForTimeout(400);
-    }
-    const saveSetupBtn = page.locator('button.submit-setup-btn, button:has-text("Save & Continue to Diagnostic")').first();
-    if (await saveSetupBtn.isVisible()) {
-      await saveSetupBtn.click();
-      await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 10000 });
-      console.log('   Capability onboarding completed successfully!');
+    const modal = page.locator('.onboarding-modal');
+    if (await modal.isVisible({ timeout: 4000 }).catch(() => false)) {
+      console.log('   Handling Capability Discovery Onboarding modal...');
+      const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now")').first();
+      if (await closeBtn.isVisible().catch(() => false)) {
+        await closeBtn.click();
+        await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 5000 }).catch(() => {});
+        console.log('   Onboarding modal dismissed for e2e navigation.');
+      }
     }
   } catch {
     // Modal did not mount or already completed
@@ -196,7 +193,7 @@ try {
     await page.click('button.nav-item:has-text("Roadmap")');
   }
 
-  await page.waitForSelector('.roadmap-list, .action-stack', { timeout: 15000 });
+  await page.waitForSelector('.roadmap-skill-tree-container, .skill-tree-path, .roadmap-list, .action-stack', { timeout: 15000 });
   console.log('   Roadmap successfully displayed!');
 
   // Step 8: Complete Learning Action on Today View
@@ -228,7 +225,14 @@ try {
 
   // Step 10: Verify Skill Passport & Public Share Card
   console.log('10. Verifying Skill Passport & Public Share Card...');
-  await page.click('button.nav-item:has-text("Passport")');
+  const passportNav = page.locator('button.nav-item:has-text("Passport")');
+  if (await passportNav.isVisible().catch(() => false)) {
+    await passportNav.click();
+  } else {
+    await page.click('.side-profile-trigger');
+    await page.waitForSelector('.profile-dropdown-menu', { timeout: 3000 });
+    await page.click('.profile-dropdown-item:has-text("Skill Passport"), .profile-dropdown-item:has-text("Passport")');
+  }
   await page.waitForSelector('.passport, .proof-list', { timeout: 15000 });
   const passportTitle = await page.textContent('.passport-top');
   console.log(`   Skill Passport verified: "${passportTitle?.slice(0, 35).replace(/\s+/g, ' ').trim()}"`);
@@ -273,7 +277,14 @@ try {
 
   // Step 11: Verify Career Companion conversational intelligence
   console.log('11. Verifying Career Companion agent...');
-  await page.click('button.nav-item:has-text("Agent")');
+  const agentNav = page.locator('button.nav-item:has-text("Agent")');
+  if (await agentNav.isVisible().catch(() => false)) {
+    await agentNav.click();
+  } else {
+    await page.click('.side-profile-trigger');
+    await page.waitForSelector('.profile-dropdown-menu', { timeout: 3000 });
+    await page.click('.profile-dropdown-item:has-text("AI Career Agent"), .profile-dropdown-item:has-text("Career Agent"), .profile-dropdown-item:has-text("Agent")');
+  }
   await page.waitForSelector('#agent-q', { timeout: 15000 });
 
   console.log('   Sending natural conversation message to agent...');

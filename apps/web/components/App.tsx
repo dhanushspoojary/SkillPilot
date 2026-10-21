@@ -87,18 +87,16 @@ export function App({ user, onLogout }: {
     const [workflow, setWorkflow] = useState<any>(null);
     const [showCalibration, setShowCalibration] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                return localStorage.getItem('skillpilot_sidebar_collapsed') === 'true';
+            } catch {}
+        }
+        return false;
+    });
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const triggerButtonRef = useRef<HTMLButtonElement>(null);
-
-    useEffect(() => {
-        try {
-            const saved = localStorage.getItem('skillpilot_sidebar_collapsed');
-            if (saved !== null) {
-                setSidebarCollapsed(saved === 'true');
-            }
-        } catch {}
-    }, []);
 
     const toggleSidebar = () => {
         setSidebarCollapsed((prev) => {
@@ -360,8 +358,8 @@ export function App({ user, onLogout }: {
     {menu && <div className="sidebar-backdrop" onClick={() => setMenu(false)} aria-hidden="true" />}
     <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${menu ? 'mobile-open' : ''}`}>
       <div className="brand">
-        <span className="brand-mark">S</span>
-        {!sidebarCollapsed && <span>SkillPilot</span>}
+        <span className="brand-mark" aria-hidden="true">S</span>
+        <span className={`brand-title ${sidebarCollapsed ? 'sr-only' : ''}`}>SkillPilot</span>
         {menu ? (
           <button
             type="button"
@@ -383,11 +381,11 @@ export function App({ user, onLogout }: {
           </button>
         )}
       </div>
-      {!sidebarCollapsed && <div className="side-label">CAREER INTELLIGENCE SYSTEM</div>}
+      <div className={`side-label ${sidebarCollapsed ? 'sr-only' : ''}`}>CAREER INTELLIGENCE SYSTEM</div>
       <nav aria-label="Main navigation">
         {NAV_GROUPS.map((group, gIdx) => (
           <div key={group.groupTitle} className="nav-group">
-            {!sidebarCollapsed && <div className="nav-group-title">{group.groupTitle}</div>}
+            <div className={`nav-group-title ${sidebarCollapsed ? 'sr-only' : ''}`}>{group.groupTitle}</div>
             {sidebarCollapsed && gIdx > 0 && <div className="nav-group-divider" aria-hidden="true" />}
             {group.items.map((item) => {
               const Icon = item.icon;
@@ -398,6 +396,7 @@ export function App({ user, onLogout }: {
                   type="button"
                   className={isActive ? 'nav-item active' : 'nav-item'}
                   aria-current={isActive ? 'page' : undefined}
+                  aria-label={item.label}
                   onClick={() => {
                     go(item.id);
                     if (menu) setMenu(false);
@@ -405,9 +404,9 @@ export function App({ user, onLogout }: {
                   title={sidebarCollapsed ? `${item.num}. ${item.label}` : undefined}
                   data-tooltip={item.label}
                 >
-                  <span className="nav-index">{item.num}</span>
-                  <Icon size={17} />
-                  {!sidebarCollapsed && <span>{item.label}</span>}
+                  <span className="nav-index" aria-hidden="true">{item.num}</span>
+                  <Icon size={17} aria-hidden="true" />
+                  <span className={`nav-label ${sidebarCollapsed ? 'sr-only' : ''}`}>{item.label}</span>
                 </button>
               );
             })}
@@ -539,17 +538,19 @@ export function App({ user, onLogout }: {
           aria-haspopup="menu"
           aria-expanded={profileOpen}
           aria-controls="profile-dropdown-menu"
-          aria-label="User account and profile menu"
+          aria-label={`User account and profile menu: ${user?.name || state.name.trim() || 'Student'}`}
+          title={sidebarCollapsed ? `${user?.name || state.name.trim() || 'Student'} (${user?.role || 'student'})` : undefined}
           onClick={() => setProfileOpen((prev) => !prev)}
         >
-          <div className="mini-avatar">{(user?.name?.trim()?.[0] || state.name.trim()[0] || 'S').toUpperCase()}</div>
-          <div className="side-profile-text">
+          <div className="mini-avatar" aria-hidden="true">{(user?.name?.trim()?.[0] || state.name.trim()[0] || 'S').toUpperCase()}</div>
+          <div className={`side-profile-text ${sidebarCollapsed ? 'sr-only' : ''}`}>
             <b>{user?.name || state.name.trim() || 'Student'}</b>
             <small>{careerGoal} · {(user?.role || 'student')}</small>
           </div>
           <ChevronUp
             size={16}
-            className={`side-profile-chevron ${profileOpen ? 'open' : ''}`}
+            className={`side-profile-chevron ${profileOpen ? 'open' : ''} ${sidebarCollapsed ? 'sr-only' : ''}`}
+            aria-hidden="true"
           />
         </button>
       </div>

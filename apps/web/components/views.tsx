@@ -301,20 +301,7 @@ export function Today({
         </div>
       </section>
 
-      {/* 5-STAGE GUIDED JOURNEY PROGRESS */}
-      <GuidedJourneyProgress
-        stages={journeyStages}
-        activeStageIndex={activeStageIndex}
-        onActionClick={(stage) => {
-          if (stage.actionRoute === 'calibration' && onOpenCalibration) {
-            onOpenCalibration();
-          } else if (stage.actionRoute) {
-            go(stage.actionRoute as View);
-          }
-        }}
-      />
-
-      {/* PRIORITY 2: TODAY'S ACTION (ONE PRIMARY ACTION CARD) */}
+      {/* PRIORITY 2: TODAY'S HERO ACTION (ONE PROMINENT PRIMARY ACTION CARD) */}
       {snoozedActionId === (dynamicNextAction?.id || primaryTitle) ? (
         <section className="priority-card" style={{ borderLeftColor: 'var(--border-color)' }} role="region" aria-label="Snoozed Action">
           <div className="priority-copy">
@@ -334,32 +321,46 @@ export function Today({
           </div>
         </section>
       ) : (
-        <section className="priority-card" role="region" aria-label="Today's Primary Action">
+        <section className="priority-card hero-primary-action" role="region" aria-label="Today's Primary Action">
           <div className="priority-copy">
             <div className="priority-eyebrow">
               <Zap size={14} /> RECOMMENDED NEXT STEP // ONE PRIMARY ACTION
             </div>
             <h2>{primaryTitle}</h2>
-            <p>{primaryReason}</p>
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--cyan)' }}>
-              <b>What to do now:</b> {primaryNow}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-secondary)' }}>
-                <Clock size={13} color="var(--cyan)" />
-                Estimated time: <b>{dynamicNextAction?.estimatedMinutes ? `${dynamicNextAction.estimatedMinutes} mins` : (primaryAction?.time || '15 mins')}</b>
+            <p className="priority-why-reason">{primaryReason}</p>
+
+            <div className="priority-meta-chips" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0 10px 0', flexWrap: 'wrap' }}>
+              <div className="action-objective-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'rgba(136, 116, 199, 0.1)', color: 'var(--primary-purple, #8874C7)', padding: '4px 10px', borderRadius: 8, fontWeight: 500 }}>
+                <Target size={13} />
+                <span><b>Skill Objective:</b> {dynamicNextAction?.whatYouWillLearn || (primaryAction ? `Strengthen ${skillName(primaryAction.skill)} (Target ${primaryAction.upTo}% readiness)` : 'Calibrate foundational baseline')}</span>
+              </div>
+              <span className="action-duration-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-secondary, #4A4553)', background: '#FAF9FB', padding: '4px 10px', borderRadius: 8, border: '1px solid var(--border-color, #E7E3EB)' }}>
+                <Clock size={13} color="var(--primary-purple, #8874C7)" />
+                Estimated duration: <b>{dynamicNextAction?.estimatedMinutes ? `${dynamicNextAction.estimatedMinutes} mins` : (primaryAction?.time || '15 mins')}</b>
               </span>
-              <details className="why-this-toggle" style={{ display: 'inline-block', fontSize: 12 }}>
-                <summary style={{ cursor: 'pointer', color: 'var(--cyan)', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500 }}>
-                  <CircleHelp size={13} /> Why this recommendation?
-                </summary>
-                <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: 6, borderLeft: '2px solid var(--cyan)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.5 }}>
-                  {dynamicNextAction?.whyItMatters || primaryReason}
-                </div>
-              </details>
             </div>
+
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary, #4A4553)', margin: '6px 0 10px 0' }}>
+              <b style={{ color: 'var(--text-primary, #17151B)' }}>What to do now:</b> {primaryNow}
+            </div>
+
+            <details className="why-this-toggle" style={{ display: 'inline-block', fontSize: 12, marginTop: 4 }}>
+              <summary style={{ cursor: 'pointer', color: 'var(--primary-purple, #8874C7)', display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
+                <CircleHelp size={13} /> Why was this task selected for you?
+              </summary>
+              <div style={{ marginTop: 8, padding: '10px 14px', background: '#FAF9FB', borderRadius: 8, borderLeft: '3px solid var(--primary-purple, #8874C7)', border: '1px solid var(--border-color, #E7E3EB)', color: 'var(--text-secondary, #4A4553)', fontSize: 12, lineHeight: 1.55 }}>
+                <p style={{ margin: '0 0 6px 0' }}>{dynamicNextAction?.whyItMatters || primaryReason}</p>
+                {dynamicNextAction?.whatToKnowBefore && (
+                  <p style={{ margin: '4px 0 0 0', fontSize: 11.5 }}><b>Prerequisites:</b> {dynamicNextAction.whatToKnowBefore}</p>
+                )}
+                {dynamicNextAction?.completionRequires && (
+                  <p style={{ margin: '4px 0 0 0', fontSize: 11.5 }}><b>Completion requires:</b> {dynamicNextAction.completionRequires}</p>
+                )}
+              </div>
+            </details>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', justifyContent: 'center' }}>
             <button
               className="primary priority-action-btn"
               onClick={() => {
@@ -397,7 +398,7 @@ export function Today({
               <button
                 type="button"
                 className="link"
-                style={{ color: 'var(--cyan)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                style={{ color: 'var(--primary-purple, #8874C7)', cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontWeight: 500 }}
                 onClick={() => go('roadmap')}
               >
                 Pick another task
@@ -406,6 +407,30 @@ export function Today({
           </div>
         </section>
       )}
+
+      {/* 5-STAGE GUIDED JOURNEY PROGRESS (COLLAPSIBLE DISCLOSURE) */}
+      <details className="guided-journey-collapsible" style={{ marginBottom: 20, border: '1px solid var(--border-color, #E7E3EB)', borderRadius: 12, overflow: 'hidden', background: '#FFFFFF' }}>
+        <summary style={{ cursor: 'pointer', padding: '12px 18px', background: '#FAF9FB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, userSelect: 'none' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text-primary, #17151B)', fontWeight: 600 }}>
+            <Sparkles size={14} color="var(--primary-purple, #8874C7)" />
+            5-Stage Career Stepper ({journeyStages.find((s) => s.status === 'active')?.title || 'In Progress'})
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--primary-purple, #8874C7)', fontWeight: 500 }}>Toggle 5-stage overview</span>
+        </summary>
+        <div style={{ padding: '16px 16px 0 16px' }}>
+          <GuidedJourneyProgress
+            stages={journeyStages}
+            activeStageIndex={activeStageIndex}
+            onActionClick={(stage) => {
+              if (stage.actionRoute === 'calibration' && onOpenCalibration) {
+                onOpenCalibration();
+              } else if (stage.actionRoute) {
+                go(stage.actionRoute as View);
+              }
+            }}
+          />
+        </div>
+      </details>
 
       {/* Secondary Tasks Stack (Progressive Disclosure) */}
       {top.slice(1).length > 0 && (
@@ -477,18 +502,18 @@ export function Today({
             {currentStage.blurb}
           </p>
 
-          <div className="compact-roadmap" style={{ marginBottom: 20 }}>
-            {stagesProg.map((st) => (
-              <div key={st.n} className="stage-item">
-                <div className="stage-label">
-                  <span>Phase {st.n}: <b>{st.name}</b></span>
-                  <span>{st.progress}%</span>
-                </div>
-                <div className="stage-bar-track">
-                  <div className="stage-bar-fill" style={{ width: `${st.progress}%` }} />
-                </div>
-              </div>
-            ))}
+          <div className="milestone-current-focus" style={{ marginBottom: 20, padding: '12px 14px', background: '#FAF9FB', borderRadius: 10, border: '1px solid var(--border-color, #E7E3EB)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #17151B)' }}>Active Milestone Competencies:</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-purple, #8874C7)' }}>{stagesProg.find((s) => s.n === currentStage.n)?.progress || 0}% Verified</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {currentStage.skills.map((sId) => (
+                <span key={sId} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, background: '#FFFFFF', border: '1px solid var(--border-color, #E7E3EB)', color: 'var(--text-secondary, #4A4553)', fontWeight: 500 }}>
+                  {skillName(sId)}
+                </span>
+              ))}
+            </div>
           </div>
 
           {/* PRIORITY 5: SKILL INSIGHTS (CLAIMED VS VERIFIED DISTINCTION) */}
