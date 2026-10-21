@@ -138,7 +138,7 @@ export function ProjectWorkspace({
       if (data.project) {
         setProject(data.project);
       }
-      setEvaluationFeedback(data.feedback || (data.passed ? 'All test cases passed!' : 'Some tests failed.'));
+      setEvaluationFeedback(data.feedback || (data.passed ? 'All test cases passed.' : 'Some tests failed.'));
       if (data.passed && onVerified) {
         onVerified();
       }

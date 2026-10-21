@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { ArrowRight, Award, BrainCircuit, Check, CheckCircle2, CircleHelp, Compass, Crosshair, MessageCircle, Users, RefreshCcw, ShieldCheck, Sparkles, Target, Trophy, Zap, Download, Upload, RotateCcw, Share2, Copy, ExternalLink, Lock, Send, Clock, BookOpen, AlertCircle, Play, Layers } from 'lucide-react';
 import { STAGES, SKILLS, passportSummary, readiness, skillStates, stageProgress, type AppState, type PlanAction, } from '../lib/engine';
@@ -502,15 +503,19 @@ export function Today({
                 <span className="badge-cyan">{verifiedSkillsList.length} Verified</span>
               </div>
               {verifiedSkillsList.length === 0 ? (
-                <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>
-                  <AlertCircle size={20} style={{ margin: '0 auto 6px auto', display: 'block', color: 'var(--muted)' }} />
-                  <span>No skills verified yet. Start an adaptive assessment to build verified proof.</span>
+                <div className="editorial-empty-box" style={{ padding: '20px 16px' }}>
+                  <AlertCircle size={22} className="empty-icon-pastel" />
+                  <h5 className="empty-heading">No verified skills yet</h5>
+                  <p className="empty-desc" style={{ marginBottom: 12 }}>Complete an adaptive assessment to establish baseline proof of your technical capabilities.</p>
+                  <button type="button" className="btn-sm-action primary" onClick={() => go('assess')}>
+                    Start Assessment
+                  </button>
                 </div>
               ) : (
                 <div className="verified-skills-list">
                   {verifiedSkillsList.map((v) => (
                     <div key={v.def.id} className="verified-skill-row">
-                      <span style={{ fontWeight: 600, color: '#FFFFFF' }}>{v.def.name}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{v.def.name}</span>
                       <div className="verified-skill-meta">
                         <span className="verified-level-tag">{v.score}%</span>
                         <VerifiedBadge verified={v.verified} />
@@ -532,11 +537,15 @@ export function Today({
               <button className="link" onClick={() => go('passport')}>View Passport <ArrowRight size={12} /></button>
             </div>
             {recentEvidence.length === 0 ? (
-              <div style={{ padding: '24px 16px', textAlign: 'center', background: 'rgba(0,0,0,0.2)', border: '1px dashed var(--line)', borderRadius: 8 }}>
-                <ShieldCheck size={24} style={{ margin: '0 auto 8px auto', display: 'block', color: 'var(--muted)' }} />
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
-                  No verified evidence recorded yet. Take an adaptive assessment or complete a project to build verified proof.
+              <div className="editorial-empty-box">
+                <ShieldCheck size={24} className="empty-icon-pastel" />
+                <h5 className="empty-heading">Build your skill profile</h5>
+                <p className="empty-desc">
+                  Complete an assessment to identify your strengths and record authentic evidence in your passport.
                 </p>
+                <button type="button" className="btn-sm-action primary" onClick={() => go('assess')}>
+                  Start Assessment
+                </button>
               </div>
             ) : (
               <div className="evidence-ledger-container">
@@ -662,20 +671,25 @@ export function Today({
             <div className="panel-head">
               <div>
                 <span className="kicker">MENTOR & REASSESSMENT</span>
-                <h4 style={{ margin: 0, fontSize: 14, color: '#FFF' }}>Verified Review</h4>
+                <h4 style={{ margin: 0, fontSize: 14, color: 'var(--text-primary)' }}>Verified Review</h4>
               </div>
               <button className="link" onClick={() => go('mentors')}>Directory <ArrowRight size={11} /></button>
             </div>
             {state.requests.length === 0 ? (
-              <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-                <span>No active mentor reviews. Connect with approved mentors to build high-confidence review evidence.</span>
+              <div className="editorial-empty-box" style={{ padding: '18px 14px' }}>
+                <Users size={20} className="empty-icon-pastel" />
+                <h5 className="empty-heading">Your schedule is clear</h5>
+                <p className="empty-desc" style={{ marginBottom: 12 }}>Connect with an approved mentor or practice mock interviews to build review evidence.</p>
+                <button type="button" className="btn-sm-action secondary" onClick={() => go('interview')}>
+                  Start Mock Interview
+                </button>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
                 {state.requests.map((r) => (
-                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                    <span style={{ color: '#FFF' }}>Mentor Request</span>
-                    <span style={{ color: 'var(--cyan)', textTransform: 'capitalize' }}>{r.status}</span>
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '8px 12px', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>Mentor Request</span>
+                    <span style={{ color: 'var(--primary)', textTransform: 'capitalize', fontWeight: 600 }}>{r.status}</span>
                   </div>
                 ))}
               </div>
@@ -932,7 +946,7 @@ export function Passport({ state, setName, notify }: {
             const d = await r.json();
             if (d.share) {
                 setShare(d.share);
-                notify('Public verification link generated!');
+                notify('Public verification link generated.');
             }
         } catch {
             notify('Could not generate verification link.');
@@ -962,7 +976,7 @@ export function Passport({ state, setName, notify }: {
         try {
             await navigator.clipboard.writeText(fullUrl);
             setCopied(true);
-            notify('Passport link copied to clipboard!');
+            notify('Passport link copied to clipboard.');
             setTimeout(() => setCopied(false), 2500);
         } catch {
             notify('Copy was blocked by the browser.');
@@ -1016,7 +1030,7 @@ export function Passport({ state, setName, notify }: {
               aria-label="Public passport link"
             />
             <button type="button" className="btn-sm-action primary" onClick={copyShareUrl}>
-              <Copy size={13} /> {copied ? 'Copied!' : 'Copy Link'}
+              <Copy size={13} /> {copied ? 'Copied' : 'Copy Link'}
             </button>
           </div>
           <div className="share-actions">

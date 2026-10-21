@@ -718,7 +718,7 @@ export function PracticeArena({
                         color: execResult.success ? '#10B981' : '#EF4444',
                       }}
                     >
-                      {execResult.success ? 'All Tests Passed!' : 'Some Test Cases Failed'}
+                      {execResult.success ? 'All Tests Passed.' : 'Some Test Cases Failed'}
                     </span>
                   </div>
                   <span style={{ fontSize: 12, color: 'var(--secondary-text)' }}>
@@ -785,7 +785,7 @@ export function PracticeArena({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <Award size={20} color="#10B981" />
                 <h3 style={{ margin: 0, fontSize: 16, color: '#10B981', fontWeight: 700 }}>
-                  Problem Solved! Authentic Evidence Recorded.
+                  Problem Solved. Authentic Evidence Recorded.
                 </h3>
               </div>
               <p style={{ margin: '0 0 14px 0', fontSize: 13, color: 'var(--secondary-text)' }}>
@@ -857,7 +857,7 @@ export function PracticeArena({
                     fontWeight: 500,
                   }}
                 >
-                  {reflectionSaved ? 'Reflection Saved!' : 'Save Reflection'}
+                  {reflectionSaved ? 'Reflection Saved' : 'Save Reflection'}
                 </button>
               </div>
 

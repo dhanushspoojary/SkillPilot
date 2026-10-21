@@ -415,7 +415,7 @@ export function App({ user, onLogout }: {
             go={go}
             onCompleted={async () => {
               await refreshProfile();
-              setToast('Lesson progress recorded!');
+              setToast('Lesson progress recorded.');
             }}
           />
         )}
@@ -425,7 +425,7 @@ export function App({ user, onLogout }: {
             initialSlug={focus}
             onVerified={async () => {
               await refreshProfile();
-              setToast('Project verified! Authentic evidence recorded in your passport ledger.');
+              setToast('Project verified. Authentic evidence recorded in your passport ledger.');
             }}
             onAskAgent={() => {
               go('agent');
@@ -506,6 +506,12 @@ export function App({ user, onLogout }: {
         canDismiss={true}
       />
     )}
-    {toast && <div className="toast" role="status"><CheckCircle2 size={17}/>{toast}</div>}
+    {toast && (
+      <div className="toast" role="status" aria-live="polite">
+        <CheckCircle2 size={17} />
+        <span>{toast}</span>
+        <button type="button" className="toast-dismiss" onClick={() => setToast('')} aria-label="Dismiss notification">✕</button>
+      </div>
+    )}
   </div>;
 }
