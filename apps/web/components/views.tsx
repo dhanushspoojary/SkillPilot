@@ -241,8 +241,66 @@ export function Today({
           )}
         </div>
       </section>
+      {/* SECTION B: CAREER READINESS SUMMARY (4 MEANINGFUL METRICS DERIVED FROM AUTHENTIC DATA) */}
+      <section className="career-readiness-summary-strip" aria-label="Career Readiness Summary">
+        <div className="summary-metric-card">
+          <div className="summary-metric-head">
+            <span className="summary-metric-title">VERIFIED SKILLS</span>
+            <CheckCircle2 size={16} className="metric-icon" />
+          </div>
+          <div className="summary-metric-value">
+            <b>{skills.filter((s) => s.verified).length}</b>
+            <span className="metric-divider">/</span>
+            <span className="metric-total">{skills.length}</span>
+          </div>
+          <div className="summary-metric-footnote">
+            {claimedSkills.length > 0 ? `${claimedSkills.length} self-reported (0% weight)` : 'Proven through server evaluation'}
+          </div>
+        </div>
 
+        <div className="summary-metric-card">
+          <div className="summary-metric-head">
+            <span className="summary-metric-title">CURRENT MILESTONE</span>
+            <Target size={16} className="metric-icon" />
+          </div>
+          <div className="summary-metric-value milestone-value">
+            <b>Phase {currentStage.n}</b>
+            <span className="metric-sublabel">{currentStage.name}</span>
+          </div>
+          <div className="summary-metric-footnote">
+            {stagesProg.find((s) => s.n === currentStage.n)?.progress || 0}% milestone progress
+          </div>
+        </div>
 
+        <div className="summary-metric-card">
+          <div className="summary-metric-head">
+            <span className="summary-metric-title">ASSESSMENT PROGRESS</span>
+            <Crosshair size={16} className="metric-icon" />
+          </div>
+          <div className="summary-metric-value">
+            <b>{verifiedSkillsList.length}</b>
+            <span className="metric-divider">/</span>
+            <span className="metric-total">{skills.length}</span>
+          </div>
+          <div className="summary-metric-footnote">
+            {state.evidence.length} verified signals recorded
+          </div>
+        </div>
+
+        <div className="summary-metric-card highlight-card">
+          <div className="summary-metric-head">
+            <span className="summary-metric-title">READINESS SCORE</span>
+            <Award size={16} className="metric-icon highlight-icon" />
+          </div>
+          <div className="summary-metric-value highlight-value">
+            <b>{r}%</b>
+            <span className="metric-sublabel">{r > 60 ? 'Competitive' : r > 30 ? 'Developing' : 'Foundational'}</span>
+          </div>
+          <div className="summary-metric-footnote">
+            Authentic server-computed capability
+          </div>
+        </div>
+      </section>
 
       {/* 5-STAGE GUIDED JOURNEY PROGRESS */}
       <GuidedJourneyProgress
@@ -1028,36 +1086,4 @@ export function Passport({ state, setName, notify }: {
     <button className="primary" onClick={copyTextSummary}><Award size={15}/> Copy passport summary</button>
   </div>;
 }
-export function SettingsView({ state, onExport }: {
-    state: AppState;
-    onExport: () => void;
-}) {
-    const [showAudit, setShowAudit] = useState(false);
-    return <div className="wide">
-    <PageIntro
-      kicker="ACCOUNT & TRUST"
-      title="Your proof stays server-owned."
-      text="SkillPilot uses your account as the identity boundary. Scores, assessments and mentor evidence are stored on the server; browser storage is only a presentation cache."
-      contextTriad={{
-        happening: 'Account controls, server data export, and complete agent action audit logs.',
-        why: 'Your data remains server-owned, verifiable, and exportable at any time.',
-        now: 'Export your account JSON or inspect recent deterministic agent operations.',
-      }}
-    />
-    <div className="settings-grid">
-      <section className="settings-card"><div className="section-title"><div><span className="kicker">DATA EXPORT</span><h2>Take your data with you</h2></div><Download size={20}/></div><p className="muted">Export the latest server profile as JSON. This is a copy of your account data, not a way to forge evidence.</p><div className="settings-actions"><button className="primary" onClick={onExport}>Export account data</button></div></section>
-      <section className="settings-card"><div className="section-title"><div><span className="kicker">ACCOUNT</span><h2>Delete your account</h2></div></div><p className="muted">This permanently removes your account and associated server data. You must confirm your current password.</p><button className="ghost" onClick={async () => {
-            const password = window.prompt("Enter your current password to permanently delete your account");
-            if (!password)
-                return;
-            const r = await fetch("/api/account", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
-            const x = await r.json();
-            if (!r.ok) {
-                window.alert(x.error || "Could not delete account");
-                return;
-            }
-            window.location.href = "/";
-        }}>Delete account</button></section><section className="settings-card"><div className="section-title"><div><span className="kicker">AGENT AUDIT</span><h2>What the agent did</h2></div><ShieldCheck size={20}/></div><p className="muted">{state.agentRuns.length} recent agent run{state.agentRuns.length === 1 ? '' : 's'} recorded. The agent can read evidence and propose actions, but it cannot create evidence or approve itself.</p><button className="link" onClick={() => setShowAudit(v => !v)}>{showAudit ? 'Hide audit' : 'View audit'}</button>{showAudit && <div className="audit-list">{state.agentRuns.slice().reverse().map((r) => <div className="audit-row" key={r.id}><b>{r.mode === 'ai' ? 'AI' : 'Fallback'}</b><span>{new Date(r.at).toLocaleString()}</span><p>{r.question}</p><small>{r.proposalCount} proposal{r.proposalCount === 1 ? '' : 's'} · evidence {r.evidenceVersion}{r.model ? ` · ${r.model}` : ''}{r.fallbackReason ? ` · ${r.fallbackReason}` : ''}</small></div>)}{state.agentRuns.length === 0 && <p className="muted">No agent runs yet.</p>}</div>}</section>
-    </div>
-  </div>;
-}
+export { SettingsView } from './SettingsView';

@@ -12,25 +12,49 @@ import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } fr
 import { MockInterview } from './MockInterview';
 import { CapabilityOnboarding } from './CapabilityOnboarding';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
-const NAV: [
-    View,
-    string,
-    string,
-    typeof Gauge
-][] = [
-    ['today', '01', 'Today', LayoutDashboard],
-    ['practice', '02', 'Practice', Terminal],
-    ['learn', '03', 'Learn', BookOpen],
-    ['projects', '04', 'Projects', Code2],
-    ['roadmap', '05', 'Roadmap', Activity],
-    ['agent', '06', 'Agent', BrainCircuit],
-    ['skills', '07', 'Skills', Gauge],
-    ['assess', '08', 'Assess', Crosshair],
-    ['mentors', '09', 'Mentors', Users],
-    ['interview', '10', 'Mock interview', Mic],
-    ['passport', '11', 'Passport', Award],
-    ['settings', '12', 'Settings', Settings],
+interface NavItem {
+    id: View;
+    num: string;
+    label: string;
+    icon: typeof Gauge;
+}
+
+interface NavGroup {
+    groupTitle: string;
+    items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+    {
+        groupTitle: 'PRIMARY',
+        items: [
+            { id: 'today', num: '01', label: 'Today', icon: LayoutDashboard },
+            { id: 'assess', num: '02', label: 'Assess', icon: Crosshair },
+            { id: 'learn', num: '03', label: 'Learn', icon: BookOpen },
+            { id: 'practice', num: '04', label: 'Practice', icon: Terminal },
+            { id: 'projects', num: '05', label: 'Projects', icon: Code2 },
+            { id: 'roadmap', num: '06', label: 'Roadmap', icon: Activity },
+        ],
+    },
+    {
+        groupTitle: 'CAREER DEVELOPMENT',
+        items: [
+            { id: 'skills', num: '07', label: 'Skills', icon: Gauge },
+            { id: 'mentors', num: '08', label: 'Mentors', icon: Users },
+            { id: 'interview', num: '09', label: 'Mock Interview', icon: Mic },
+            { id: 'passport', num: '10', label: 'Passport', icon: Award },
+        ],
+    },
+    {
+        groupTitle: 'SYSTEM',
+        items: [
+            { id: 'agent', num: '11', label: 'Agent', icon: BrainCircuit },
+            { id: 'settings', num: '12', label: 'Settings', icon: Settings },
+        ],
+    },
 ];
+
+const ALL_NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 export function App({ user, onLogout }: {
     user: {
         id: string;
@@ -120,6 +144,27 @@ export function App({ user, onLogout }: {
             document.removeEventListener('keydown', handleKeyDown);
         };
     }, [profileOpen]);
+
+    // Handle mobile menu drawer backdrop escape dismissal and background scroll lock
+    useEffect(() => {
+        if (!menu) return;
+
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setMenu(false);
+            }
+        }
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = originalOverflow;
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [menu]);
     useEffect(() => {
         let cancelled = false;
         async function boot() {
@@ -320,22 +365,33 @@ export function App({ user, onLogout }: {
       </div>
       {!sidebarCollapsed && <div className="side-label">CAREER INTELLIGENCE SYSTEM</div>}
       <nav aria-label="Main navigation">
-        {NAV.map(([id, num, label, Icon]) => (
-          <button
-            key={id}
-            className={view === id ? 'nav-item active' : 'nav-item'}
-            aria-current={view === id ? 'page' : undefined}
-            onClick={() => {
-              go(id);
-              if (menu) setMenu(false);
-            }}
-            title={sidebarCollapsed ? `${num}. ${label}` : undefined}
-            data-tooltip={label}
-          >
-            <span className="nav-index">{num}</span>
-            <Icon size={17}/>
-            {!sidebarCollapsed && <span>{label}</span>}
-          </button>
+        {NAV_GROUPS.map((group, gIdx) => (
+          <div key={group.groupTitle} className="nav-group">
+            {!sidebarCollapsed && <div className="nav-group-title">{group.groupTitle}</div>}
+            {sidebarCollapsed && gIdx > 0 && <div className="nav-group-divider" aria-hidden="true" />}
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = view === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={isActive ? 'nav-item active' : 'nav-item'}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => {
+                    go(item.id);
+                    if (menu) setMenu(false);
+                  }}
+                  title={sidebarCollapsed ? `${item.num}. ${item.label}` : undefined}
+                  data-tooltip={item.label}
+                >
+                  <span className="nav-index">{item.num}</span>
+                  <Icon size={17} />
+                  {!sidebarCollapsed && <span>{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
         ))}
       </nav>
       <div className="sidebar-spacer"/>
@@ -441,7 +497,7 @@ export function App({ user, onLogout }: {
     <main id="main-content" className="main">
       <header className="topbar">
         <button className="mobile-menu" onClick={() => setMenu((v) => !v)} aria-label={menu ? 'Close navigation' : 'Open navigation'}>{menu ? <X /> : <Menu />}</button>
-        <div className="crumb"><span>SkillPilot</span><ChevronRight size={14}/><b>{NAV.find((n) => n[0] === view)?.[2]}</b></div>
+        <div className="crumb"><span>SkillPilot</span><ChevronRight size={14}/><b>{ALL_NAV_ITEMS.find((n) => n.id === view)?.label}</b></div>
         <div className="top-actions">
           <button className="icon-button" aria-label="Notifications" onClick={() => setToast(actions[0] ? `Next: ${actions[0].title}` : 'Nothing pending.')}><Bell size={17}/></button>
         </div>
@@ -497,7 +553,17 @@ export function App({ user, onLogout }: {
                     setToast('Could not save your name on the server.');
                 }
             }} notify={setToast}/>}
-        {view === 'settings' && <SettingsView state={state} onExport={exportData}/>}
+        {view === 'settings' && (
+          <SettingsView
+            state={state}
+            user={user}
+            capabilityProfile={capabilityProfile}
+            careerGoal={careerGoal}
+            onExport={exportData}
+            onLogout={handleLogout}
+            onRefresh={refreshProfile}
+          />
+        )}
       </div>
     </main>
     <nav className="mobile-bottom-bar" aria-label="Mobile quick navigation">
@@ -512,12 +578,12 @@ export function App({ user, onLogout }: {
       </button>
       <button
         type="button"
-        className={`mobile-tab-item ${view === 'practice' ? 'active' : ''}`}
-        onClick={() => go('practice')}
-        aria-label="Practice"
+        className={`mobile-tab-item ${view === 'assess' ? 'active' : ''}`}
+        onClick={() => go('assess')}
+        aria-label="Assess"
       >
-        <Terminal size={20} />
-        <span>Practice</span>
+        <Crosshair size={20} />
+        <span>Assess</span>
       </button>
       <button
         type="button"
@@ -530,12 +596,12 @@ export function App({ user, onLogout }: {
       </button>
       <button
         type="button"
-        className={`mobile-tab-item ${view === 'mentors' ? 'active' : ''}`}
-        onClick={() => go('mentors')}
-        aria-label="Mentors"
+        className={`mobile-tab-item ${view === 'practice' ? 'active' : ''}`}
+        onClick={() => go('practice')}
+        aria-label="Practice"
       >
-        <Users size={20} />
-        <span>Mentors</span>
+        <Terminal size={20} />
+        <span>Practice</span>
       </button>
       <button
         type="button"

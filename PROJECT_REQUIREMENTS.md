@@ -156,10 +156,30 @@ SkillPilot directly answers seven core learner questions:
   - Text Secondary: `#77727F`
   - Borders: `#E7E3EB`
 - **REQ-UI-02**: Clean typography hierarchy using Google Fonts Inter and System UI, with 15–17px body copy.
-- **REQ-UI-03**: Compact, collapsible desktop navigation sidebar with keyboard accessibility, aria-labels, and route persistence.
-- **REQ-UI-04**: Full mobile responsiveness across 320px, 375px, 768px, 1024px, and 1440px viewports with zero horizontal overflow (`scrollWidth === clientWidth`).
-- **REQ-UI-05**: Elimination of distracting aesthetic anti-patterns: no neon glows, heavy gradients, custom cursor followers, marquees, click sparks, or blocking animations.
-- **REQ-UI-06**: Full support for `prefers-reduced-motion`.
+- **REQ-UI-03**: Collapsible Desktop Navigation Sidebar:
+  - 3 logical groups: `PRIMARY` (Today, Assess, Learn, Practice, Projects, Roadmap), `CAREER DEVELOPMENT` (Skills, Mentors, Mock Interview, Passport), and `SYSTEM` (Agent, Settings).
+  - Desktop expanded width: 240px; collapsed width: 68–76px (72px nominal).
+  - Floating accessible tooltips (`[data-tooltip]`) in collapsed mode; group dividers with tooltips.
+  - State persisted via `localStorage` (`skillpilot_sidebar_collapsed`).
+  - Mobile compact bottom bar (5 items: Home, Assess, Learn, Practice, More) plus accessible slide-over drawer with Escape key listener, backdrop dismissal, and body scroll lock.
+- **REQ-UI-04**: Multi-Viewport Fit (320px–1440px):
+  - Verified across 320px, 375px, 768px, 1024px, and 1440px viewports with zero horizontal overflow (`scrollWidth === clientWidth`).
+- **REQ-UI-05**: Aesthetic Hygiene & Focus:
+  - Elimination of distracting aesthetic anti-patterns: no neon glows, heavy gradients, custom cursor followers, marquees, click sparks, or blocking animations.
+- **REQ-UI-06**: Accessibility Compliance:
+  - Full support for `prefers-reduced-motion` (disables motion effects and reduces transition durations to 0s).
+- **REQ-UI-07**: Today Dashboard Visual Hierarchy & Career Readiness Summary:
+  - 4-metric Career Readiness Summary Strip right under greeting: Verified Skills, Current Milestone, Assessment Progress, Evidence-Backed Readiness.
+  - 5-stage career journey stepper (Discover → Verify → Plan → Learn → Improve).
+  - Dominant One Primary Action recommendation card with clear prerequisite/gap rationale and direct CTA.
+- **REQ-UI-08**: Comprehensive 7-Tab Settings Interface:
+  - Tab 1: Profile (Name, email, handle, target role, bio, public profile toggle).
+  - Tab 2: Learning Preferences (Weekly study hours, pacing, difficulty comfort, preferred languages).
+  - Tab 3: Appearance (Theme mode: light/system/dark preview, reduced motion toggle, compact mode toggle).
+  - Tab 4: Account & Security (Password update with strength indicator, active sessions display, 2FA readiness).
+  - Tab 5: Data & Privacy (Full JSON data export, privacy controls, anonymized telemetry toggle).
+  - Tab 6: Danger Zone / Account Deletion (Explicit confirmation modal requiring password and "DELETE" confirmation).
+  - Tab 7: Agent Activity Audit (Timestamped log of LLM agent tool calls, reasoning traces, and audit history).
 
 ---
 
@@ -169,7 +189,7 @@ SkillPilot directly answers seven core learner questions:
 | :--- | :--- | :--- |
 | **AC-01** | Port Safety | Exactly one server on port 3000; ports 3001–3003 free. |
 | **AC-02** | Type Safety | `npm run typecheck` passes with 0 errors. |
-| **AC-03** | Unit Test Suite | `npm test` passes 100% of tests with 0 failures. |
+| **AC-03** | Unit Test Suite | `npm test` passes 100% of tests with 0 failures (169 passing across 5 suites). |
 | **AC-04** | E2E Beginner Journey | Complete beginner receives Level 1 Problem Solving question, never JS or SQL. |
 | **AC-05** | E2E Experienced Journey | Practical JS developer receives Level 2 closure question; roadmap reflects distinct milestones. |
 | **AC-06** | Socratic Feedback | Incorrect exercise answer produces conceptual misconception hint without revealing answer. |
@@ -178,4 +198,5 @@ SkillPilot directly answers seven core learner questions:
 | **AC-09** | LiveKit Token Security | LiveKit tokens generated server-side with deterministic room claim; API secret never in browser. |
 | **AC-10** | Passport Revocation | Public passport accessible via valid token; returns 404/Private when disabled or revoked. |
 | **AC-11** | Mobile Viewport Fit | Zero horizontal document overflow at 320px, 375px, 768px, 1024px, 1440px. |
-| **AC-12** | Database Safety | 156 existing users and 100 evidence rows preserved intact. |
+| **AC-12** | Database Safety | All existing users (168) and evidence rows (100) preserved intact in Neon PostgreSQL. |
+

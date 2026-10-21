@@ -67,19 +67,22 @@
 | **REQ-PASSPORT-05** | Strict Data Minimization & Privacy | **VERIFIED** | `apps/web/lib/passport.ts` | Emails, password hashes, assessment raw answers, and tokens excluded from payload. |
 | **REQ-UI-01** | Editorial Pastel Palette Implementation | **VERIFIED** | `apps/web/app/globals.css`, `apps/web/components/views.tsx` | Applied tokens: `#FAF9FB`, `#FFFFFF`, `#8874C7`, `#DCD2F0`, `#E9B3D0`, `#B9C9EA`. |
 | **REQ-UI-02** | Typographic Hierarchy & Spacing | **VERIFIED** | `apps/web/app/globals.css` | 8px base spacing, comfortable 15–17px body copy, Inter system typography. |
-| **REQ-UI-03** | Collapsible Desktop Navigation Sidebar | **VERIFIED** | `apps/web/components/App.tsx` | Compact sidebar with expand/collapse control and keyboard navigation. |
+| **REQ-UI-03** | Collapsible Desktop Navigation & Mobile Drawer | **VERIFIED** | `apps/web/components/App.tsx`, `apps/web/app/globals.css` | 3 groups (PRIMARY, CAREER DEVELOPMENT, SYSTEM). 240px expanded vs 72px collapsed with tooltips and localStorage persistence. Mobile bottom bar (5 items) + drawer with Escape key, backdrop dismissal, body scroll lock. |
 | **REQ-UI-04** | Multi-Viewport Fit (320px–1440px) | **VERIFIED** | `apps/web/app/globals.css` | Verified at 320, 375, 768, 1024, 1440px with zero horizontal scroll overflow. |
 | **REQ-UI-05** | Aesthetic Hygiene (No Neon, No Cursor) | **VERIFIED** | `apps/web/app/globals.css`, `apps/web/components/views.tsx` | Removed distracting animations, click sparks, and heavy neon gradients. |
 | **REQ-UI-06** | Prefers-Reduced-Motion Compliance | **VERIFIED** | `apps/web/components/motion.tsx`, `apps/web/app/globals.css` | Disables cursor follower and sets animation duration to 0s when requested. |
+| **REQ-UI-07** | Today Dashboard Readiness Summary & Journey | **VERIFIED** | `apps/web/components/views.tsx`, `apps/web/app/globals.css` | 4-metric summary strip (Verified Skills, Current Milestone, Assessment Progress, Readiness) + 5-stage journey + One Primary Action hero. |
+| **REQ-UI-08** | Modular 7-Tab Settings Interface | **VERIFIED** | `apps/web/components/SettingsView.tsx`, `apps/web/app/globals.css` | 7 tabs: Profile, Learning, Appearance, Security, Data & Privacy, Account Deletion (with password modal), Agent Activity audit log. |
 
 ---
 
 ## 2. Summary Counts
 
-- **Total Requirements Tracked:** 48
-- **VERIFIED:** 48 (100%)
+- **Total Requirements Tracked:** 50
+- **VERIFIED:** 50 (100%)
 - **PARTIAL:** 0
 - **MISSING:** 0
 - **BLOCKED:** 0
 
 *All core functional modules have verified server-side implementations and empirical test evidence.*
+

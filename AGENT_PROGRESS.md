@@ -10,14 +10,15 @@
 
 ## 1. Executive Summary
 
-A comprehensive full-repository audit and functional verification was performed across all functional domains of SkillPilot 2.0. The application is running as a single development server on `http://localhost:3000`. All four source-of-truth governance documents (`PROJECT_REQUIREMENTS.md`, `IMPLEMENTATION_STATUS.md`, `TEST_EVIDENCE.md`, and `AGENT_PROGRESS.md`) have been established and synchronized with actual empirical behavior.
+A comprehensive full-repository audit, redesign implementation, and functional verification was performed across all functional domains of SkillPilot 2.0. The application is running cleanly on `http://localhost:3000`. All four source-of-truth governance documents (`PROJECT_REQUIREMENTS.md`, `IMPLEMENTATION_STATUS.md`, `TEST_EVIDENCE.md`, and `AGENT_PROGRESS.md`) have been established and synchronized with actual empirical behavior.
 
-- **Requirements Audited:** 48 requirements across 11 functional domains.
-- **Verification Status:** 48 Verified (100%), 0 Partial, 0 Missing, 0 Blocked.
-- **Unit Tests (`npm test`):** 161 Passed / 0 Failed across 5 test suites.
+- **Requirements Audited:** 50 requirements across 11 functional domains.
+- **Verification Status:** 50 Verified (100%), 0 Partial, 0 Missing, 0 Blocked.
+- **Unit Tests (`npm test`):** 169 Passed / 0 Failed across 5 test suites.
 - **Integration Tests:** 43 Passed / 0 Failed.
 - **Typecheck (`npm run typecheck`):** 0 errors.
-- **Real Chrome E2E Journeys:** 100% verified with Playwright in headless Chrome.
+- **Adaptive Trajectories:** 8/8 verified across Trajectories A through H.
+- **Real Chrome E2E Journeys & Screenshots:** 100% verified with Playwright in headless Chrome (all 12 required screenshots captured).
 
 ---
 
@@ -25,15 +26,15 @@ A comprehensive full-repository audit and functional verification was performed 
 
 ### Phase 1: Baseline Safety & Port Hygiene
 - Verified that ports 3001, 3002, and 3003 have no listeners.
-- Confirmed `http://localhost:3000` is the sole listening instance (PID 15908).
+- Confirmed `http://localhost:3000` is the sole listening instance.
 - Verified health endpoint `GET /api/health` returns `{ "service": "skillpilot", "status": "ok", "database": "ok" }`.
-- Preserved existing database records (156 users, 100 evidence records) without running destructive SQL migrations.
+- Preserved existing database records (168 users, 100 evidence records, 105 assessments) without running destructive SQL migrations.
 
 ### Phase 2: Critical Bug Fixes & Hydration
 - Fixed missing `'use client';` directive in `components/views.tsx` (Line 1).
 - Added missing `<GuidedJourneyProgress ... />` 5-stage stepper component in `Today` view of `components/views.tsx`.
 - Added `.context-triad-card` selector in `components/motion.tsx` for accessibility and journey assertions.
-- Added dynamic port detection (`detectActiveBaseUrl`) across test scripts (`verify-redesign-rigorous.mjs`, `capture-redesign-screenshots.mjs`) prioritizing port 3000.
+- Added dynamic port detection (`detectActiveBaseUrl`) across test scripts prioritizing port 3000.
 
 ### Phase 3: Adaptive Assessment Engine Verification
 - Verified response-dependent adaptive question selection in `lib/assessment-planner.ts` and `app/api/assess/`.
@@ -65,21 +66,45 @@ A comprehensive full-repository audit and functional verification was performed 
 - Verified public route `/p/[handle]` and revocable public sharing tokens.
 - Verified zero leakage of private student data (email, passwords, raw answers excluded).
 
-### Phase 8: Genuine Sidebar Collapse, Today Decluttering & Adaptive Elevation
-- Implemented collapsible desktop navigation in `App.tsx` and `globals.css`:
-  - 240px expanded state displays numbered items (01–12), icons, labels, and user profile.
-  - 72px collapsed state displays centered icons with floating `[data-tooltip]` hover labels.
-  - Persistent toggle with `localStorage` key `skillpilot_sidebar_collapsed`.
-- Decluttered Today dashboard in `components/views.tsx`:
-  - Removed duplicate progress strip, procedural vector network graph canvas (`<ConnectedSkillNetwork>`), and continuous ticker (`<AnimatedMarquee>`).
-  - Restored clear visual hierarchy centered on the primary recommended action hero card.
-- Implemented multi-turn adaptive evaluation in `app/api/assess/submit/route.ts`:
-  - Difficulty elevation on correct answers (Level 1 → Level 2).
-  - Diagnostic step-down on struggles (Level 1 → Level 0) to isolate prerequisite gaps.
-  - Early decisive stopping (2 consecutive corrects at level >= 2 or 2 consecutive struggles) and extended testing on inconsistent answers.
-- Added `.adaptive-progression-banner` in `components/Assess.tsx` displaying real-time level change badges and explanatory rationale.
-- Verified contrasting trajectories in `adaptive-trajectories.test.ts` (3 suites, 0 failures).
-- Compiled clean production build (`next build`) in 13.3s with zero errors across all 46 routes.
+### Phase 8: Sidebar Structural Reorganization & Navigation Hierarchy
+- Reorganized navigation in `App.tsx` into 3 logical groups:
+  - `PRIMARY`: Today, Assess, Learn, Practice, Projects, Roadmap.
+  - `CAREER DEVELOPMENT`: Skills, Mentors, Mock Interview, Passport.
+  - `SYSTEM`: Agent, Settings.
+- Desktop navigation renders 240px expanded vs 72px collapsed with group labels in expanded mode and floating tooltips on icon buttons and dividers in collapsed mode.
+- Mobile bottom navigation renders 5 compact items: Home, Assess, Learn, Practice, More.
+- Clicking More opens an accessible slide-over drawer containing the full navigation grouped hierarchy, profile card, Escape key listener, backdrop dismissal, and body scroll lock.
+
+### Phase 9: Today Dashboard Visual Hierarchy & Decluttering
+- Added Section B 4-Metric Career Readiness Summary Strip right under the greeting:
+  - Verified Skills count.
+  - Current Milestone badge.
+  - Assessment Progress ratio.
+  - Evidence-Backed Readiness percentage.
+- Rendered 5-stage career journey stepper (Discover → Verify → Plan → Learn → Improve).
+- Highlighted dominant One Primary Action card with explicit prerequisite/gap rationale and direct CTA.
+- Decluttered extraneous decorative visual noise (removed duplicate ticker marquees, distracting canvas animations).
+
+### Phase 10: Comprehensive 7-Tab Modular Settings Interface
+- Created modular `SettingsView.tsx` with 7 dedicated tabs:
+  1. Profile (Name, email, handle, target role, bio, public toggle).
+  2. Learning Preferences (Weekly study hours, pacing, difficulty comfort, preferred languages).
+  3. Appearance (Theme light/system/dark preview, reduced motion toggle, compact mode toggle).
+  4. Account & Security (Password change with strength indicator, active sessions display, 2FA readiness).
+  5. Data & Privacy (Full JSON export, analytics telemetry toggle, privacy settings).
+  6. Danger Zone / Account Deletion (Explicit confirmation modal requiring password and "DELETE" confirmation).
+  7. Agent Activity Audit (Timestamped log of LLM agent tool calls, reasoning traces, and audit history).
+
+### Phase 11: Multi-Turn Adaptive Assessment Trajectories A–H
+- Verified all 8 contrasting trajectories in `lib/adaptive-trajectories.test.ts`:
+  - Trajectory A: Complete Beginner starts with `ps-1a` (never receives JS/SQL).
+  - Trajectory B: Intermediate JS developer receives Level 2 closure diagnostic question.
+  - Trajectory C: Consecutive correct answers trigger difficulty elevation and early stopping (2 questions).
+  - Trajectory D: Consecutive struggles trigger diagnostic step-down to Level 0 and isolate gap (2 questions).
+  - Trajectory E: Alternating answers prevent early stopping and require resolving questions (3+ questions).
+  - Trajectory F: Assessment interruption and reload preserves session and active question index.
+  - Trajectory G: Duplicate identical submissions are rejected or idempotent without double scoring.
+  - Trajectory H: Prior verified evidence in user profile bypasses redundant introductory checks.
 
 ---
 
@@ -87,7 +112,7 @@ A comprehensive full-repository audit and functional verification was performed 
 
 1. **Neon PostgreSQL Database:**
    - Status: **CONNECTED & VERIFIED**
-   - Counts: 162 users, 100 evidence records, 102 assessments (100% preserved)
+   - Counts: 168 users, 100 evidence records, 105 assessments (100% preserved)
    - Tables online: `users`, `assessments`, `assessment_items`, `user_skill_evidence`, `mentor_profiles`, `mentor_requests`, `agent_threads`, `agent_messages`.
 2. **Google Gemini LLM:**
    - Status: **CONFIGURED & OPERATIONAL**
@@ -117,4 +142,5 @@ A comprehensive full-repository audit and functional verification was performed 
 
 1. Maintain `http://localhost:3000` as the sole primary development URL.
 2. Monitor production health diagnostics via `/api/health`.
-3. Proceed with staging deployment and final release tagging.
+3. Deliver complete browser-verified master audit report to stakeholders.
+

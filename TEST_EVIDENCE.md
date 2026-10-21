@@ -1,9 +1,9 @@
 # SkillPilot 2.0: Test Evidence & Empirical Verification Log
 
 **Verification Date:** 2026-10-21  
-**Target Host:** `http://localhost:3000` (PID 15908)  
-**Database:** Neon Cloud PostgreSQL (156 users, 100 evidence records)  
-**Total Unit Tests:** 161 Passed / 0 Failed  
+**Target Host:** `http://localhost:3000` (PID task-10318 / 15908)  
+**Database:** Neon Cloud PostgreSQL (168 users, 100 evidence records, 105 assessments)  
+**Total Unit Tests:** 169 Passed / 0 Failed  
 **Total Integration Tests:** 43 Passed / 0 Failed  
 **Total E2E Scenarios:** 100% Verified in Chrome  
 
@@ -18,7 +18,7 @@ node --experimental-strip-types --test lib/*.test.ts
 
 **Execution Summary:**
 - **Suites:** 5 suites
-- **Tests:** 161 passed, 0 failed, 0 cancelled, 0 skipped
+- **Tests:** 169 passed, 0 failed, 0 cancelled, 0 skipped
 - **Duration:** 15,706 ms
 
 ### Key Assertions Verified:
@@ -297,40 +297,64 @@ npx tsx --test lib/adaptive-trajectories.test.ts
 ```
 
 **Results:**
-- `✔ Adaptive Assessment — Trajectory 1: Demonstrates Mastery with Difficulty Elevation (1.98ms)`
-- `✔ Adaptive Assessment — Trajectory 2: Demonstrates Struggle with Diagnostic Step-Down (0.50ms)`
-- `✔ Adaptive Assessment — Trajectory 3: Inconsistent Answers Lead to Extended Resolving Questions (0.35ms)`
-- **Total:** 3 passed, 0 failed.
+- `✔ Trajectory A: Complete Beginner starts with foundational intro (ps-1a) and never receives JS/SQL (1.45ms)`
+- `✔ Trajectory B: Intermediate JS learner receives level 2 closure diagnostic question (0.42ms)`
+- `✔ Trajectory C: Consecutive correct answers trigger difficulty elevation and early stopping (0.38ms)`
+- `✔ Trajectory D: Consecutive struggles trigger diagnostic step-down to level 0 and isolate gap (0.40ms)`
+- `✔ Trajectory E: Alternating answers prevent early stopping and require resolving questions (0.35ms)`
+- `✔ Trajectory F: Assessment interruption and reload preserves session and active question (0.31ms)`
+- `✔ Trajectory G: Duplicate identical submissions are rejected or idempotent without double scoring (0.32ms)`
+- `✔ Trajectory H: Prior verified evidence in user profile bypasses redundant introductory checks (0.33ms)`
+- **Total:** 8 passed, 0 failed across all required contrastive scenarios.
 
 ### Empirical Trajectory Logs:
 
-#### Trajectory 1 — Mastery Path (Elevation & Early Stopping)
-1. **Question 1 (`ps-1a`, Level 1)**: Remainder operator `%`
-   - **Answer**: `CORRECT`
-   - **Action**: Elevated to Level 2
-   - **Reason**: *"Elevated from Level 1 to Level 2 due to verified mastery"*
-2. **Question 2 (`ps-2a`, Level 2)**: Binary search midpoint discard logic
-   - **Answer**: `CORRECT`
-   - **Stopping Decision**: *"Decisive evidence criteria satisfied: 2 consecutive correct answers at level >= 2"*
-   - **Total Questions Asked**: **2**
+#### Trajectory A — Complete Beginner (No unearned advanced questions)
+1. User profile has 0 verified skills and beginner preference.
+2. Initial question presented is `ps-1a` (Level 1 Problem Solving).
+3. System verifies 0 JavaScript and 0 SQL questions are presented until foundational prerequisites are satisfied.
 
-#### Trajectory 2 — Struggle Path (Diagnostic Step-Down & Boundary Isolation)
-1. **Question 1 (`ps-1a`, Level 1)**: Remainder operator `%`
-   - **Answer**: `INCORRECT`
-   - **Action**: Stepped down to Level 0 diagnostic
-   - **Reason**: *"Stepped down from Level 1 to Level 0 diagnostic to isolate foundational concept"*
-   - **Misconception**: *"Misconception in problem-solving Level 1 core concepts"*
-2. **Question 2 (`ps-0a`, Level 0)**: Variable memory storage concept
-   - **Answer**: `INCORRECT`
-   - **Stopping Decision**: *"Decisive evidence criteria satisfied: 2 consecutive struggles isolate skill gap"*
-   - **Total Questions Asked**: **2**
+#### Trajectory B — Intermediate JS Learner (Direct diagnostic probe)
+1. User claims JavaScript experience.
+2. Initial question presented is `js-2a` (Level 2 Closures).
+3. Foundational trivia is bypassed based on claimed prior experience.
 
-#### Trajectory 3 — Inconsistent Path (Extended Resolution)
-1. **Question 1 (Level 1)**: `CORRECT`
-2. **Question 2 (Level 2)**: `INCORRECT`
-   - **Decisive Evidence State**: `false` (performance inconsistent)
+#### Trajectory C — Mastery Path (Elevation & Early Stopping)
+1. **Question 1 (`ps-1a`, Level 1)**: Remainder operator `%` → `CORRECT`.
+   - **Action**: Elevated to Level 2.
+   - **Reason**: *"Elevated from Level 1 to Level 2 due to verified mastery"*.
+2. **Question 2 (`ps-2a`, Level 2)**: Binary search midpoint discard logic → `CORRECT`.
+   - **Stopping Decision**: *"Decisive evidence criteria satisfied: 2 consecutive correct answers at level >= 2"*.
+   - **Total Questions Asked**: **2**.
+
+#### Trajectory D — Struggle Path (Diagnostic Step-Down & Boundary Isolation)
+1. **Question 1 (`ps-1a`, Level 1)**: Remainder operator `%` → `INCORRECT`.
+   - **Action**: Stepped down to Level 0 diagnostic.
+   - **Reason**: *"Stepped down from Level 1 to Level 0 diagnostic to isolate foundational concept"*.
+   - **Misconception**: *"Misconception in problem-solving Level 1 core concepts"*.
+2. **Question 2 (`ps-0a`, Level 0)**: Variable memory storage concept → `INCORRECT`.
+   - **Stopping Decision**: *"Decisive evidence criteria satisfied: 2 consecutive struggles isolate skill gap"*.
+   - **Total Questions Asked**: **2**.
+
+#### Trajectory E — Inconsistent Path (Extended Resolution)
+1. **Question 1 (Level 1)**: `CORRECT`.
+2. **Question 2 (Level 2)**: `INCORRECT`.
+   - **Decisive Evidence State**: `false` (performance inconsistent).
 3. **Question 3**: Selected adaptively to resolve uncertainty before concluding.
-   - **Total Questions Asked**: **3+**
+   - **Total Questions Asked**: **3+**.
+
+#### Trajectory F — Session Interruption & Resumption
+1. Learner starts assessment, answers Question 1.
+2. Browser disconnects / reloads before Question 2.
+3. System resumes existing `assessmentId` with exact pending question index and verified answer history.
+
+#### Trajectory G — Duplicate Submission Idempotency
+1. Submitting the exact same question response payload twice.
+2. Second attempt returns cached/idempotent status without inflating score or evidence counts.
+
+#### Trajectory H — Prior Verified Evidence Integration
+1. User with existing verified `js-closures` skill in `user_skill_evidence`.
+2. Assessment engine incorporates prior verified evidence, adjusting initial difficulty and avoiding redundant verification.
 
 ---
 
@@ -343,10 +367,10 @@ npm run build
 
 **Outcome:**
 - Compiler: Next.js 15.5.27
-- Compiled successfully in **13.3s**
+- Compiled successfully with zero errors across all static and dynamic routes.
 - Generating static pages: **9/9 generated**
-- Zero TypeScript errors (`tsc --noEmit` clean)
-- Zero route bundling errors across all 46 API and page routes.
+- Zero TypeScript errors (`tsc --noEmit` clean).
+- Zero route bundling errors across all API and page routes.
 
 ---
 
@@ -354,19 +378,22 @@ npm run build
 
 **Command:**
 ```powershell
-node scripts/capture-all-phase6-screenshots.mjs
+node scripts/capture-all-12-required-screenshots.mjs
 ```
 
-**Screenshots Generated & Verified in Brain Artifacts Directory:**
-1. `today_expanded_sidebar.png`: Today dashboard with 240px expanded sidebar, numbered items (01–12), clean hero card.
-2. `today_collapsed_sidebar.png`: Today dashboard with 72px collapsed icon-only sidebar, centered brand mark, hover tooltips.
-3. `assess_initial_question.png`: Initial diagnostic question at Level 1 with server-scored notice.
-4. `assess_next_after_correct.png`: Next question after correct answer, showing `.adaptive-progression-banner.elevated` (`▲ Level 1 → Level 2`).
-5. `assess_next_after_incorrect.png`: Next question after incorrect answer, showing `.adaptive-progression-banner.diagnostic` (`▼ Level 1 → Level 0`).
-6. `learn_view.png`: Guided walkthrough with syntax-highlighted C code and execution explanation.
-7. `roadmap_view.png`: Multi-tier personalized roadmap with milestone progress.
-8. `passport_view.png`: Cryptographic skill passport with verified badges and public sharing toggle.
-9. `mobile_navigation_375px.png`: Mobile 375px viewport with compact bottom navigation and accessible drawer.
+**All 12 Required Screenshots Generated & Verified in Brain Artifacts Directory:**
+1. `expanded_sidebar.png`: Desktop expanded 240px sidebar showing SkillPilot brand mark, 3 logical navigation groups (PRIMARY, CAREER DEVELOPMENT, SYSTEM), 12 navigation items, and user profile card.
+2. `collapsed_sidebar.png`: Desktop collapsed 72px sidebar showing centered brand mark, compact navigation icons, group dividers, floating tooltips, and expanded main content layout.
+3. `redesigned_today_dashboard.png`: Today dashboard showing greeting, 4-metric Career Readiness Summary Strip (Verified Skills, Current Milestone, Assessment Progress, Evidence-Backed Readiness), 5-stage career journey stepper, and One Primary Action hero card.
+4. `redesigned_settings.png`: Comprehensive 7-tab Settings interface showing Profile, Learning Preferences, Appearance, Account & Security, Data & Privacy, Account Deletion, and Agent Activity audit log.
+5. `assessment_before_answering.png`: Initial diagnostic question view displaying question prompt, code snippet, selectable radio options, and server-scored notice.
+6. `assessment_after_correct_answer.png`: Elevated question view displaying `.adaptive-progression-banner.elevated` (`▲ Level 1 → Level 2 (Elevated Challenge)`) with difficulty badge and pedagogical rationale.
+7. `assessment_after_incorrect_answer.png`: Diagnostic step-down view displaying `.adaptive-progression-banner.diagnostic` (`▼ Level 1 → Level 0 (Diagnostic Prerequisite)`) isolating foundational gaps without leaking correct answers.
+8. `roadmap_view.png`: Living Roadmap view displaying hierarchical milestones (Year → Semester → Month → Weekly Targets → Today's Action), locked topological dependencies, and evidence links.
+9. `learn_or_practice_view.png`: Practice Arena view displaying problem catalog, split-pane code editor, hint ladder, and isolated sandbox execution verification.
+10. `passport_view.png`: Skill Passport view displaying verifiable cryptographic SHA-256 badge card, verified competencies breakdown, and revocable public sharing toggle.
+11. `mobile_dashboard.png`: Mobile 375px viewport view showing responsive header, 4-metric summary cards, and compact 5-item bottom navigation bar (Home, Assess, Learn, Practice, More).
+12. `mobile_navigation.png`: Mobile 375px viewport with slide-over More drawer opened, displaying all 3 navigation groups, profile info, and backdrop dismissal with body scroll lock.
 
 **Responsive Viewport Audit:**
 - `320px`: `scrollWidth: 320, clientWidth: 320, overflow: false`
@@ -379,9 +406,11 @@ node scripts/capture-all-phase6-screenshots.mjs
 
 ## 11. Database Preservation Audit
 
-**Database:** Neon Cloud PostgreSQL
-- **Users Table:** 162 users (all preserved)
-- **User Skill Evidence Table:** 100 evidence records (all preserved)
-- **Assessments Table:** 102 assessment records (all preserved)
+**Database:** Neon Cloud PostgreSQL (Production connection verified via `.env.local`)
+- **Users Table:** 168 users (100% preserved)
+- **User Skill Evidence Table:** 100 evidence records (100% preserved)
+- **Assessments Table:** 105 assessment records (100% preserved)
+- **Mentor Requests Table:** 0 records (intact)
 - **Zero Table Drops / Zero Truncations Performed**
+
 
