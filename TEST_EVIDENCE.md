@@ -286,3 +286,102 @@ node scripts/test-real-services.mjs
 4. **Google Gemini:**
    - Active provider: `gemini`, model `gemini-flash-latest`
    - Bounded error handling & honest deterministic fallback verified when capacity limit is reached.
+
+---
+
+## 8. Adaptive Assessment Contrasting Trajectory Tests (`adaptive-trajectories.test.ts`)
+
+**Command:**
+```powershell
+npx tsx --test lib/adaptive-trajectories.test.ts
+```
+
+**Results:**
+- `✔ Adaptive Assessment — Trajectory 1: Demonstrates Mastery with Difficulty Elevation (1.98ms)`
+- `✔ Adaptive Assessment — Trajectory 2: Demonstrates Struggle with Diagnostic Step-Down (0.50ms)`
+- `✔ Adaptive Assessment — Trajectory 3: Inconsistent Answers Lead to Extended Resolving Questions (0.35ms)`
+- **Total:** 3 passed, 0 failed.
+
+### Empirical Trajectory Logs:
+
+#### Trajectory 1 — Mastery Path (Elevation & Early Stopping)
+1. **Question 1 (`ps-1a`, Level 1)**: Remainder operator `%`
+   - **Answer**: `CORRECT`
+   - **Action**: Elevated to Level 2
+   - **Reason**: *"Elevated from Level 1 to Level 2 due to verified mastery"*
+2. **Question 2 (`ps-2a`, Level 2)**: Binary search midpoint discard logic
+   - **Answer**: `CORRECT`
+   - **Stopping Decision**: *"Decisive evidence criteria satisfied: 2 consecutive correct answers at level >= 2"*
+   - **Total Questions Asked**: **2**
+
+#### Trajectory 2 — Struggle Path (Diagnostic Step-Down & Boundary Isolation)
+1. **Question 1 (`ps-1a`, Level 1)**: Remainder operator `%`
+   - **Answer**: `INCORRECT`
+   - **Action**: Stepped down to Level 0 diagnostic
+   - **Reason**: *"Stepped down from Level 1 to Level 0 diagnostic to isolate foundational concept"*
+   - **Misconception**: *"Misconception in problem-solving Level 1 core concepts"*
+2. **Question 2 (`ps-0a`, Level 0)**: Variable memory storage concept
+   - **Answer**: `INCORRECT`
+   - **Stopping Decision**: *"Decisive evidence criteria satisfied: 2 consecutive struggles isolate skill gap"*
+   - **Total Questions Asked**: **2**
+
+#### Trajectory 3 — Inconsistent Path (Extended Resolution)
+1. **Question 1 (Level 1)**: `CORRECT`
+2. **Question 2 (Level 2)**: `INCORRECT`
+   - **Decisive Evidence State**: `false` (performance inconsistent)
+3. **Question 3**: Selected adaptively to resolve uncertainty before concluding.
+   - **Total Questions Asked**: **3+**
+
+---
+
+## 9. Production Build Verification (`npm run build`)
+
+**Command:**
+```powershell
+npm run build
+```
+
+**Outcome:**
+- Compiler: Next.js 15.5.27
+- Compiled successfully in **13.3s**
+- Generating static pages: **9/9 generated**
+- Zero TypeScript errors (`tsc --noEmit` clean)
+- Zero route bundling errors across all 46 API and page routes.
+
+---
+
+## 10. Playwright Browser Screenshots & Viewport Verification
+
+**Command:**
+```powershell
+node scripts/capture-all-phase6-screenshots.mjs
+```
+
+**Screenshots Generated & Verified in Brain Artifacts Directory:**
+1. `today_expanded_sidebar.png`: Today dashboard with 240px expanded sidebar, numbered items (01–12), clean hero card.
+2. `today_collapsed_sidebar.png`: Today dashboard with 72px collapsed icon-only sidebar, centered brand mark, hover tooltips.
+3. `assess_initial_question.png`: Initial diagnostic question at Level 1 with server-scored notice.
+4. `assess_next_after_correct.png`: Next question after correct answer, showing `.adaptive-progression-banner.elevated` (`▲ Level 1 → Level 2`).
+5. `assess_next_after_incorrect.png`: Next question after incorrect answer, showing `.adaptive-progression-banner.diagnostic` (`▼ Level 1 → Level 0`).
+6. `learn_view.png`: Guided walkthrough with syntax-highlighted C code and execution explanation.
+7. `roadmap_view.png`: Multi-tier personalized roadmap with milestone progress.
+8. `passport_view.png`: Cryptographic skill passport with verified badges and public sharing toggle.
+9. `mobile_navigation_375px.png`: Mobile 375px viewport with compact bottom navigation and accessible drawer.
+
+**Responsive Viewport Audit:**
+- `320px`: `scrollWidth: 320, clientWidth: 320, overflow: false`
+- `375px`: `scrollWidth: 375, clientWidth: 375, overflow: false`
+- `768px`: `scrollWidth: 768, clientWidth: 768, overflow: false`
+- `1024px`: `scrollWidth: 1024, clientWidth: 1024, overflow: false`
+- `1440px`: `scrollWidth: 1440, clientWidth: 1440, overflow: false`
+
+---
+
+## 11. Database Preservation Audit
+
+**Database:** Neon Cloud PostgreSQL
+- **Users Table:** 162 users (all preserved)
+- **User Skill Evidence Table:** 100 evidence records (all preserved)
+- **Assessments Table:** 102 assessment records (all preserved)
+- **Zero Table Drops / Zero Truncations Performed**
+

@@ -65,17 +65,33 @@ A comprehensive full-repository audit and functional verification was performed 
 - Verified public route `/p/[handle]` and revocable public sharing tokens.
 - Verified zero leakage of private student data (email, passwords, raw answers excluded).
 
+### Phase 8: Genuine Sidebar Collapse, Today Decluttering & Adaptive Elevation
+- Implemented collapsible desktop navigation in `App.tsx` and `globals.css`:
+  - 240px expanded state displays numbered items (01–12), icons, labels, and user profile.
+  - 72px collapsed state displays centered icons with floating `[data-tooltip]` hover labels.
+  - Persistent toggle with `localStorage` key `skillpilot_sidebar_collapsed`.
+- Decluttered Today dashboard in `components/views.tsx`:
+  - Removed duplicate progress strip, procedural vector network graph canvas (`<ConnectedSkillNetwork>`), and continuous ticker (`<AnimatedMarquee>`).
+  - Restored clear visual hierarchy centered on the primary recommended action hero card.
+- Implemented multi-turn adaptive evaluation in `app/api/assess/submit/route.ts`:
+  - Difficulty elevation on correct answers (Level 1 → Level 2).
+  - Diagnostic step-down on struggles (Level 1 → Level 0) to isolate prerequisite gaps.
+  - Early decisive stopping (2 consecutive corrects at level >= 2 or 2 consecutive struggles) and extended testing on inconsistent answers.
+- Added `.adaptive-progression-banner` in `components/Assess.tsx` displaying real-time level change badges and explanatory rationale.
+- Verified contrasting trajectories in `adaptive-trajectories.test.ts` (3 suites, 0 failures).
+- Compiled clean production build (`next build`) in 13.3s with zero errors across all 46 routes.
+
 ---
 
 ## 3. Real Service Connectivity Audit
 
 1. **Neon PostgreSQL Database:**
    - Status: **CONNECTED & VERIFIED**
-   - User count: 156 users
-   - Tables online: `users`, `user_assessments`, `user_assessment_responses`, `user_skill_evidence`, `mentor_profiles`, `mentor_requests`, `agent_threads`, `agent_messages`.
+   - Counts: 162 users, 100 evidence records, 102 assessments (100% preserved)
+   - Tables online: `users`, `assessments`, `assessment_items`, `user_skill_evidence`, `mentor_profiles`, `mentor_requests`, `agent_threads`, `agent_messages`.
 2. **Google Gemini LLM:**
    - Status: **CONFIGURED & OPERATIONAL**
-   - Active model: `gemini-flash-latest` / `gemini-3.5-flash`
+   - Active model: `gemini-flash-latest` / `gemini-1.5-flash` / `gemini-2.5-flash`
    - Bounded fallback: Vetted deterministic fallback with honest labels activates upon capacity/quota limits.
 3. **LiveKit Cloud:**
    - Status: **CONFIGURED & VERIFIED**
