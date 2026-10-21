@@ -19,7 +19,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 15000,
 });
 
-const BASE_URL = process.env.API_URL || 'http://localhost:3000';
+const BASE_URL = process.env.API_URL || 'http://localhost:3003';
 const stamp = Date.now();
 const testStudentEmail = `verify_student_${stamp}@e2e.test`;
 const testMentorEmail = `verify_mentor_${stamp}@e2e.test`;
@@ -79,7 +79,8 @@ try {
   console.log(`   Auth shell background gradient: ${authShellBg?.slice(0, 45)}...`);
 
   // Sign up new student
-  await page.click('button:has-text("Create account")');
+  await page.locator('.auth-tabs button', { hasText: 'Create account' }).click();
+  await page.waitForTimeout(300);
   await page.fill('label:has-text("Name") input', 'Rigorous Verifier');
   await page.fill('label:has-text("Email") input', testStudentEmail);
   await page.fill('label:has-text("Password") input', testPassword);
@@ -281,7 +282,8 @@ try {
   await mentorContext.clearCookies();
   await mentorPage.goto(BASE_URL, { waitUntil: 'networkidle' });
 
-  await mentorPage.click('button:has-text("Create account")');
+  await mentorPage.locator('.auth-tabs button', { hasText: 'Create account' }).click();
+  await mentorPage.waitForTimeout(300);
   await mentorPage.fill('label:has-text("Name") input', 'Verified Mentor');
   await mentorPage.fill('label:has-text("Email") input', testMentorEmail);
   await mentorPage.fill('label:has-text("Password") input', testPassword);
@@ -289,8 +291,8 @@ try {
   await mentorRoleBtn.click();
   await mentorPage.click('button.primary.auth-submit');
 
-  await mentorPage.waitForSelector('.mentor-shell, .pending-approval, #main-content', { timeout: 15000 });
-  const mentorWorkspaceText = await mentorPage.textContent('.mentor-shell, body');
+  await mentorPage.waitForSelector('.workspace, .mentor-shell, .pending-approval, #main-content', { timeout: 15000 });
+  const mentorWorkspaceText = await mentorPage.textContent('.workspace, body');
   console.log(`   Mentor workspace rendered: "${mentorWorkspaceText?.slice(0, 50).replace(/\s+/g, ' ').trim()}..."`);
   await mentorContext.close();
 

@@ -225,7 +225,7 @@ export function Today({
       <section className="welcome dashboard-header">
         <div className="greeting-col">
           <div className="eyebrow"><span className="live-dot" /> SKILLPILOT — CAREER OPERATING SYSTEM</div>
-          <h1>Welcome back, <em>{state.name?.trim() || 'Student'}.</em></h1>
+          <h1>Welcome back, <em>{state.name?.trim() || 'Student'}.</em> <span className="sr-only">YOUR POTENTIAL.</span></h1>
           <p>Here is your single highest-impact action today to prove your skills with verifiable evidence.</p>
         </div>
         <div className="goal-badge-wrap">
@@ -248,58 +248,59 @@ export function Today({
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: 12,
-          padding: '12px 16px',
-          background: 'rgba(255, 255, 255, 0.02)',
-          border: '1px solid var(--line)',
-          borderRadius: 10,
+          padding: '14px 20px',
+          background: '#FFFFFF',
+          border: '1px solid var(--border-color)',
+          borderRadius: 12,
           fontSize: 12,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Target size={15} color="var(--cyan)" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Target size={16} color="var(--primary-purple)" />
           <div>
-            <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Target Goal</span>
-            <b style={{ color: '#FFFFFF' }}>{careerGoal}</b>
+            <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', fontWeight: 600 }}>Target Goal</span>
+            <b style={{ color: 'var(--text-primary)', fontSize: 13 }}>{careerGoal}</b>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Award size={15} color="#34D399" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Award size={16} color="#047857" />
           <div>
-            <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Verified Skills</span>
-            <b style={{ color: '#FFFFFF' }}>{skills.filter((s) => s.verified).length} of {skills.length} verified</b>
+            <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', fontWeight: 600 }}>Verified Skills</span>
+            <b style={{ color: 'var(--text-primary)', fontSize: 13 }}>{skills.filter((s) => s.verified).length} of {skills.length} verified</b>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Layers size={15} color="#FBBF24" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Layers size={16} color="var(--primary-purple)" />
           <div>
-            <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Current Milestone</span>
-            <b style={{ color: '#FFFFFF' }}>Phase {currentStage.n}: {currentStage.name}</b>
+            <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', fontWeight: 600 }}>Current Milestone</span>
+            <b style={{ color: 'var(--text-primary)', fontSize: 13 }}>Phase {currentStage.n}: {currentStage.name}</b>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Sparkles size={15} color="var(--cyan)" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Sparkles size={16} color="var(--primary-purple)" />
           <div>
-            <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Daily Streak</span>
-            <b style={{ color: '#FFFFFF' }}>1-day streak • ❄️ 1 freeze</b>
+            <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', fontWeight: 600 }}>Daily Streak</span>
+            <b style={{ color: 'var(--text-primary)', fontSize: 13 }}>1-day streak • ❄️ 1 freeze</b>
           </div>
         </div>
       </div>
 
       {/* PRIORITY 2: TODAY'S ACTION (ONE PRIMARY ACTION CARD) */}
       {snoozedActionId === (dynamicNextAction?.id || primaryTitle) ? (
-        <section className="priority-card" style={{ borderLeftColor: 'var(--muted)' }} role="region" aria-label="Snoozed Action">
+        <section className="priority-card" style={{ borderLeftColor: 'var(--border-color)' }} role="region" aria-label="Snoozed Action">
           <div className="priority-copy">
-            <div className="priority-eyebrow" style={{ color: 'var(--muted)' }}>
+            <div className="priority-eyebrow" style={{ color: 'var(--text-secondary)' }}>
               <Clock size={14} /> RECOMMENDATION SNOOZED FOR THIS SESSION
             </div>
             <h2 style={{ fontSize: 18, color: 'var(--text-secondary)' }}>You snoozed: {primaryTitle}</h2>
             <p>You have full autonomy over your learning path. Explore any milestone from your roadmap or practice arena.</p>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button className="primary" onClick={() => setSnoozedActionId(null)} style={{ background: '#1F2937', color: '#FFF' }}>
+            <button className="ghost" onClick={() => setSnoozedActionId(null)}>
               <RotateCcw size={14} /> Resume recommendation
             </button>
             <button className="primary priority-action-btn" onClick={() => go('roadmap')}>
@@ -681,6 +682,18 @@ export function Today({
             )}
           </div>
         </div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <AnimatedMarquee
+          items={[
+            'EVIDENCE-LED CAREER OPERATING SYSTEM',
+            'SERVER-OWNED VERIFICATION',
+            'ZERO SYNTHETIC SCORES',
+            'IMMUTABLE PROOF TRAIL',
+            'REAL RUNTIME EVALUATION',
+          ]}
+          speedSeconds={40}
+        />
       </div>
     </div>
   );

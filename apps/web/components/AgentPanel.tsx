@@ -70,9 +70,9 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
     <div
       style={{
         position: 'relative',
-        background: '#0D1117',
-        borderRadius: 8,
-        border: '1px solid var(--line)',
+        background: '#FAF9FB',
+        borderRadius: 10,
+        border: '1px solid var(--border-color)',
         margin: '10px 0',
         overflow: 'hidden',
       }}
@@ -82,15 +82,15 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: 'rgba(255,255,255,0.04)',
+          background: '#FFFFFF',
           padding: '6px 12px',
-          borderBottom: '1px solid var(--line)',
+          borderBottom: '1px solid var(--border-color)',
         }}
       >
         <span
           style={{
             fontSize: 11,
-            color: 'var(--cyan)',
+            color: 'var(--primary-purple)',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
             fontWeight: 700,
@@ -963,14 +963,14 @@ export function AgentPanel({
                           className="proposal"
                           key={p.id}
                           style={{
-                            background: '#0D1117',
-                            border: '1px solid var(--line)',
-                            padding: 12,
-                            borderRadius: 8,
+                            background: '#FAF9FB',
+                            border: '1px solid var(--border-color)',
+                            padding: 14,
+                            borderRadius: 12,
                           }}
                         >
                           <div>
-                            <b style={{ color: '#FFFFFF', fontSize: 14 }}>{p.label}</b>
+                            <b style={{ color: 'var(--main-text)', fontSize: 14 }}>{p.label}</b>
                             <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '4px 0' }}>
                               {p.reason}
                             </p>

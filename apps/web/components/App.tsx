@@ -12,7 +12,7 @@ import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } fr
 import { MockInterview } from './MockInterview';
 import { CapabilityOnboarding } from './CapabilityOnboarding';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
-import { CustomCursor, CinematicEntry } from './motion';
+import { CustomCursor } from './motion';
 const NAV: [
     View,
     string,
@@ -57,7 +57,6 @@ export function App({ user, onLogout }: {
     const [profileOpen, setProfileOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const triggerButtonRef = useRef<HTMLButtonElement>(null);
-    const [replayCinematic, setReplayCinematic] = useState(false);
 
     const handleLogout = async () => {
         try {
@@ -286,7 +285,6 @@ export function App({ user, onLogout }: {
     };
     return <div className="app-shell">
     <CustomCursor />
-    <CinematicEntry forceShow={replayCinematic} onComplete={() => setReplayCinematic(false)} />
     <aside className={menu ? 'sidebar mobile-open' : 'sidebar'}>
       <div className="brand"><span className="brand-mark">S</span><span>SkillPilot</span></div>
       <div className="side-label">CAREER INTELLIGENCE SYSTEM</div>
@@ -395,21 +393,7 @@ export function App({ user, onLogout }: {
       <header className="topbar">
         <button className="mobile-menu" onClick={() => setMenu((v) => !v)} aria-label={menu ? 'Close navigation' : 'Open navigation'}>{menu ? <X /> : <Menu />}</button>
         <div className="crumb"><span>SkillPilot</span><ChevronRight size={14}/><b>{NAV.find((n) => n[0] === view)?.[2]}</b></div>
-        <div className="top-telemetry-badge">
-          <span className="live-dot" />
-          <span>SYS.ONLINE // PROD-2.4</span>
-        </div>
         <div className="top-actions">
-          <button
-            type="button"
-            className="cinema-trigger-btn"
-            onClick={() => setReplayCinematic(true)}
-            aria-label="Replay cinematic launch sequence"
-            title="Launch theatrical entrance"
-          >
-            <Play size={11} fill="currentColor" />
-            <span>CINEMA</span>
-          </button>
           <button className="icon-button" aria-label="Notifications" onClick={() => setToast(actions[0] ? `Next: ${actions[0].title}` : 'Nothing pending.')}><Bell size={17}/></button>
         </div>
       </header>

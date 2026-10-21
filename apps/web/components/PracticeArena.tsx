@@ -133,31 +133,32 @@ export function PracticeArena({
           alignItems: 'center',
           gap: 16,
           padding: '16px 20px',
-          background: 'rgba(255, 255, 255, 0.02)',
-          border: '1px solid var(--line)',
-          borderRadius: 12,
+          background: '#FFFFFF',
+          border: '1px solid var(--border-color)',
+          borderRadius: 14,
+          boxShadow: '0 2px 10px rgba(23, 21, 27, 0.03)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 8,
-              background: 'rgba(34, 211, 238, 0.1)',
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              background: 'rgba(136, 116, 199, 0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--cyan)',
+              color: 'var(--primary-purple)',
             }}
           >
             <Code2 size={20} />
           </div>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, color: '#FFFFFF', fontWeight: 700 }}>
+            <h2 style={{ margin: 0, fontSize: 18, color: 'var(--main-text)', fontWeight: 700 }}>
               SkillPilot Practice Arena
             </h2>
-            <p style={{ margin: '2px 0 0 0', fontSize: 12, color: 'var(--muted)' }}>
+            <p style={{ margin: '2px 0 0 0', fontSize: 13, color: 'var(--secondary-text)' }}>
               Curated gap-targeted algorithmic challenges with safe sandbox verification & Socratic hint ladder.
             </p>
           </div>
@@ -170,12 +171,14 @@ export function PracticeArena({
             onChange={(e) => setFilterTrack(e.target.value)}
             className="filter-select"
             style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              background: '#0D1117',
-              border: '1px solid var(--line)',
-              color: '#FFFFFF',
+              padding: '7px 14px',
+              borderRadius: 20,
+              background: '#FFFFFF',
+              border: '1px solid var(--border-color)',
+              color: 'var(--main-text)',
               fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
             }}
           >
             <option value="all">All Tracks</option>
@@ -189,12 +192,14 @@ export function PracticeArena({
             onChange={(e) => setFilterDifficulty(e.target.value)}
             className="filter-select"
             style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              background: '#0D1117',
-              border: '1px solid var(--line)',
-              color: '#FFFFFF',
+              padding: '7px 14px',
+              borderRadius: 20,
+              background: '#FFFFFF',
+              border: '1px solid var(--border-color)',
+              color: 'var(--main-text)',
               fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
             }}
           >
             <option value="all">All Difficulties</option>
@@ -220,10 +225,11 @@ export function PracticeArena({
           {/* Quick Problem Switcher */}
           <div
             style={{
-              background: '#0D1117',
-              border: '1px solid var(--line)',
-              borderRadius: 10,
-              padding: 14,
+              background: '#FFFFFF',
+              border: '1px solid var(--border-color)',
+              borderRadius: 14,
+              padding: 16,
+              boxShadow: '0 2px 10px rgba(23, 21, 27, 0.03)',
             }}
           >
             <div
@@ -234,10 +240,10 @@ export function PracticeArena({
                 marginBottom: 10,
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--secondary-text)', textTransform: 'uppercase' }}>
                 Problems ({filteredProblems.length})
               </span>
-              <span style={{ fontSize: 11, color: 'var(--cyan)' }}>Targeted to your gaps</span>
+              <span style={{ fontSize: 11, color: 'var(--primary-purple)', fontWeight: 600 }}>Targeted to your gaps</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
               {filteredProblems.map((p) => (
@@ -249,14 +255,15 @@ export function PracticeArena({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    border: p.slug === selectedSlug ? '1px solid var(--cyan)' : '1px solid rgba(255,255,255,0.04)',
-                    background: p.slug === selectedSlug ? 'rgba(34, 211, 238, 0.08)' : 'rgba(255,255,255,0.02)',
-                    color: '#FFFFFF',
+                    padding: '8px 12px',
+                    borderRadius: 20,
+                    border: p.slug === selectedSlug ? '1px solid var(--primary-purple)' : '1px solid var(--border-color)',
+                    background: p.slug === selectedSlug ? 'rgba(136, 116, 199, 0.08)' : '#FAF9FB',
+                    color: 'var(--main-text)',
                     textAlign: 'left',
                     cursor: 'pointer',
                     fontSize: 13,
+                    transition: 'all 180ms ease',
                   }}
                 >
                   <span style={{ fontWeight: p.slug === selectedSlug ? 700 : 500 }}>{p.title}</span>
@@ -264,8 +271,8 @@ export function PracticeArena({
                     style={{
                       fontSize: 10,
                       textTransform: 'uppercase',
-                      padding: '2px 6px',
-                      borderRadius: 4,
+                      padding: '2px 8px',
+                      borderRadius: 12,
                       fontWeight: 700,
                       background:
                         p.difficulty === 'easy'
@@ -275,10 +282,10 @@ export function PracticeArena({
                           : 'rgba(248, 113, 113, 0.15)',
                       color:
                         p.difficulty === 'easy'
-                          ? '#34D399'
+                          ? '#10B981'
                           : p.difficulty === 'medium'
-                          ? '#FBBF24'
-                          : '#F87171',
+                          ? '#D97706'
+                          : '#EF4444',
                     }}
                   >
                     {p.difficulty}
@@ -292,10 +299,11 @@ export function PracticeArena({
           <div
             className="problem-detail-card"
             style={{
-              background: '#0D1117',
-              border: '1px solid var(--line)',
-              borderRadius: 10,
-              padding: 18,
+              background: '#FFFFFF',
+              border: '1px solid var(--border-color)',
+              borderRadius: 14,
+              padding: 20,
+              boxShadow: '0 2px 10px rgba(23, 21, 27, 0.03)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -305,7 +313,7 @@ export function PracticeArena({
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   padding: '3px 8px',
-                  borderRadius: 4,
+                  borderRadius: 12,
                   background:
                     problem.difficulty === 'easy'
                       ? 'rgba(52, 211, 153, 0.15)'
@@ -314,51 +322,51 @@ export function PracticeArena({
                       : 'rgba(248, 113, 113, 0.15)',
                   color:
                     problem.difficulty === 'easy'
-                      ? '#34D399'
+                      ? '#10B981'
                       : problem.difficulty === 'medium'
-                      ? '#FBBF24'
-                      : '#F87171',
+                      ? '#D97706'
+                      : '#EF4444',
                 }}
               >
                 {problem.difficulty}
               </span>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>~{problem.estimatedMinutes} mins</span>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>• {problem.track}</span>
+              <span style={{ fontSize: 12, color: 'var(--secondary-text)' }}>~{problem.estimatedMinutes} mins</span>
+              <span style={{ fontSize: 12, color: 'var(--secondary-text)' }}>• {problem.track}</span>
             </div>
 
-            <h3 style={{ margin: '0 0 12px 0', fontSize: 17, color: '#FFFFFF' }}>{problem.title}</h3>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: 18, color: 'var(--main-text)', fontWeight: 700 }}>{problem.title}</h3>
 
-            <p style={{ fontSize: 13, color: '#D1D5DB', lineHeight: 1.6, margin: '0 0 16px 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--secondary-text)', lineHeight: 1.6, margin: '0 0 16px 0' }}>
               {problem.statement}
             </p>
 
             <div style={{ marginBottom: 16 }}>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: 12, color: 'var(--cyan)', textTransform: 'uppercase' }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: 12, color: 'var(--primary-purple)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Examples
               </h4>
               {problem.examples.map((ex, i) => (
                 <div
                   key={i}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 6,
-                    padding: 10,
+                    background: '#FAF9FB',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 8,
+                    padding: 12,
                     marginBottom: 8,
                     fontSize: 12,
                     fontFamily: 'monospace',
                   }}
                 >
                   <div>
-                    <span style={{ color: 'var(--muted)' }}>Input: </span>
-                    <span style={{ color: '#FFFFFF' }}>{ex.input}</span>
+                    <span style={{ color: 'var(--secondary-text)' }}>Input: </span>
+                    <span style={{ color: 'var(--main-text)', fontWeight: 600 }}>{ex.input}</span>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--muted)' }}>Output: </span>
-                    <span style={{ color: '#34D399' }}>{ex.output}</span>
+                    <span style={{ color: 'var(--secondary-text)' }}>Output: </span>
+                    <span style={{ color: '#10B981', fontWeight: 600 }}>{ex.output}</span>
                   </div>
                   {ex.explanation && (
-                    <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontFamily: 'sans-serif', fontSize: 11 }}>
+                    <div style={{ marginTop: 4, color: 'var(--secondary-text)', fontFamily: 'sans-serif', fontSize: 11 }}>
                       {ex.explanation}
                     </div>
                   )}
@@ -367,10 +375,10 @@ export function PracticeArena({
             </div>
 
             <div>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: 12, color: 'var(--cyan)', textTransform: 'uppercase' }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: 12, color: 'var(--primary-purple)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Constraints
               </h4>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--secondary-text)', lineHeight: 1.5 }}>
                 {problem.constraints.map((c, i) => (
                   <li key={i}>{c}</li>
                 ))}
@@ -384,10 +392,11 @@ export function PracticeArena({
           {/* Editor Container */}
           <div
             style={{
-              background: '#0D1117',
-              border: '1px solid var(--line)',
-              borderRadius: 10,
+              background: '#FFFFFF',
+              border: '1px solid var(--border-color)',
+              borderRadius: 14,
               overflow: 'hidden',
+              boxShadow: '0 2px 10px rgba(23, 21, 27, 0.03)',
             }}
           >
             {/* Editor Toolbar */}
@@ -396,26 +405,28 @@ export function PracticeArena({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '10px 14px',
-                background: 'rgba(255, 255, 255, 0.03)',
-                borderBottom: '1px solid var(--line)',
+                padding: '12px 16px',
+                background: '#FAF9FB',
+                borderBottom: '1px solid var(--border-color)',
                 flexWrap: 'wrap',
                 gap: 8,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Terminal size={15} color="var(--cyan)" />
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#FFFFFF' }}>Editor</span>
+                <Terminal size={15} color="var(--primary-purple)" />
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--main-text)' }}>Editor</span>
                 <select
                   value={selectedLanguage}
                   onChange={(e) => handleLanguageChange(e.target.value as ProgrammingLanguage)}
                   style={{
-                    background: '#0D1117',
-                    border: '1px solid var(--line)',
-                    color: '#FFFFFF',
-                    borderRadius: 4,
-                    padding: '3px 8px',
+                    background: '#FFFFFF',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--main-text)',
+                    borderRadius: 20,
+                    padding: '4px 12px',
                     fontSize: 11,
+                    fontWeight: 500,
+                    cursor: 'pointer',
                   }}
                 >
                   <option value="javascript">JavaScript</option>
@@ -428,19 +439,20 @@ export function PracticeArena({
 
               {/* Status / Mode info */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 11, color: 'var(--muted)' }}>Safe Sandbox Verification</span>
+                <span style={{ fontSize: 11, color: 'var(--secondary-text)' }}>Safe Sandbox Verification</span>
                 <button
                   type="button"
                   onClick={() => handleSelectProblem(problem.slug)}
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: 'var(--muted)',
+                    color: 'var(--secondary-text)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 4,
                     fontSize: 11,
+                    fontWeight: 500,
                   }}
                   title="Reset code to starter template"
                 >
@@ -456,8 +468,8 @@ export function PracticeArena({
                 display: 'flex',
                 gap: 4,
                 padding: '6px 12px',
-                background: 'rgba(0, 0, 0, 0.3)',
-                borderBottom: '1px solid var(--line)',
+                background: '#FAF9FB',
+                borderBottom: '1px solid var(--border-color)',
                 overflowX: 'auto',
               }}
             >
@@ -468,13 +480,14 @@ export function PracticeArena({
                   onClick={() => insertSymbol(sym === 'tab' ? '  ' : sym)}
                   style={{
                     padding: '3px 8px',
-                    borderRadius: 4,
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    color: '#A5F3FC',
+                    borderRadius: 6,
+                    background: '#FFFFFF',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--primary-purple)',
                     fontSize: 12,
                     fontFamily: 'monospace',
                     cursor: 'pointer',
+                    fontWeight: 600,
                   }}
                 >
                   {sym}
@@ -489,13 +502,13 @@ export function PracticeArena({
               rows={14}
               style={{
                 width: '100%',
-                background: '#070A0F',
+                background: '#FAF9FB',
                 border: 'none',
-                color: '#E5E7EB',
+                color: 'var(--main-text)',
                 fontFamily: 'Consolas, Monaco, monospace',
                 fontSize: 13,
                 lineHeight: 1.6,
-                padding: 14,
+                padding: 16,
                 resize: 'vertical',
                 outline: 'none',
                 boxSizing: 'border-box',
@@ -510,9 +523,9 @@ export function PracticeArena({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '10px 14px',
-                background: 'rgba(255, 255, 255, 0.02)',
-                borderTop: '1px solid var(--line)',
+                padding: '12px 16px',
+                background: '#FAF9FB',
+                borderTop: '1px solid var(--border-color)',
                 flexWrap: 'wrap',
                 gap: 10,
               }}
@@ -524,17 +537,18 @@ export function PracticeArena({
                   disabled={hintLevel >= 5}
                   onClick={() => setHintLevel((lvl) => Math.min(5, lvl + 1))}
                   style={{
-                    background: 'rgba(251, 191, 36, 0.1)',
-                    border: '1px solid rgba(251, 191, 36, 0.25)',
-                    color: '#FBBF24',
-                    padding: '6px 12px',
-                    borderRadius: 6,
+                    background: 'rgba(136, 116, 199, 0.08)',
+                    border: '1px solid rgba(136, 116, 199, 0.25)',
+                    color: 'var(--primary-purple)',
+                    padding: '7px 16px',
+                    borderRadius: 20,
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: hintLevel >= 5 ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
+                    transition: 'all 180ms ease',
                   }}
                 >
                   <Lightbulb size={14} />
@@ -546,7 +560,7 @@ export function PracticeArena({
                 </button>
 
                 {hintLevel > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--secondary-text)' }}>
                     Weight: {Math.max(10, 35 - hintLevel * 5)}/35 pts
                   </span>
                 )}
@@ -559,17 +573,18 @@ export function PracticeArena({
                   disabled={executing}
                   onClick={() => handleRunCode(false)}
                   style={{
-                    background: '#1F2937',
-                    border: '1px solid var(--line)',
-                    color: '#FFFFFF',
-                    padding: '7px 16px',
-                    borderRadius: 6,
+                    background: '#FFFFFF',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--main-text)',
+                    padding: '7px 18px',
+                    borderRadius: 20,
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: executing ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
+                    transition: 'all 180ms ease',
                   }}
                 >
                   <Play size={13} />
@@ -581,17 +596,19 @@ export function PracticeArena({
                   disabled={executing}
                   onClick={() => handleRunCode(true)}
                   style={{
-                    background: 'var(--cyan)',
+                    background: 'var(--primary-purple)',
                     border: 'none',
-                    color: '#070A0F',
-                    padding: '7px 20px',
-                    borderRadius: 6,
+                    color: '#FFFFFF',
+                    padding: '7px 22px',
+                    borderRadius: 20,
                     fontSize: 13,
-                    fontWeight: 700,
+                    fontWeight: 600,
                     cursor: executing ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
+                    boxShadow: '0 2px 8px rgba(136, 116, 199, 0.25)',
+                    transition: 'all 180ms ease',
                   }}
                 >
                   <ShieldCheck size={14} />
@@ -606,15 +623,15 @@ export function PracticeArena({
             <div
               className="hint-ladder-box"
               style={{
-                background: 'rgba(251, 191, 36, 0.05)',
-                border: '1px solid rgba(251, 191, 36, 0.2)',
-                borderRadius: 10,
-                padding: 16,
+                background: '#FAF9FB',
+                border: '1px solid rgba(136, 116, 199, 0.25)',
+                borderRadius: 14,
+                padding: 18,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Sparkles size={16} color="#FBBF24" />
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#FBBF24' }}>
+                <Sparkles size={16} color="var(--primary-purple)" />
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-purple)' }}>
                   {hintLevel === 1 && 'Level 1: Nudge Question'}
                   {hintLevel === 2 && 'Level 2: Algorithmic Concept'}
                   {hintLevel === 3 && 'Level 3: Pseudo-code Blueprint'}
@@ -626,7 +643,7 @@ export function PracticeArena({
                 style={{
                   margin: 0,
                   fontSize: 13,
-                  color: '#F9FAFB',
+                  color: 'var(--main-text)',
                   fontFamily: hintLevel >= 3 ? 'monospace' : 'inherit',
                   whiteSpace: 'pre-wrap',
                   lineHeight: 1.5,
@@ -641,11 +658,11 @@ export function PracticeArena({
           {errorMsg && (
             <div
               style={{
-                background: 'rgba(248, 113, 113, 0.1)',
-                border: '1px solid rgba(248, 113, 113, 0.3)',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
                 padding: 12,
-                borderRadius: 8,
-                color: '#F87171',
+                borderRadius: 10,
+                color: '#EF4444',
                 fontSize: 13,
               }}
             >
@@ -657,24 +674,25 @@ export function PracticeArena({
           {execResult && (
             <div
               style={{
-                background: '#0D1117',
-                border: '1px solid var(--line)',
-                borderRadius: 10,
-                padding: 16,
+                background: '#FFFFFF',
+                border: '1px solid var(--border-color)',
+                borderRadius: 14,
+                padding: 18,
+                boxShadow: '0 2px 10px rgba(23, 21, 27, 0.03)',
               }}
             >
               {!execResult.isRunnerAvailable ? (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <AlertTriangle size={18} color="#FBBF24" />
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#FBBF24' }}>
+                    <AlertTriangle size={18} color="#D97706" />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#D97706' }}>
                       Isolated Sandbox Offline — Solution Drafting Mode
                     </span>
                   </div>
-                  <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--secondary-text)', lineHeight: 1.5 }}>
                     {execResult.message || 'Dynamic code execution requires an isolated external runner (PISTON_API_URL or JUDGE0_API_URL). To prevent arbitrary code execution on the application server, dynamic execution is safely disabled. Verified evidence is awarded only after genuine runner execution.'}
                   </p>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', borderRadius: 6, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--secondary-text)', background: '#FAF9FB', padding: '8px 12px', borderRadius: 8, marginBottom: 12, border: '1px solid var(--border-color)' }}>
                     <b>Configuring Dynamic Runner:</b> Set <code>PISTON_API_URL=http://localhost:2000</code> or <code>JUDGE0_API_URL</code> in environment to enable dynamic test evaluation.
                   </div>
                 </div>
@@ -689,21 +707,21 @@ export function PracticeArena({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {execResult.success ? (
-                      <CheckCircle2 size={18} color="#34D399" />
+                      <CheckCircle2 size={18} color="#10B981" />
                     ) : (
-                      <XCircle size={18} color="#F87171" />
+                      <XCircle size={18} color="#EF4444" />
                     )}
                     <span
                       style={{
                         fontSize: 14,
                         fontWeight: 700,
-                        color: execResult.success ? '#34D399' : '#F87171',
+                        color: execResult.success ? '#10B981' : '#EF4444',
                       }}
                     >
                       {execResult.success ? 'All Tests Passed!' : 'Some Test Cases Failed'}
                     </span>
                   </div>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--secondary-text)' }}>
                     {execResult.totalPassed} / {execResult.totalTests} passed ({execResult.runtimeMs}ms)
                   </span>
                 </div>
@@ -715,10 +733,10 @@ export function PracticeArena({
                   <div
                     key={idx}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      border: tc.passed ? '1px solid rgba(52, 211, 153, 0.2)' : '1px solid rgba(248, 113, 113, 0.2)',
-                      borderRadius: 6,
-                      padding: 10,
+                      background: '#FAF9FB',
+                      border: tc.passed ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)',
+                      borderRadius: 8,
+                      padding: 12,
                       fontSize: 12,
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -728,20 +746,20 @@ export function PracticeArena({
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <span style={{ color: tc.passed ? '#34D399' : '#F87171', fontWeight: 700 }}>
+                          <span style={{ color: tc.passed ? '#10B981' : '#EF4444', fontWeight: 700 }}>
                             Case {idx + 1}: {tc.passed ? 'PASS' : tc.status === 'compilation_error' ? 'COMPILE ERROR' : tc.status === 'time_limit_exceeded' ? 'TIME LIMIT' : 'FAIL'}
                           </span>
-                          <span style={{ color: 'var(--muted)', marginLeft: 8 }}>Input: {tc.input}</span>
+                          <span style={{ color: 'var(--secondary-text)', marginLeft: 8 }}>Input: {tc.input}</span>
                         </div>
-                        <span style={{ color: 'var(--muted)', fontSize: 11 }}>{tc.runtimeMs}ms</span>
+                        <span style={{ color: 'var(--secondary-text)', fontSize: 11 }}>{tc.runtimeMs}ms</span>
                       </div>
                       {tc.compileOutput && (
-                        <pre style={{ margin: '6px 0 0', padding: 8, background: 'rgba(0,0,0,0.5)', borderRadius: 4, color: '#f87171', fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto' }}>
+                        <pre style={{ margin: '6px 0 0', padding: 8, background: '#FFFFFF', border: '1px solid var(--border-color)', borderRadius: 6, color: '#EF4444', fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto' }}>
                           {tc.compileOutput}
                         </pre>
                       )}
                       {!tc.passed && !tc.compileOutput && tc.error && (
-                        <div style={{ margin: '4px 0 0', color: '#f87171', fontSize: 11 }}>
+                        <div style={{ margin: '4px 0 0', color: '#EF4444', fontSize: 11 }}>
                           {tc.error}
                         </div>
                       )}
@@ -757,39 +775,41 @@ export function PracticeArena({
             <div
               className="solved-reflection-card"
               style={{
-                background: 'rgba(52, 211, 153, 0.06)',
-                border: '1px solid rgba(52, 211, 153, 0.3)',
-                borderRadius: 10,
-                padding: 18,
+                background: '#FFFFFF',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: 14,
+                padding: 20,
+                boxShadow: '0 2px 10px rgba(23, 21, 27, 0.03)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <Award size={20} color="#34D399" />
-                <h3 style={{ margin: 0, fontSize: 16, color: '#34D399', fontWeight: 700 }}>
+                <Award size={20} color="#10B981" />
+                <h3 style={{ margin: 0, fontSize: 16, color: '#10B981', fontWeight: 700 }}>
                   Problem Solved! Authentic Evidence Recorded.
                 </h3>
               </div>
-              <p style={{ margin: '0 0 14px 0', fontSize: 13, color: '#D1D5DB' }}>
+              <p style={{ margin: '0 0 14px 0', fontSize: 13, color: 'var(--secondary-text)' }}>
                 Your solution passed verification and has been added to your verified Skill Passport evidence ledger.
               </p>
 
               {/* Complexity Analysis */}
               <div
                 style={{
-                  background: 'rgba(0, 0, 0, 0.2)',
-                  borderRadius: 6,
-                  padding: 10,
+                  background: '#FAF9FB',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 8,
+                  padding: 12,
                   marginBottom: 14,
                   fontSize: 12,
                 }}
               >
                 <div>
-                  <b style={{ color: '#FFFFFF' }}>Time Complexity: </b>
-                  <span style={{ color: 'var(--cyan)' }}>{problem.timeComplexity}</span>
+                  <b style={{ color: 'var(--main-text)' }}>Time Complexity: </b>
+                  <span style={{ color: 'var(--primary-purple)', fontWeight: 600 }}>{problem.timeComplexity}</span>
                 </div>
                 <div style={{ marginTop: 4 }}>
-                  <b style={{ color: '#FFFFFF' }}>Space Complexity: </b>
-                  <span style={{ color: 'var(--cyan)' }}>{problem.spaceComplexity}</span>
+                  <b style={{ color: 'var(--main-text)' }}>Space Complexity: </b>
+                  <span style={{ color: 'var(--primary-purple)', fontWeight: 600 }}>{problem.spaceComplexity}</span>
                 </div>
               </div>
 
@@ -800,7 +820,7 @@ export function PracticeArena({
                     display: 'block',
                     fontSize: 12,
                     fontWeight: 600,
-                    color: '#FFFFFF',
+                    color: 'var(--main-text)',
                     marginBottom: 6,
                   }}
                 >
@@ -813,10 +833,10 @@ export function PracticeArena({
                   rows={3}
                   style={{
                     width: '100%',
-                    background: '#0D1117',
-                    border: '1px solid var(--line)',
-                    borderRadius: 6,
-                    color: '#FFFFFF',
+                    background: '#FAF9FB',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 8,
+                    color: 'var(--main-text)',
                     fontSize: 12,
                     padding: 10,
                     boxSizing: 'border-box',
@@ -827,13 +847,14 @@ export function PracticeArena({
                   onClick={() => setReflectionSaved(true)}
                   style={{
                     marginTop: 6,
-                    background: '#1F2937',
-                    border: '1px solid var(--line)',
-                    color: '#FFFFFF',
-                    padding: '4px 12px',
-                    borderRadius: 4,
-                    fontSize: 11,
+                    background: '#FFFFFF',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--main-text)',
+                    padding: '6px 16px',
+                    borderRadius: 20,
+                    fontSize: 12,
                     cursor: 'pointer',
+                    fontWeight: 500,
                   }}
                 >
                   {reflectionSaved ? 'Reflection Saved!' : 'Save Reflection'}
@@ -846,11 +867,11 @@ export function PracticeArena({
                   type="button"
                   onClick={() => onRequestMentorReview(problem.title)}
                   style={{
-                    background: 'none',
-                    border: '1px solid var(--cyan)',
-                    color: 'var(--cyan)',
-                    padding: '6px 14px',
-                    borderRadius: 6,
+                    background: 'rgba(136, 116, 199, 0.08)',
+                    border: '1px solid var(--primary-purple)',
+                    color: 'var(--primary-purple)',
+                    padding: '8px 18px',
+                    borderRadius: 20,
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',

@@ -410,22 +410,22 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           {/* Observed Facts Breakdown */}
           {observedStats && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, margin: '20px 0' }}>
-              <div style={{ background: '#0D1117', border: '1px solid var(--line)', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Total Spoken Words</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#FFFFFF', marginTop: 4 }}>{observedStats.totalWords}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>~{observedStats.avgWordsPerAnswer} words/question</div>
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-color)', borderRadius: 12, padding: 14, boxShadow: '0 2px 8px rgba(23, 21, 27, 0.03)' }}>
+                <div style={{ fontSize: 11, color: 'var(--secondary-text)', textTransform: 'uppercase', fontWeight: 600 }}>Total Spoken Words</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--main-text)', marginTop: 4 }}>{observedStats.totalWords}</div>
+                <div style={{ fontSize: 11, color: 'var(--secondary-text)' }}>~{observedStats.avgWordsPerAnswer} words/question</div>
               </div>
-              <div style={{ background: '#0D1117', border: '1px solid var(--line)', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Pacing Density</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--cyan)', marginTop: 4 }}>{observedStats.estimatedPace}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Answer thoroughness</div>
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-color)', borderRadius: 12, padding: 14, boxShadow: '0 2px 8px rgba(23, 21, 27, 0.03)' }}>
+                <div style={{ fontSize: 11, color: 'var(--secondary-text)', textTransform: 'uppercase', fontWeight: 600 }}>Pacing Density</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--primary-purple)', marginTop: 4 }}>{observedStats.estimatedPace}</div>
+                <div style={{ fontSize: 11, color: 'var(--secondary-text)' }}>Answer thoroughness</div>
               </div>
-              <div style={{ background: '#0D1117', border: '1px solid var(--line)', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Observed Filler Words</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: observedStats.fillerCount > 5 ? '#FBBF24' : '#34D399', marginTop: 4 }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-color)', borderRadius: 12, padding: 14, boxShadow: '0 2px 8px rgba(23, 21, 27, 0.03)' }}>
+                <div style={{ fontSize: 11, color: 'var(--secondary-text)', textTransform: 'uppercase', fontWeight: 600 }}>Observed Filler Words</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: observedStats.fillerCount > 5 ? '#D97706' : '#10B981', marginTop: 4 }}>
                   {observedStats.fillerCount}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>um / uh / like / basically count</div>
+                <div style={{ fontSize: 11, color: 'var(--secondary-text)' }}>um / uh / like / basically count</div>
               </div>
             </div>
           )}
@@ -459,16 +459,16 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
                   {q.score ?? '—'}/100
                 </span>
               </div>
-              <b style={{ fontSize: 15, color: '#FFFFFF', display: 'block', marginBottom: 10 }}>{q.prompt}</b>
+              <b style={{ fontSize: 15, color: 'var(--main-text)', display: 'block', marginBottom: 10 }}>{q.prompt}</b>
               <div
                 style={{
-                  background: '#0D1117',
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  padding: 12,
+                  background: '#FAF9FB',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 10,
+                  padding: 14,
                   margin: '8px 0',
                   fontSize: 13,
-                  color: 'var(--text-secondary)',
+                  color: 'var(--secondary-text)',
                   fontStyle: 'italic',
                 }}
               >
@@ -597,9 +597,9 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
               style={{
                 width: '100%',
                 height: 50,
-                background: '#0D1117',
-                borderRadius: 8,
-                border: '1px solid var(--line)',
+                background: '#FAF9FB',
+                borderRadius: 10,
+                border: '1px solid var(--border-color)',
                 display: 'block',
               }}
             />
@@ -768,10 +768,10 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           )}
 
           {loadingMentors ? (
-            <div style={{ padding: 30, textAlign: 'center', color: 'var(--muted)' }}>Loading verified mentors…</div>
+            <div style={{ padding: 30, textAlign: 'center', color: 'var(--secondary-text)' }}>Loading verified mentors…</div>
           ) : mentorList.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', background: '#0D1117', borderRadius: 8, border: '1px solid var(--line)' }}>
-              <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>
+            <div style={{ padding: 24, textAlign: 'center', background: '#FFFFFF', borderRadius: 12, border: '1px solid var(--border-color)' }}>
+              <p style={{ margin: 0, color: 'var(--secondary-text)', fontSize: 13 }}>
                 No verified mentors are currently accepting interview requests. You can practice immediately with Mode A (AI Interviewer).
               </p>
             </div>
@@ -781,25 +781,26 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
                 <div
                   key={m.id}
                   style={{
-                    background: '#0D1117',
-                    border: '1px solid var(--line)',
-                    borderRadius: 10,
+                    background: '#FFFFFF',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 14,
                     padding: 16,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
+                    boxShadow: '0 2px 8px rgba(23, 21, 27, 0.03)',
                   }}
                 >
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <b style={{ color: '#FFFFFF', fontSize: 15 }}>{m.name}</b>
+                      <b style={{ color: 'var(--main-text)', fontSize: 15 }}>{m.name}</b>
                       <span
                         style={{
                           fontSize: 10,
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          background: 'rgba(34, 211, 238, 0.15)',
-                          color: 'var(--cyan)',
+                          padding: '2px 8px',
+                          borderRadius: 10,
+                          background: 'rgba(136, 116, 199, 0.12)',
+                          color: 'var(--primary-purple)',
                           fontWeight: 700,
                         }}
                       >
@@ -858,20 +859,21 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
                     type="button"
                     onClick={() => setSelectedMode(m.id)}
                     style={{
-                      background: isSelected ? 'rgba(34, 211, 238, 0.12)' : '#0D1117',
-                      border: `1px solid ${isSelected ? 'var(--cyan)' : 'var(--line)'}`,
-                      borderRadius: 10,
-                      padding: 12,
+                      background: isSelected ? 'rgba(136, 116, 199, 0.10)' : '#FFFFFF',
+                      border: `1px solid ${isSelected ? 'var(--primary-purple)' : 'var(--border-color)'}`,
+                      borderRadius: 12,
+                      padding: 14,
                       textAlign: 'left',
                       cursor: 'pointer',
-                      transition: 'all 0.15s ease',
+                      transition: 'all 180ms ease',
+                      boxShadow: '0 2px 8px rgba(23, 21, 27, 0.02)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 18 }}>{m.icon}</span>
-                      <b style={{ color: isSelected ? 'var(--cyan)' : '#FFFFFF', fontSize: 13 }}>{m.label}</b>
+                      <b style={{ color: isSelected ? 'var(--primary-purple)' : 'var(--main-text)', fontSize: 13 }}>{m.label}</b>
                     </div>
-                    <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.4 }}>{m.description}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--secondary-text)', lineHeight: 1.4 }}>{m.description}</p>
                   </button>
                 );
               })}
@@ -881,7 +883,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           {/* 2. Target Role & Experience Level */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 20 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--cyan)', textTransform: 'uppercase', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--primary-purple)', textTransform: 'uppercase', marginBottom: 6 }}>
                 Target Role
               </label>
               <input
@@ -890,12 +892,12 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
                 placeholder="e.g. Full-Stack Software Engineer"
                 style={{
                   width: '100%',
-                  height: 38,
-                  padding: '0 12px',
-                  background: '#0D1117',
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  color: '#FFFFFF',
+                  height: 40,
+                  padding: '0 14px',
+                  background: '#FAF9FB',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 10,
+                  color: 'var(--main-text)',
                   fontSize: 13,
                   boxSizing: 'border-box',
                 }}
@@ -903,7 +905,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--cyan)', textTransform: 'uppercase', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--primary-purple)', textTransform: 'uppercase', marginBottom: 6 }}>
                 Experience Level
               </label>
               <select
@@ -911,14 +913,15 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
                 onChange={(e) => setExperienceLevel(e.target.value as ExperienceLevel)}
                 style={{
                   width: '100%',
-                  height: 38,
-                  padding: '0 12px',
-                  background: '#0D1117',
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  color: '#FFFFFF',
+                  height: 40,
+                  padding: '0 14px',
+                  background: '#FAF9FB',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 10,
+                  color: 'var(--main-text)',
                   fontSize: 13,
                   boxSizing: 'border-box',
+                  cursor: 'pointer',
                 }}
               >
                 {EXPERIENCE_LEVELS.map((l) => (
@@ -932,7 +935,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
 
           {/* 3. Skill Focus */}
           <div style={{ marginBottom: 24 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--cyan)', textTransform: 'uppercase', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--primary-purple)', textTransform: 'uppercase', marginBottom: 6 }}>
               Primary Skill Focus
             </label>
             <select
@@ -940,14 +943,15 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
               onChange={(e) => setSkill(e.target.value)}
               style={{
                 width: '100%',
-                height: 38,
-                padding: '0 12px',
-                background: '#0D1117',
-                border: '1px solid var(--line)',
-                borderRadius: 8,
-                color: '#FFFFFF',
+                height: 40,
+                padding: '0 14px',
+                background: '#FAF9FB',
+                border: '1px solid var(--border-color)',
+                borderRadius: 10,
+                color: 'var(--main-text)',
                 fontSize: 13,
                 boxSizing: 'border-box',
+                cursor: 'pointer',
               }}
             >
               {interviewableSkills().map((s) => (
@@ -959,7 +963,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           </div>
 
           {/* Start CTA */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--border-color)' }}>
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
               Speech is processed locally in your browser. Audio recordings are not persisted.
             </div>

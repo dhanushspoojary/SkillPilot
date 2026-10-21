@@ -399,14 +399,14 @@ export function ConnectedSkillNetwork({
       >
         <defs>
           <radialGradient id="networkCenterGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#245BFF" stopOpacity="0.35" />
-            <stop offset="60%" stopColor="#245BFF" stopOpacity="0.08" />
-            <stop offset="100%" stopColor="#080D1A" stopOpacity="0" />
+            <stop offset="0%" stopColor="#8874C7" stopOpacity="0.12" />
+            <stop offset="60%" stopColor="#8874C7" stopOpacity="0.03" />
+            <stop offset="100%" stopColor="#FAF9FB" stopOpacity="0" />
           </radialGradient>
           <linearGradient id="edgePulse" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#245BFF" stopOpacity="0.2" />
-            <stop offset="50%" stopColor="#71E6FF" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#245BFF" stopOpacity="0.2" />
+            <stop offset="0%" stopColor="#8874C7" stopOpacity="0.2" />
+            <stop offset="50%" stopColor="#8874C7" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#8874C7" stopOpacity="0.2" />
           </linearGradient>
           <filter id="glowFilter" x="-25%" y="-25%" width="150%" height="150%">
             <feGaussianBlur stdDeviation="3.5" result="blur" />
@@ -425,7 +425,7 @@ export function ConnectedSkillNetwork({
           cx={coreNode.x}
           cy={coreNode.y}
           r="165"
-          stroke="rgba(148, 169, 204, 0.12)"
+          stroke="#E7E3EB"
           strokeWidth="1"
           strokeDasharray="4 6"
           className="orbital-ring orbital-slow"
@@ -434,7 +434,7 @@ export function ConnectedSkillNetwork({
           cx={coreNode.x}
           cy={coreNode.y}
           r="110"
-          stroke="rgba(77, 141, 255, 0.2)"
+          stroke="#E7E3EB"
           strokeWidth="1"
           strokeDasharray="8 4"
           className="orbital-ring orbital-reverse"
@@ -443,7 +443,7 @@ export function ConnectedSkillNetwork({
           cx={coreNode.x}
           cy={coreNode.y}
           r="58"
-          stroke="rgba(113, 230, 255, 0.35)"
+          stroke="rgba(136, 116, 199, 0.3)"
           strokeWidth="1.2"
           className="orbital-ring"
         />
@@ -461,10 +461,10 @@ export function ConnectedSkillNetwork({
               y2={n.y}
               stroke={
                 isVerified
-                  ? 'rgba(113, 230, 255, 0.45)'
+                  ? 'rgba(136, 116, 199, 0.5)'
                   : isAssessed
-                  ? 'rgba(77, 141, 255, 0.28)'
-                  : 'rgba(148, 169, 204, 0.12)'
+                  ? 'rgba(136, 116, 199, 0.25)'
+                  : '#E7E3EB'
               }
               strokeWidth={isVerified ? '1.8' : '1.2'}
               strokeDasharray={isAssessed ? undefined : '3 4'}
@@ -482,7 +482,7 @@ export function ConnectedSkillNetwork({
               y1={n.y}
               x2={next.x}
               y2={next.y}
-              stroke="rgba(148, 169, 204, 0.14)"
+              stroke="#E7E3EB"
               strokeWidth="1"
               strokeDasharray="2 4"
             />
@@ -511,12 +511,12 @@ export function ConnectedSkillNetwork({
 
         {/* Central Core: AI Career Intelligence Engine */}
         <g className="core-node" filter="url(#glowFilter)">
-          <circle cx={coreNode.x} cy={coreNode.y} r="24" fill="#0C1426" stroke="#245BFF" strokeWidth="2.5" />
-          <circle cx={coreNode.x} cy={coreNode.y} r="10" fill="#71E6FF" className="core-pulse-dot" />
+          <circle cx={coreNode.x} cy={coreNode.y} r="24" fill="#FFFFFF" stroke="#8874C7" strokeWidth="2.5" />
+          <circle cx={coreNode.x} cy={coreNode.y} r="10" fill="#8874C7" className="core-pulse-dot" />
           <text
             x={coreNode.x}
             y={coreNode.y + 40}
-            fill="#71E6FF"
+            fill="#8874C7"
             fontSize="10"
             fontFamily="monospace"
             fontWeight="700"
@@ -534,24 +534,20 @@ export function ConnectedSkillNetwork({
           const isHovered = activeTooltip === n.id;
 
           const strokeColor = isVerified
-            ? '#71E6FF'
+            ? '#8874C7'
             : n.status === 'foundational'
-            ? '#4D8DFF'
+            ? '#8874C7'
             : n.status === 'emerging'
-            ? '#245BFF'
-            : 'rgba(148, 169, 204, 0.35)';
+            ? '#8874C7'
+            : '#E7E3EB';
 
-          const fillColor = isVerified
-            ? '#162445'
-            : isAssessed
-            ? '#111B33'
-            : '#0C1426';
+          const fillColor = '#FFFFFF';
 
           const centerColor = isVerified
-            ? '#71E6FF'
+            ? '#8874C7'
             : isAssessed
-            ? '#245BFF'
-            : 'rgba(148, 169, 204, 0.4)';
+            ? '#DCD2F0'
+            : '#E7E3EB';
 
           return (
             <g
@@ -592,7 +588,7 @@ export function ConnectedSkillNetwork({
               <text
                 x={n.x}
                 y={n.y + 26}
-                fill={isVerified ? '#71E6FF' : isAssessed ? '#F4F7FF' : '#9AA8BF'}
+                fill={isVerified ? '#8874C7' : isAssessed ? '#17151B' : '#77727F'}
                 fontSize="11"
                 fontWeight={isHovered || isVerified ? '700' : '500'}
                 fontFamily="inherit"
@@ -606,7 +602,7 @@ export function ConnectedSkillNetwork({
                 <text
                   x={n.x}
                   y={n.y - 20}
-                  fill={isVerified ? '#71E6FF' : '#4D8DFF'}
+                  fill="#8874C7"
                   fontSize="9"
                   fontFamily="monospace"
                   fontWeight="700"
