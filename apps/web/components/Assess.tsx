@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   ArrowRight,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sliders,
   CheckCircle2,
   RefreshCcw,
   ShieldCheck,
@@ -13,6 +16,16 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { Evidence } from '../lib/types';
+
+export type AdaptationPayload = {
+  direction: 'ELEVATED' | 'DIAGNOSTIC' | 'RESOLVING';
+  previousLevel: number;
+  nextLevel: number;
+  reason: string;
+  skill?: string;
+  evidenceCount?: number;
+  decisiveReached?: boolean;
+};
 
 const SKILL_NAMES: Record<string, string> = {
   'rest-apis': 'REST APIs',
@@ -105,6 +118,7 @@ export function Assess({
   const [busyMessage, setBusyMessage] = useState('Preparing your diagnostic…');
   const [startError, setStartError] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [adaptationInfo, setAdaptationInfo] = useState<AdaptationPayload | null>(null);
   const isMountedRef = useRef(true);
   const startInFlightRef = useRef(false);
   const submitInFlightRef = useRef(false);
@@ -125,6 +139,7 @@ export function Assess({
     setSubmitError('');
     setPicked(null);
     setFeedback(null);
+    setAdaptationInfo(null);
     setResults(null);
 
     try {
@@ -215,7 +230,16 @@ export function Assess({
         setBusy(false);
         submitInFlightRef.current = false;
       } else {
-        setFeedback('Answer recorded. Next adaptive question selected.');
+        if (data.adaptation) {
+          setAdaptationInfo(data.adaptation);
+        }
+        setFeedback(
+          data.adaptation?.direction === 'ELEVATED'
+            ? `Correct! Elevating challenge to Level ${data.adaptation.nextLevel}.`
+            : data.adaptation?.direction === 'DIAGNOSTIC'
+            ? `Answer recorded. Routing to Level ${data.adaptation.nextLevel} diagnostic.`
+            : 'Answer recorded. Next adaptive question selected.'
+        );
         window.setTimeout(() => {
           if (!isMountedRef.current) return;
           try {
@@ -236,7 +260,7 @@ export function Assess({
             setBusy(false);
             submitInFlightRef.current = false;
           }
-        }, 300);
+        }, 400);
       }
     } catch (e) {
       if (!isMountedRef.current) return;
@@ -557,6 +581,32 @@ export function Assess({
         </div>
       )}
 
+      {/* Adaptive Progression Banner */}
+      {adaptationInfo && (
+        <div
+          className={`adaptive-progression-banner ${adaptationInfo.direction.toLowerCase()}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="adaptive-badge">
+            {adaptationInfo.direction === 'ELEVATED' ? (
+              <>
+                <ArrowUpRight size={15} /> Level {adaptationInfo.previousLevel} → Level {adaptationInfo.nextLevel} (Elevated Challenge)
+              </>
+            ) : adaptationInfo.direction === 'DIAGNOSTIC' ? (
+              <>
+                <ArrowDownRight size={15} /> Level {adaptationInfo.previousLevel} → Level {adaptationInfo.nextLevel} (Diagnostic Prerequisite)
+              </>
+            ) : (
+              <>
+                <Sliders size={15} /> Calibrated to Level {adaptationInfo.nextLevel}
+              </>
+            )}
+          </div>
+          <span className="adaptive-reason">{adaptationInfo.reason}</span>
+        </div>
+      )}
+
       {/* Progress Header */}
       <div className="assessment-top">
         <div className="progress-info">
@@ -572,7 +622,7 @@ export function Assess({
         </div>
         <div className="skill-pill">
           <b>{SKILL_NAMES[q.skill] || q.skill}</b>
-          <span>Level {q.level}</span>
+          <span className="level-badge">Level {q.level}</span>
         </div>
       </div>
 

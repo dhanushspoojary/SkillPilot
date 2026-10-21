@@ -242,53 +242,7 @@ export function Today({
         </div>
       </section>
 
-      {/* COMPACT PROGRESS STRIP */}
-      <div
-        className="compact-progress-strip"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: 12,
-          padding: '14px 20px',
-          background: '#FFFFFF',
-          border: '1px solid var(--border-color)',
-          borderRadius: 12,
-          fontSize: 12,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Target size={16} color="var(--primary-purple)" />
-          <div>
-            <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', fontWeight: 600 }}>Target Goal</span>
-            <b style={{ color: 'var(--text-primary)', fontSize: 13 }}>{careerGoal}</b>
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Award size={16} color="#047857" />
-          <div>
-            <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', fontWeight: 600 }}>Verified Skills</span>
-            <b style={{ color: 'var(--text-primary)', fontSize: 13 }}>{skills.filter((s) => s.verified).length} of {skills.length} verified</b>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Layers size={16} color="var(--primary-purple)" />
-          <div>
-            <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', fontWeight: 600 }}>Current Milestone</span>
-            <b style={{ color: 'var(--text-primary)', fontSize: 13 }}>Phase {currentStage.n}: {currentStage.name}</b>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Sparkles size={16} color="var(--primary-purple)" />
-          <div>
-            <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', fontWeight: 600 }}>Daily Streak</span>
-            <b style={{ color: 'var(--text-primary)', fontSize: 13 }}>1-day streak • ❄️ 1 freeze</b>
-          </div>
-        </div>
-      </div>
 
       {/* 5-STAGE GUIDED JOURNEY PROGRESS */}
       <GuidedJourneyProgress
@@ -449,8 +403,7 @@ export function Today({
         </details>
       )}
 
-      {/* Interactive Procedural Vector Topology */}
-      <ConnectedSkillNetwork state={state} onSelectSkill={(skillId) => go('assess', skillId)} />
+
 
       {/* PRIORITY 3, 4, 5: GRID OF MILESTONE, PROGRESS & SKILL INSIGHTS */}
       <div className="dashboard-grid">
@@ -710,18 +663,7 @@ export function Today({
           </div>
         </div>
       </div>
-      <div style={{ marginTop: 24 }}>
-        <AnimatedMarquee
-          items={[
-            'EVIDENCE-LED CAREER OPERATING SYSTEM',
-            'SERVER-OWNED VERIFICATION',
-            'ZERO SYNTHETIC SCORES',
-            'IMMUTABLE PROOF TRAIL',
-            'REAL RUNTIME EVALUATION',
-          ]}
-          speedSeconds={40}
-        />
-      </div>
+
     </div>
   );
 }

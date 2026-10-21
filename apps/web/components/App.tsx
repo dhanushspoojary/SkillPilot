@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrainCircuit, Bell, CheckCircle2, ChevronRight, ChevronUp, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2, LogOut, GraduationCap, Play, BookOpen, Terminal } from 'lucide-react';
+import { BrainCircuit, Bell, CheckCircle2, ChevronRight, ChevronUp, LayoutDashboard, Activity, Gauge, Crosshair, Users, Award, Menu, X, Settings, Mic, Code2, LogOut, GraduationCap, Play, BookOpen, Terminal, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { defaultState, explainPlan, planActions, toggleActivity, type AppState, type PlanAction, } from '../lib/engine';
 import { Assess } from './Assess';
 import { AgentPanel } from './AgentPanel';
@@ -12,7 +12,6 @@ import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } fr
 import { MockInterview } from './MockInterview';
 import { CapabilityOnboarding } from './CapabilityOnboarding';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
-import { CustomCursor } from './motion';
 const NAV: [
     View,
     string,
@@ -55,8 +54,28 @@ export function App({ user, onLogout }: {
     const [workflow, setWorkflow] = useState<any>(null);
     const [showCalibration, setShowCalibration] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const triggerButtonRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('skillpilot_sidebar_collapsed');
+            if (saved !== null) {
+                setSidebarCollapsed(saved === 'true');
+            }
+        } catch {}
+    }, []);
+
+    const toggleSidebar = () => {
+        setSidebarCollapsed((prev) => {
+            const next = !prev;
+            try {
+                localStorage.setItem('skillpilot_sidebar_collapsed', String(next));
+            } catch {}
+            return next;
+        });
+    };
 
     const handleLogout = async () => {
         try {
@@ -283,12 +302,42 @@ export function App({ user, onLogout }: {
             setRunning(false);
         }
     };
-    return <div className="app-shell">
-    <CustomCursor />
-    <aside className={menu ? 'sidebar mobile-open' : 'sidebar'}>
-      <div className="brand"><span className="brand-mark">S</span><span>SkillPilot</span></div>
-      <div className="side-label">CAREER INTELLIGENCE SYSTEM</div>
-      <nav aria-label="Main navigation">{NAV.map(([id, num, label, Icon]) => (<button key={id} className={view === id ? 'nav-item active' : 'nav-item'} aria-current={view === id ? 'page' : undefined} onClick={() => go(id)}><span className="nav-index">{num}</span><Icon size={17}/><span>{label}</span></button>))}</nav>
+    return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`}>
+    {menu && <div className="sidebar-backdrop" onClick={() => setMenu(false)} aria-hidden="true" />}
+    <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${menu ? 'mobile-open' : ''}`}>
+      <div className="brand">
+        <span className="brand-mark">S</span>
+        {!sidebarCollapsed && <span>SkillPilot</span>}
+        <button
+          type="button"
+          className="sidebar-collapse-toggle"
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        </button>
+      </div>
+      {!sidebarCollapsed && <div className="side-label">CAREER INTELLIGENCE SYSTEM</div>}
+      <nav aria-label="Main navigation">
+        {NAV.map(([id, num, label, Icon]) => (
+          <button
+            key={id}
+            className={view === id ? 'nav-item active' : 'nav-item'}
+            aria-current={view === id ? 'page' : undefined}
+            onClick={() => {
+              go(id);
+              if (menu) setMenu(false);
+            }}
+            title={sidebarCollapsed ? `${num}. ${label}` : undefined}
+            data-tooltip={label}
+          >
+            <span className="nav-index">{num}</span>
+            <Icon size={17}/>
+            {!sidebarCollapsed && <span>{label}</span>}
+          </button>
+        ))}
+      </nav>
       <div className="sidebar-spacer"/>
       <div className="sidebar-profile-container" ref={profileMenuRef}>
         {profileOpen && (

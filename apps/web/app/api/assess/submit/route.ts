@@ -148,8 +148,26 @@ export async function POST(req: Request) {
             const skill = item.rows[0].skill_slug;
 
             // Adaptive question progression: evaluate skill evidence decisive condition
-            const skillAnswered = answered.rows.filter((r: any) => r.skill_slug === skill);
-            if (skillAnswered.length === 1) {
+            const skillAnswered = answered.rows.filter((r: any) => r.skill_slug === skill && r.response !== null);
+            const currentSkillItems = skillAnswered.map((it: any) => {
+                const promptObj = typeof it.prompt === 'string' ? JSON.parse(it.prompt) : it.prompt;
+                const questionObj = QUESTIONS.find((x) => x.id === promptObj?.id) || {
+                    id: promptObj?.id || it.question_id,
+                    skill,
+                    level: Number(promptObj?.level ?? 1),
+                    q: promptObj?.q || '',
+                    options: promptObj?.options || [],
+                    answer: 0,
+                    why: '',
+                };
+                const respObj = typeof it.response === 'string' ? JSON.parse(it.response) : it.response;
+                return { question: questionObj, response: respObj || {} };
+            });
+
+            const currentSkillSummary = computeSkillAdaptiveSummary({ skill, items: currentSkillItems });
+
+            // If decisive evidence has not been reached and question limit for skill (< 4) not exceeded, select next adaptive question
+            if (!currentSkillSummary.decisiveEvidenceReached && currentSkillItems.length < 4) {
                 const used = new Set(answered.rows.map((r: any) => r.question_id));
                 const next = selectAdaptiveNextQuestion({
                     skill,
@@ -162,12 +180,28 @@ export async function POST(req: Request) {
                         `insert into assessment_items(assessment_id,question_id,skill_slug,prompt) values($1,$2,$3,$4)`,
                         [aid, next.id, next.skill, JSON.stringify(publicQ(next))]
                     );
+                    const direction = next.level > q.level ? 'ELEVATED' : next.level < q.level ? 'DIAGNOSTIC' : 'RESOLVING';
+                    const reason = direction === 'ELEVATED'
+                        ? `Answer correct! Demonstrated mastery at Level ${q.level}. Elevating to Level ${next.level} to test deeper application.`
+                        : direction === 'DIAGNOSTIC'
+                        ? `Answer incorrect. Struggle at Level ${q.level}. Routing to Level ${next.level} diagnostic to isolate foundational concepts.`
+                        : `Assessing clarifying question at Level ${next.level} to resolve uncertainty.`;
+
                     return {
                         recorded: true,
                         done: false,
                         index: answeredCount,
-                        total: totalQuestions,
+                        total: Math.max(answeredCount + 1, totalQuestions),
                         question: publicQ(next),
+                        adaptation: {
+                            direction,
+                            previousLevel: q.level,
+                            nextLevel: next.level,
+                            reason,
+                            skill,
+                            evidenceCount: currentSkillItems.length,
+                            decisiveReached: false,
+                        },
                         evalResult: {
                             classification: evalResult.classification,
                             explanation: evalResult.explanation,
@@ -177,10 +211,31 @@ export async function POST(req: Request) {
                 }
             }
 
+            // If decisive evidence is reached for this skill, check if there are other un-assessed skills in the session
             const remaining = await c.query<any>(`select question_id,skill_slug,prompt from assessment_items where assessment_id=$1 and response is null order by position limit 1`, [aid]);
             if (remaining.rowCount) {
                 const promptObj = typeof remaining.rows[0].prompt === 'string' ? JSON.parse(remaining.rows[0].prompt) : remaining.rows[0].prompt;
-                return { recorded: true, done: false, index: answeredCount, total: totalQuestions, question: promptObj };
+                return {
+                    recorded: true,
+                    done: false,
+                    index: answeredCount,
+                    total: totalQuestions,
+                    question: promptObj,
+                    adaptation: {
+                        direction: 'RESOLVING',
+                        previousLevel: q.level,
+                        nextLevel: Number(promptObj?.level ?? 1),
+                        reason: `Skill '${skill}' reached decisive evidence. Advancing to next planned skill: ${promptObj.skill || 'next'}.`,
+                        skill: promptObj.skill || skill,
+                        evidenceCount: answeredCount,
+                        decisiveReached: true,
+                    },
+                    evalResult: {
+                        classification: evalResult.classification,
+                        explanation: evalResult.explanation,
+                        misconception: evalResult.misconceptionIdentified,
+                    },
+                };
             }
 
             const rows = await c.query<any>(`select skill_slug,position,prompt,response,score from assessment_items where assessment_id=$1 order by position`, [aid]);
@@ -251,7 +306,17 @@ export async function POST(req: Request) {
                  on conflict(user_id) do update set stage = 'SKILL_BASELINE_REVIEW', updated_at = now()`,
                 [u.id],
             );
-            return { recorded: true, done: true, results, overall, workflowStage: 'SKILL_BASELINE_REVIEW' };
+            return {
+                recorded: true,
+                done: true,
+                results,
+                overall,
+                workflowStage: 'SKILL_BASELINE_REVIEW',
+                stoppingDecision: {
+                    reason: 'Decisive evidence criteria satisfied or question limit reached',
+                    totalQuestionsAsked: answeredCount,
+                }
+            };
         });
         return json(out);
     }
