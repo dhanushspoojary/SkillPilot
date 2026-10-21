@@ -9,6 +9,7 @@ import { PageIntro, Signal, SkillBar, VerifiedBadge } from './ui';
 import { AnimatedMarquee, ConnectedSkillNetwork, ScrollReveal, GuidedJourneyProgress, type JourneyStageConfig } from './motion';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
 import { extractClaimedSkills } from '../lib/assessment-planner';
+import { RoadmapSkillTree } from './RoadmapSkillTree';
 export type View = 'today' | 'practice' | 'learn' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
 
@@ -241,8 +242,35 @@ export function Today({
           )}
         </div>
       </section>
-      {/* SECTION B: CAREER READINESS SUMMARY (4 MEANINGFUL METRICS DERIVED FROM AUTHENTIC DATA) */}
+      {/* SECTION B: CAREER READINESS SUMMARY (4 NON-REDUNDANT ESSENTIAL METRICS) */}
       <section className="career-readiness-summary-strip" aria-label="Career Readiness Summary">
+        <div className="summary-metric-card">
+          <div className="summary-metric-head">
+            <span className="summary-metric-title">TARGET CAREER</span>
+            <Target size={16} className="metric-icon" />
+          </div>
+          <div className="summary-metric-value milestone-value">
+            <b style={{ fontSize: 16 }}>{careerGoal}</b>
+          </div>
+          <div className="summary-metric-footnote">
+            {workflow?.capabilityProfile?.educationLevel ? `${workflow.capabilityProfile.educationLevel.replace('_', ' ').toUpperCase()} Track` : 'Calibrated Track'}
+          </div>
+        </div>
+
+        <div className="summary-metric-card highlight-card">
+          <div className="summary-metric-head">
+            <span className="summary-metric-title">READINESS</span>
+            <Award size={16} className="metric-icon highlight-icon" />
+          </div>
+          <div className="summary-metric-value highlight-value">
+            <b>{r}%</b>
+            <span className="metric-sublabel">{r > 60 ? 'Competitive' : r > 30 ? 'Developing' : 'Foundational'}</span>
+          </div>
+          <div className="summary-metric-footnote">
+            Authentic server-computed capability
+          </div>
+        </div>
+
         <div className="summary-metric-card">
           <div className="summary-metric-head">
             <span className="summary-metric-title">VERIFIED SKILLS</span>
@@ -254,14 +282,14 @@ export function Today({
             <span className="metric-total">{skills.length}</span>
           </div>
           <div className="summary-metric-footnote">
-            {claimedSkills.length > 0 ? `${claimedSkills.length} self-reported (0% weight)` : 'Proven through server evaluation'}
+            {state.evidence.length} authentic signals recorded
           </div>
         </div>
 
         <div className="summary-metric-card">
           <div className="summary-metric-head">
             <span className="summary-metric-title">CURRENT MILESTONE</span>
-            <Target size={16} className="metric-icon" />
+            <Compass size={16} className="metric-icon" />
           </div>
           <div className="summary-metric-value milestone-value">
             <b>Phase {currentStage.n}</b>
@@ -269,35 +297,6 @@ export function Today({
           </div>
           <div className="summary-metric-footnote">
             {stagesProg.find((s) => s.n === currentStage.n)?.progress || 0}% milestone progress
-          </div>
-        </div>
-
-        <div className="summary-metric-card">
-          <div className="summary-metric-head">
-            <span className="summary-metric-title">ASSESSMENT PROGRESS</span>
-            <Crosshair size={16} className="metric-icon" />
-          </div>
-          <div className="summary-metric-value">
-            <b>{verifiedSkillsList.length}</b>
-            <span className="metric-divider">/</span>
-            <span className="metric-total">{skills.length}</span>
-          </div>
-          <div className="summary-metric-footnote">
-            {state.evidence.length} verified signals recorded
-          </div>
-        </div>
-
-        <div className="summary-metric-card highlight-card">
-          <div className="summary-metric-head">
-            <span className="summary-metric-title">READINESS SCORE</span>
-            <Award size={16} className="metric-icon highlight-icon" />
-          </div>
-          <div className="summary-metric-value highlight-value">
-            <b>{r}%</b>
-            <span className="metric-sublabel">{r > 60 ? 'Competitive' : r > 30 ? 'Developing' : 'Foundational'}</span>
-          </div>
-          <div className="summary-metric-footnote">
-            Authentic server-computed capability
           </div>
         </div>
       </section>
@@ -602,26 +601,6 @@ export function Today({
 
         {/* SIDEBAR COLUMN */}
         <div className="dashboard-sidebar-col">
-          {/* PRIORITY 4: COMPUTED READINESS & PROGRESS */}
-          <div className="panel-block">
-            <div className="panel-head">
-              <h3>Career Readiness</h3>
-              <span className="badge-cyan">{state.evidence.length} signals</span>
-            </div>
-            <div className="readiness" style={{ marginBottom: 16 }}>
-              <ProgressRing value={r} />
-              <div className="readiness-copy">
-                <small>COMPUTED READINESS</small>
-                <b>{r}%</b>
-                <span>{skills.filter((s) => s.verified).length} of {skills.length} verified</span>
-              </div>
-            </div>
-            {r === 0 && (
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0 0', lineHeight: 1.4 }}>
-                Awaiting initial verified evidence. Self-reported claims are excluded from readiness until proven.
-              </p>
-            )}
-          </div>
 
           {/* PRIORITY 7: AI COMPANION (CONVERSATIONAL UI INTEGRATED INTO THE PRODUCT) */}
           <div className="today-ai-companion" role="region" aria-label="AI Career Companion">
@@ -864,10 +843,13 @@ export function Roadmap({ state, actions, go, workflow, onOpenCalibration }: {
     )}
 
     <div className="roadmap-meta"><span><b>12 weeks</b> current cycle</span><span><b>{readiness(skills)}%</b> readiness</span><span><b>{actions.length}</b> open actions</span></div>
-    <div className="roadmap-list">{STAGES.map((s, i) => (<div className={i === current ? 'roadmap-row current' : 'roadmap-row'} key={s.n}>
-        <span className="road-num">{s.n}</span><div><small>{s.weeks}</small><h3>{s.name}</h3><p>{s.blurb}</p></div>
-        <div className="road-progress"><b>{prog[i]}%</b><div><i style={{ width: `${prog[i]}%` }}/></div></div>
-      </div>))}</div>
+    <RoadmapSkillTree
+      state={state}
+      actions={actions}
+      go={go}
+      workflow={workflow}
+      onOpenCalibration={onOpenCalibration}
+    />
     <div className="agent-wide"><Sparkles /><div><span className="kicker">WHY THE PLAN LOOKS LIKE THIS</span><h3>{top ? top.title : 'Plan complete'}</h3><p>{state.planNote}</p></div>
       {top && <button className="ghost" onClick={() => {
         if (actionableTask?.route === 'learn') {

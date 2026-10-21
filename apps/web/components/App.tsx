@@ -26,35 +26,44 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
     {
-        groupTitle: 'PRIMARY',
+        groupTitle: 'DASHBOARD',
         items: [
             { id: 'today', num: '01', label: 'Today', icon: LayoutDashboard },
-            { id: 'assess', num: '02', label: 'Assess', icon: Crosshair },
-            { id: 'learn', num: '03', label: 'Learn', icon: BookOpen },
-            { id: 'practice', num: '04', label: 'Practice', icon: Terminal },
-            { id: 'projects', num: '05', label: 'Projects', icon: Code2 },
+        ],
+    },
+    {
+        groupTitle: 'LEARNING',
+        items: [
+            { id: 'learn', num: '02', label: 'Learn', icon: BookOpen },
+            { id: 'practice', num: '03', label: 'Practice', icon: Terminal },
+            { id: 'skills', num: '04', label: 'Skills', icon: Gauge },
+            { id: 'assess', num: '05', label: 'Assess', icon: Crosshair },
+        ],
+    },
+    {
+        groupTitle: 'CAREER',
+        items: [
             { id: 'roadmap', num: '06', label: 'Roadmap', icon: Activity },
+            { id: 'projects', num: '07', label: 'Projects', icon: Code2 },
         ],
     },
     {
-        groupTitle: 'CAREER DEVELOPMENT',
+        groupTitle: 'INTERVIEWS',
         items: [
-            { id: 'skills', num: '07', label: 'Skills', icon: Gauge },
-            { id: 'mentors', num: '08', label: 'Mentors', icon: Users },
-            { id: 'interview', num: '09', label: 'Mock Interview', icon: Mic },
-            { id: 'passport', num: '10', label: 'Passport', icon: Award },
-        ],
-    },
-    {
-        groupTitle: 'SYSTEM',
-        items: [
-            { id: 'agent', num: '11', label: 'Agent', icon: BrainCircuit },
-            { id: 'settings', num: '12', label: 'Settings', icon: Settings },
+            { id: 'interview', num: '08', label: 'Mock Interview', icon: Mic },
+            { id: 'mentors', num: '09', label: 'Mentors', icon: Users },
         ],
     },
 ];
 
-const ALL_NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
+const PROFILE_NAV_ITEMS: NavItem[] = [
+    { id: 'agent', num: '10', label: 'AI Agent', icon: BrainCircuit },
+    { id: 'passport', num: '11', label: 'Skill Passport', icon: Award },
+    { id: 'settings', num: '12', label: 'Account Settings', icon: Settings },
+];
+
+const ALL_NAV_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), ...PROFILE_NAV_ITEMS];
+
 export function App({ user, onLogout }: {
     user: {
         id: string;
@@ -353,15 +362,26 @@ export function App({ user, onLogout }: {
       <div className="brand">
         <span className="brand-mark">S</span>
         {!sidebarCollapsed && <span>SkillPilot</span>}
-        <button
-          type="button"
-          className="sidebar-collapse-toggle"
-          onClick={toggleSidebar}
-          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-        </button>
+        {menu ? (
+          <button
+            type="button"
+            className="mobile-drawer-close"
+            onClick={() => setMenu(false)}
+            aria-label="Close navigation"
+          >
+            <X size={18} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="sidebar-collapse-toggle"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
       </div>
       {!sidebarCollapsed && <div className="side-label">CAREER INTELLIGENCE SYSTEM</div>}
       <nav aria-label="Main navigation">
@@ -393,7 +413,34 @@ export function App({ user, onLogout }: {
             })}
           </div>
         ))}
+        {menu && (
+          <div className="nav-group mobile-system-group">
+            <div className="nav-group-title">SYSTEM & PROFILE</div>
+            {PROFILE_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = view === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={isActive ? 'nav-item active' : 'nav-item'}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => {
+                    go(item.id);
+                    setMenu(false);
+                  }}
+                  data-tooltip={item.label}
+                >
+                  <span className="nav-index">{item.num}</span>
+                  <Icon size={17} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </nav>
+
       <div className="sidebar-spacer"/>
       <div className="sidebar-profile-container" ref={profileMenuRef}>
         {profileOpen && (
@@ -433,12 +480,12 @@ export function App({ user, onLogout }: {
                 className="profile-dropdown-item"
                 role="menuitem"
                 onClick={() => {
-                  go('settings');
+                  go('agent');
                   setProfileOpen(false);
                 }}
               >
-                <Settings size={15} />
-                <span>Account Settings</span>
+                <BrainCircuit size={15} />
+                <span>AI Career Agent</span>
               </button>
 
               <button
@@ -452,6 +499,19 @@ export function App({ user, onLogout }: {
               >
                 <Award size={15} />
                 <span>Skill Passport</span>
+              </button>
+
+              <button
+                type="button"
+                className="profile-dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  go('settings');
+                  setProfileOpen(false);
+                }}
+              >
+                <Settings size={15} />
+                <span>Account Settings</span>
               </button>
 
               <div className="profile-dropdown-divider" role="separator" />
@@ -619,6 +679,10 @@ export function App({ user, onLogout }: {
         onSave={saveCalibration}
         onClose={() => setShowCalibration(false)}
         canDismiss={true}
+        onNavigateToRoadmap={() => {
+          setShowCalibration(false);
+          go('roadmap');
+        }}
       />
     )}
     {toast && (

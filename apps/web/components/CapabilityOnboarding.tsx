@@ -17,6 +17,12 @@ import {
   CheckCircle2,
   Send,
   Loader2,
+  Target,
+  ShieldCheck,
+  AlertCircle,
+  HelpCircle,
+  Terminal,
+  Trophy,
 } from 'lucide-react';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
 import {
@@ -26,6 +32,7 @@ import {
   ONBOARDING_TOPIC_CONFIGS,
   type OnboardingTurn,
 } from '../lib/onboarding-dialogue';
+import type { AdaptiveOnboardingState } from '../lib/adaptive-onboarding';
 
 export const ONBOARDING_SKILL_CATEGORIES = [
   {
@@ -59,6 +66,8 @@ interface Props {
   onSave: (profile: StudentCapabilityProfile) => Promise<void>;
   onClose?: () => void;
   canDismiss?: boolean;
+  onNavigateToRoadmap?: () => void;
+  initialTab?: 'discovery' | 'adaptive_assessment';
 }
 
 interface SummaryData {
@@ -75,7 +84,10 @@ export function CapabilityOnboarding({
   onSave,
   onClose,
   canDismiss = true,
+  onNavigateToRoadmap,
+  initialTab = 'discovery',
 }: Props) {
+  const [activeTab, setActiveTab] = useState<'discovery' | 'adaptive_assessment'>(initialTab);
   const [mode, setMode] = useState<'conversational' | 'form'>('conversational');
   const [busy, setBusy] = useState(false);
   const [customText, setCustomText] = useState('');
@@ -95,8 +107,14 @@ export function CapabilityOnboarding({
   const [skillsKnown, setSkillsKnown] = useState<string[]>(initialProfile?.skillsKnown || []);
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
 
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // Adaptive Technical Assessment State
+  const [assessmentSession, setAssessmentSession] = useState<AdaptiveOnboardingState | null>(null);
+  const [assessmentInput, setAssessmentInput] = useState('');
+  const [assessmentBusy, setAssessmentBusy] = useState(false);
+  const [assessmentError, setAssessmentError] = useState('');
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const assessmentScrollRef = useRef<HTMLDivElement>(null);
   const [selectedChips, setSelectedChips] = useState<string[]>([]);
 
   // Initialize dynamic onboarding from server
@@ -125,7 +143,6 @@ export function CapabilityOnboarding({
             const nextTopicDef = ONBOARDING_TOPIC_CONFIGS.find((cfg) => !answeredTopics.has(cfg.topic));
 
             if (!nextTopicDef || answered.length >= ONBOARDING_TOPIC_CONFIGS.length) {
-              // Completed
               const edu = answered.find((d) => d.topic === 'education')?.answer || '1st Year Student';
               const exp = answered.find((d) => d.topic === 'experience')?.answer || 'Beginner';
               const struggles = answered.find((d) => d.topic === 'struggles')?.answer || 'Problem Solving';
@@ -141,7 +158,6 @@ export function CapabilityOnboarding({
               });
               setActiveTurn(null);
             } else {
-              // Create next turn for the first unanswered topic
               setActiveTurn({
                 id: generateTurnId(nextTopicDef.topic),
                 topic: nextTopicDef.topic,
@@ -154,7 +170,6 @@ export function CapabilityOnboarding({
             }
           }
         } else {
-          // Fresh default initial turn
           const first = ONBOARDING_TOPIC_CONFIGS[0];
           setActiveTurn({
             id: generateTurnId(first.topic),
@@ -167,7 +182,7 @@ export function CapabilityOnboarding({
           });
         }
       } catch {
-        // Fallback default
+        // Fallback to static first turn
         const first = ONBOARDING_TOPIC_CONFIGS[0];
         setActiveTurn({
           id: generateTurnId(first.topic),
@@ -181,12 +196,85 @@ export function CapabilityOnboarding({
       }
     }
 
-    void init();
+    init();
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // Check if an existing adaptive technical assessment session is active (for safe resume)
+  useEffect(() => {
+    let cancelled = false;
+    async function checkActiveAssessment() {
+      try {
+        const res = await fetch('/api/onboarding/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetRole: careerInterest }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.session) {
+          setAssessmentSession(data.session);
+          if (data.session.history?.length > 0 && !data.session.isComplete) {
+            setActiveTab('adaptive_assessment');
+          }
+        }
+      } catch {}
+    }
+
+    checkActiveAssessment();
+    return () => {
+      cancelled = true;
+    };
+  }, [careerInterest]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [turns, activeTurn, summary]);
+
+  useEffect(() => {
+    assessmentScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [assessmentSession?.history?.length, assessmentSession?.currentQuestion]);
+
+  // Restart discovery dialogue
+  const handleRestart = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await fetch('/api/workflow/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restart' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to restart');
+      setTurns([]);
+      setSummary(null);
+      if (data.nextTurn) {
+        setActiveTurn(data.nextTurn);
+      } else {
+        const first = ONBOARDING_TOPIC_CONFIGS[0];
+        setActiveTurn({
+          id: generateTurnId(first.topic),
+          topic: first.topic,
+          question: first.defaultQuestion,
+          explanation: first.explanation,
+          options: first.options,
+          multiSelect: first.multiSelect,
+          allowSkip: true,
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not restart');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Rewind one turn
   const handleBack = async () => {
     if (busy || turns.length === 0) return;
     setBusy(true);
@@ -222,11 +310,6 @@ export function CapabilityOnboarding({
     await handleAnswer('Skipped / Not sure yet');
   };
 
-
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [turns, activeTurn, summary]);
-
   // Answer a turn
   const handleAnswer = async (answerText: string) => {
     const trimmedAnswer = answerText.trim();
@@ -249,7 +332,6 @@ export function CapabilityOnboarding({
       answer: trimmedAnswer,
     };
 
-    // Optimistically update turns state without duplicate keys or duplicate topics
     setTurns((prev) => mergeOrAppendTurn(prev, turnWithAnswer));
     setActiveTurn(null);
     setCustomText('');
@@ -266,7 +348,6 @@ export function CapabilityOnboarding({
 
       if (data.isComplete && data.summary) {
         setSummary(data.summary);
-        // Also update local form state
         setCareerInterest(data.summary.careerGoal || 'Software Engineer');
         setWeeklyHours(data.summary.weeklyHours || 5);
       } else if (data.nextTurn) {
@@ -278,13 +359,10 @@ export function CapabilityOnboarding({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit answer. Please retry.');
-      // Restore turn so student can re-attempt
       setActiveTurn(currentTurn);
       if (existingTurn) {
-        // Roll back to previously valid answer without discarding it
         setTurns((prev) => prev.map((t) => (t.id === existingTurn.id ? existingTurn : t)));
       } else {
-        // Remove optimistic entry if it was a new turn
         setTurns((prev) => prev.filter((t) => t.id !== currentTurn.id));
       }
     } finally {
@@ -292,19 +370,17 @@ export function CapabilityOnboarding({
     }
   };
 
-  // Complete onboarding
+  // Complete onboarding discovery and save profile
   const handleFinalConfirm = async () => {
     setBusy(true);
     setError('');
     try {
-      // 1. Mark onboarding complete in workflow engine
       await fetch('/api/workflow/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'complete' }),
       });
 
-      // 2. Persist student capability profile
       const chosenGoal = summary?.careerGoal || careerInterest;
       const hours = summary?.weeklyHours || weeklyHours;
       await onSave({
@@ -319,10 +395,10 @@ export function CapabilityOnboarding({
         onboardingCompleted: true,
       });
 
-      if (onClose) onClose();
+      // Transition to adaptive technical assessment
+      await startAdaptiveAssessment(chosenGoal);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not finalize calibration');
-    } finally {
       setBusy(false);
     }
   };
@@ -333,7 +409,6 @@ export function CapabilityOnboarding({
     setBusy(true);
     setError('');
     try {
-      // Complete through workflow endpoint
       await fetch('/api/workflow/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -357,31 +432,140 @@ export function CapabilityOnboarding({
         skillsKnown,
         onboardingCompleted: true,
       });
-      if (onClose) onClose();
+
+      // Launch technical diagnostic
+      await startAdaptiveAssessment(careerInterest);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save calibration');
-    } finally {
       setBusy(false);
+    }
+  };
+
+  // Start or transition into the Adaptive Assessment
+  const startAdaptiveAssessment = async (role?: string) => {
+    setAssessmentBusy(true);
+    setAssessmentError('');
+    try {
+      const res = await fetch('/api/onboarding/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetRole: role || careerInterest || 'Software Engineer' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to start adaptive assessment');
+      setAssessmentSession(data.session);
+      setActiveTab('adaptive_assessment');
+    } catch (err) {
+      setAssessmentError(err instanceof Error ? err.message : 'Could not start technical assessment');
+    } finally {
+      setAssessmentBusy(false);
+      setBusy(false);
+    }
+  };
+
+  // Submit Answer in Adaptive Technical Assessment
+  const handleAssessmentSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!assessmentSession || !assessmentInput.trim() || assessmentBusy) return;
+
+    setAssessmentBusy(true);
+    setAssessmentError('');
+    try {
+      const res = await fetch('/api/onboarding/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: assessmentSession.sessionId,
+          answer: assessmentInput.trim(),
+          targetRole: assessmentSession.targetRole,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to process answer');
+      setAssessmentSession(data.session);
+      setAssessmentInput('');
+    } catch (err) {
+      setAssessmentError(err instanceof Error ? err.message : 'Submission failed. Please retry.');
+    } finally {
+      setAssessmentBusy(false);
+    }
+  };
+
+  // Skip question in Adaptive Technical Assessment
+  const handleAssessmentSkip = async () => {
+    if (!assessmentSession || assessmentBusy) return;
+    setAssessmentBusy(true);
+    setAssessmentError('');
+    try {
+      const res = await fetch('/api/onboarding/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: assessmentSession.sessionId,
+          answer: 'Skipped / Unfamiliar with this concept',
+          targetRole: assessmentSession.targetRole,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to skip question');
+      setAssessmentSession(data.session);
+      setAssessmentInput('');
+    } catch (err) {
+      setAssessmentError(err instanceof Error ? err.message : 'Skip failed. Please retry.');
+    } finally {
+      setAssessmentBusy(false);
     }
   };
 
   return (
     <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="onboard-title">
-      <div className="onboarding-modal" style={{ maxWidth: 660, maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="onboarding-modal" style={{ maxWidth: 720, maxHeight: '92vh', overflowY: 'auto' }}>
+        {/* Header / Tabs */}
         <div className="onboarding-head">
-          <div className="onboarding-badge">
-            <Sparkles size={14} />
-            <span>DYNAMIC AI ONBOARDING</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div className="onboarding-badge">
+              <Sparkles size={14} />
+              <span>SKILLPILOT 2.1 // ADAPTIVE ONBOARDING</span>
+            </div>
+            <div style={{ display: 'flex', gap: 4, background: '#FAF9FB', padding: 2, borderRadius: 8, border: '1px solid #E7E3EB' }}>
+              <button
+                type="button"
+                className={`ghost ${activeTab === 'discovery' ? 'active-tab-btn' : ''}`}
+                style={{ fontSize: 11, padding: '3px 8px', height: 26, borderRadius: 6, fontWeight: activeTab === 'discovery' ? 700 : 500 }}
+                onClick={() => setActiveTab('discovery')}
+              >
+                1. Background
+              </button>
+              <button
+                type="button"
+                className={`ghost ${activeTab === 'adaptive_assessment' ? 'active-tab-btn' : ''}`}
+                style={{ fontSize: 11, padding: '3px 8px', height: 26, borderRadius: 6, fontWeight: activeTab === 'adaptive_assessment' ? 700 : 500 }}
+                onClick={() => {
+                  if (!assessmentSession) {
+                    startAdaptiveAssessment();
+                  } else {
+                    setActiveTab('adaptive_assessment');
+                  }
+                }}
+              >
+                2. Technical Diagnostic
+              </button>
+            </div>
           </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              type="button"
-              className="ghost"
-              style={{ fontSize: 12, padding: '4px 10px', height: 28 }}
-              onClick={() => setMode(mode === 'conversational' ? 'form' : 'conversational')}
-            >
-              {mode === 'conversational' ? 'Switch to Quick Form' : 'Switch to Dialogue'}
-            </button>
+            {activeTab === 'discovery' && (
+              <button
+                type="button"
+                className="ghost"
+                style={{ fontSize: 12, padding: '4px 10px', height: 28 }}
+                onClick={() => setMode(mode === 'conversational' ? 'form' : 'conversational')}
+              >
+                {mode === 'conversational' ? 'Quick Form' : 'Dialogue'}
+              </button>
+            )}
             {canDismiss && onClose && (
               <button type="button" className="icon-btn-close" onClick={onClose} aria-label="Close setup">
                 <X size={18} />
@@ -390,476 +574,555 @@ export function CapabilityOnboarding({
           </div>
         </div>
 
-        <h2 id="onboard-title">Welcome to SkillPilot. Tell us where you are starting.</h2>
-        <p className="onboarding-sub">
-          We tailor your diagnostic questions and roadmap to your real background. Starting as a beginner is expected and valued.
-        </p>
+        {/* TAB 1: BACKGROUND DISCOVERY */}
+        {activeTab === 'discovery' ? (
+          <div>
+            <h2 id="onboard-title">Welcome to SkillPilot. Tell us where you are starting.</h2>
+            <p className="onboarding-sub">
+              We tailor your diagnostic questions and roadmap to your real background. Starting as a beginner is expected and valued.
+            </p>
 
-        {error && (
-          <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#FCA5A5', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
-            {error}
-          </div>
-        )}
-
-        {mode === 'conversational' ? (
-          <div className="onboarding-chat-stream" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Progress indicator */}
-            {!summary && (
-              <div style={{ marginBottom: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
-                  <span>Question {Math.min(turns.length + 1, ONBOARDING_TOPIC_CONFIGS.length)} of {ONBOARDING_TOPIC_CONFIGS.length}</span>
-                  <span>{Math.round((turns.length / ONBOARDING_TOPIC_CONFIGS.length) * 100)}% calibrated</span>
-                </div>
-                <div style={{ width: '100%', height: 4, background: 'var(--line)', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ width: `${(turns.length / ONBOARDING_TOPIC_CONFIGS.length) * 100}%`, height: '100%', background: 'var(--cyan)', transition: 'width 0.3s ease' }} />
-                </div>
+            {error && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#DC2626', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
+                {error}
               </div>
             )}
 
-            {/* Answered turns */}
-            {turns.map((turn, idx) => (
-              <div key={turn.id || `turn-${turn.topic || idx}`} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface-indigo)', color: 'var(--cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                    <Bot size={16} />
-                  </div>
-                  <div style={{ background: 'var(--surface-indigo)', padding: '12px 16px', borderRadius: 12, color: '#FFFFFF', fontSize: 14, flex: 1, border: '1px solid var(--line)' }}>
-                    {turn.question}
-                  </div>
-                </div>
-                {turn.answer && (
-                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'flex-start' }}>
-                    <div style={{ background: 'var(--primary)', padding: '10px 16px', borderRadius: 12, color: '#FFFFFF', fontSize: 14, maxWidth: '80%' }}>
-                      {turn.answer}
+            {mode === 'conversational' ? (
+              <div className="onboarding-chat-stream" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {!summary && (
+                  <div style={{ marginBottom: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#4A4553', marginBottom: 6 }}>
+                      <span>Question {Math.min(turns.length + 1, ONBOARDING_TOPIC_CONFIGS.length)} of {ONBOARDING_TOPIC_CONFIGS.length}</span>
+                      <span>{Math.round((turns.length / ONBOARDING_TOPIC_CONFIGS.length) * 100)}% calibrated</span>
                     </div>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--primary-light)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                      <User size={15} />
+                    <div style={{ width: '100%', height: 4, background: '#E7E3EB', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: `${(turns.length / ONBOARDING_TOPIC_CONFIGS.length) * 100}%`, height: '100%', background: '#8874C7', transition: 'width 0.3s ease' }} />
                     </div>
                   </div>
                 )}
-              </div>
-            ))}
 
-            {/* Active Turn */}
-            {activeTurn && !summary && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface-indigo)', color: 'var(--cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                    <Bot size={16} />
-                  </div>
-                  <div style={{ background: 'var(--surface-navy)', padding: '14px 18px', borderRadius: 12, color: '#FFFFFF', fontSize: 14, flex: 1, border: '1px solid var(--cyan-border)', boxShadow: 'var(--shadow-sm)' }}>
-                    <b style={{ color: 'var(--cyan)', display: 'block', fontSize: 11, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Step {turns.length + 1} of {ONBOARDING_TOPIC_CONFIGS.length} · {activeTurn.topic.toUpperCase().replace('_', ' ')}
-                    </b>
-                    <div>{activeTurn.question}</div>
-                    {activeTurn.explanation && (
-                      <div style={{ fontSize: 12, color: 'var(--cyan)', marginTop: 8, fontStyle: 'italic', opacity: 0.9 }}>
-                        {activeTurn.explanation}
+                {/* Answered turns */}
+                {turns.map((turn, idx) => (
+                  <div key={turn.id || `turn-${turn.topic || idx}`} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#FAF9FB', border: '1px solid #E7E3EB', color: '#8874C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <Bot size={16} />
+                      </div>
+                      <div style={{ background: '#FAF9FB', padding: '12px 16px', borderRadius: 12, color: '#17151B', fontSize: 14, flex: 1, border: '1px solid #E7E3EB' }}>
+                        {turn.question}
+                      </div>
+                    </div>
+                    {turn.answer && (
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+                        <div style={{ background: '#8874C7', padding: '10px 16px', borderRadius: 12, color: '#FFFFFF', fontSize: 14, maxWidth: '80%' }}>
+                          {turn.answer}
+                        </div>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#DCD2F0', color: '#17151B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                          <User size={15} />
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
+                ))}
 
-                {/* Option Chips (Single or Multi-select) */}
-                {activeTurn.options && activeTurn.options.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 38 }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {activeTurn.options.map((opt, i) => {
-                        const isSelected = selectedChips.includes(opt);
-                        return (
-                          <button
-                            key={i}
-                            type="button"
-                            className="chip-card small"
-                            style={{
-                              background: isSelected ? 'var(--primary)' : 'var(--surface-indigo)',
-                              borderColor: isSelected ? 'var(--cyan)' : undefined,
-                              color: isSelected ? '#FFFFFF' : undefined,
-                              cursor: busy ? 'not-allowed' : 'pointer',
-                            }}
-                            disabled={busy}
-                            onClick={() => {
-                              if (activeTurn.multiSelect) {
-                                if (opt.includes('None') || opt.includes('fresh')) {
-                                  setSelectedChips([opt]);
-                                } else {
-                                  const filtered = selectedChips.filter((c) => !c.includes('None') && !c.includes('fresh'));
-                                  setSelectedChips(
-                                    isSelected ? filtered.filter((c) => c !== opt) : [...filtered, opt]
-                                  );
-                                }
-                              } else {
-                                handleAnswer(opt);
-                              }
-                            }}
-                          >
-                            <b>{opt}</b>
-                          </button>
-                        );
-                      })}
+                {/* Active Turn */}
+                {activeTurn && !summary && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#FAF9FB', border: '1px solid #E7E3EB', color: '#8874C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <Bot size={16} />
+                      </div>
+                      <div style={{ background: '#FFFFFF', padding: '14px 18px', borderRadius: 12, color: '#17151B', fontSize: 14, flex: 1, border: '1px solid #8874C7', boxShadow: '0 4px 12px rgba(136,116,199,0.08)' }}>
+                        <b style={{ display: 'block', marginBottom: 6 }}>{activeTurn.question}</b>
+                        {activeTurn.explanation && (
+                          <small style={{ color: '#4A4553', display: 'block', fontSize: 12, lineHeight: 1.4 }}>
+                            {activeTurn.explanation}
+                          </small>
+                        )}
+                      </div>
                     </div>
 
-                    {activeTurn.multiSelect && selectedChips.length > 0 && (
-                      <div style={{ marginTop: 4 }}>
-                        <button
-                          type="button"
-                          className="primary small"
-                          disabled={busy}
-                          onClick={() => {
-                            handleAnswer(selectedChips.join(', '));
-                            setSelectedChips([]);
-                          }}
-                        >
-                          Confirm selected skills ({selectedChips.length})
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                    {/* Predefined options */}
+                    {activeTurn.options && activeTurn.options.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 38 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+                          {activeTurn.options.map((opt) => {
+                            const isSelected = selectedChips.includes(opt);
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                className={`chip-card small ${isSelected ? 'active' : ''}`}
+                                disabled={busy}
+                                onClick={() => {
+                                  if (activeTurn.multiSelect) {
+                                    setSelectedChips((prev) =>
+                                      prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]
+                                    );
+                                  } else {
+                                    handleAnswer(opt);
+                                  }
+                                }}
+                              >
+                                <b>{opt}</b>
+                              </button>
+                            );
+                          })}
+                        </div>
 
-                {/* Free text custom answer */}
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (customText.trim()) handleAnswer(customText);
-                  }}
-                  style={{ display: 'flex', gap: 8, paddingLeft: 38, marginTop: 4 }}
-                >
-                  <input
-                    value={customText}
-                    onChange={(e) => setCustomText(e.target.value)}
-                    placeholder="Or type a custom answer…"
-                    disabled={busy}
-                    style={{ flex: 1, background: 'var(--surface-indigo)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', color: '#FFF', fontSize: 13 }}
-                  />
-                  <button
-                    type="submit"
-                    className="primary"
-                    disabled={busy || !customText.trim()}
-                    style={{ minHeight: 38, padding: '0 16px' }}
-                  >
-                    {busy ? <Loader2 size={15} className="spin" /> : <Send size={14} />}
-                  </button>
-                </form>
-
-                {/* Back and Skip navigation buttons */}
-                <div style={{ display: 'flex', gap: 10, paddingLeft: 38, marginTop: 4 }}>
-                  {turns.length > 0 && (
-                    <button
-                      type="button"
-                      className="ghost"
-                      style={{ fontSize: 12, padding: '4px 10px' }}
-                      disabled={busy}
-                      onClick={handleBack}
-                    >
-                      ← Back
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="ghost"
-                    style={{ fontSize: 12, padding: '4px 10px', color: 'var(--text-secondary)' }}
-                    disabled={busy}
-                    onClick={handleSkip}
-                  >
-                    Skip / Not sure yet
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Completed Summary Card */}
-            {summary && (
-              <div style={{ background: 'var(--surface-navy)', border: '1px solid var(--cyan-border)', borderRadius: 12, padding: 20, marginTop: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--cyan)', marginBottom: 12 }}>
-                  <CheckCircle2 size={18} />
-                  <b style={{ fontSize: 14 }}>SELF-REPORTED BASELINE SUMMARY</b>
-                </div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>
-                  Here is the profile we compiled from our dialogue. We will use this to generate beginner-friendly diagnostic questions.
-                </p>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 20 }}>
-                  <div style={{ background: 'var(--surface-indigo)', padding: 12, borderRadius: 8 }}>
-                    <small style={{ color: 'var(--muted)', display: 'block', fontSize: 11 }}>EDUCATION STAGE</small>
-                    <b style={{ color: '#FFF', fontSize: 13 }}>{summary.educationLevel}</b>
-                  </div>
-                  <div style={{ background: 'var(--surface-indigo)', padding: 12, borderRadius: 8 }}>
-                    <small style={{ color: 'var(--muted)', display: 'block', fontSize: 11 }}>PRIOR EXPERIENCE</small>
-                    <b style={{ color: '#FFF', fontSize: 13 }}>{summary.programmingExperience}</b>
-                  </div>
-                  <div style={{ background: 'var(--surface-indigo)', padding: 12, borderRadius: 8 }}>
-                    <small style={{ color: 'var(--muted)', display: 'block', fontSize: 11 }}>PRIMARY CAREER GOAL</small>
-                    <b style={{ color: '#FFF', fontSize: 13 }}>{summary.careerGoal}</b>
-                  </div>
-                  <div style={{ background: 'var(--surface-indigo)', padding: 12, borderRadius: 8 }}>
-                    <small style={{ color: 'var(--muted)', display: 'block', fontSize: 11 }}>WEEKLY AVAILABILITY</small>
-                    <b style={{ color: '#FFF', fontSize: 13 }}>{summary.weeklyHours} hours/week</b>
-                  </div>
-                </div>
-
-                <div style={{ background: 'rgba(0,240,255,0.06)', borderLeft: '3px solid var(--cyan)', padding: '10px 14px', borderRadius: 4, marginBottom: 20 }}>
-                  <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                    <b>Important:</b> This is your self-reported starting profile. Your personalized roadmap will unlock after you verify these concepts in your diagnostic assessment.
-                  </small>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={async () => {
-                      setSummary(null);
-                      setTurns([]);
-                      const first = ONBOARDING_TOPIC_CONFIGS[0];
-                      const freshTurn: OnboardingTurn = {
-                        id: generateTurnId(first.topic),
-                        topic: first.topic,
-                        question: first.defaultQuestion,
-                        explanation: first.explanation,
-                        options: first.options,
-                        multiSelect: first.multiSelect,
-                        allowSkip: true,
-                      };
-                      setActiveTurn(freshTurn);
-                      try {
-                        const res = await fetch('/api/workflow/onboarding', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ action: 'restart' }),
-                        });
-                        if (res.ok) {
-                          const data = await res.json();
-                          if (data.nextTurn) {
-                            setActiveTurn(data.nextTurn);
-                          }
-                        }
-                      } catch {}
-                    }}
-                    disabled={busy}
-                  >
-                    <RotateCcw size={14} /> Restart Dialogue
-                  </button>
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={handleFinalConfirm}
-                    disabled={busy}
-                    style={{ minHeight: 42, padding: '0 20px' }}
-                  >
-                    {busy ? <Loader2 size={16} className="spin" /> : <ArrowRight size={16} />}
-                    Confirm Profile & Start Diagnostic
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div ref={scrollRef} />
-          </div>
-        ) : (
-          /* Form Fallback Mode */
-          <form onSubmit={handleFormSubmit} className="onboarding-form">
-            <div className="onboarding-group">
-              <label className="group-label">
-                <GraduationCap size={16} /> Current Education Level
-              </label>
-              <div className="chip-grid">
-                {[
-                  { id: 'first_year', label: '1st Year Student', note: 'Just starting college' },
-                  { id: 'second_year', label: '2nd Year Student', note: 'Covering core CS topics' },
-                  { id: 'senior', label: '3rd / 4th Year', note: 'Preparing for placements' },
-                  { id: 'self_taught', label: 'Self-taught / Bootcamp', note: 'Learning independently' },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className={`chip-card ${eduLevel === opt.id ? 'active' : ''}`}
-                    onClick={() => setEduLevel(opt.id)}
-                  >
-                    <b>{opt.label}</b>
-                    <small>{opt.note}</small>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="onboarding-group">
-              <label className="group-label">
-                <Code2 size={16} /> Prior Programming Experience
-              </label>
-              <div className="chip-grid">
-                {[
-                  { id: 'beginner', label: 'Complete Beginner', note: 'Never written code before' },
-                  { id: 'studied_basics', label: 'Basic Coursework', note: 'Studied intro C, C++, or Python' },
-                  { id: 'small_programs', label: 'Wrote Small Programs', note: 'Comfortable with loops & functions' },
-                  { id: 'built_projects', label: 'Built Projects', note: 'Created apps, scripts, or websites' },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className={`chip-card ${progExp === opt.id ? 'active' : ''}`}
-                    onClick={() => setProgExp(opt.id)}
-                  >
-                    <b>{opt.label}</b>
-                    <small>{opt.note}</small>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="onboarding-group">
-              <label className="group-label">
-                <Compass size={16} /> Primary Career Interest
-              </label>
-              <div className="chip-grid compact">
-                {[
-                  'Software Engineer',
-                  'Frontend Engineer',
-                  'Backend Engineer',
-                  'Full Stack Engineer',
-                  'Exploring / Not Sure Yet',
-                ].map((role) => (
-                  <button
-                    key={role}
-                    type="button"
-                    className={`chip-card small ${careerInterest === role ? 'active' : ''}`}
-                    onClick={() => setCareerInterest(role)}
-                  >
-                    <b>{role}</b>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="onboarding-group">
-              <label className="group-label">
-                <Clock size={16} /> Weekly Learning Availability
-              </label>
-              <div className="chip-grid compact">
-                {[
-                  { hours: 3, label: '3 hrs/week', note: 'Light pace' },
-                  { hours: 5, label: '5 hrs/week', note: 'Steady (Recommended)' },
-                  { hours: 10, label: '10 hrs/week', note: 'Accelerated' },
-                  { hours: 15, label: '15+ hrs/week', note: 'Intensive' },
-                ].map((item) => (
-                  <button
-                    key={item.hours}
-                    type="button"
-                    className={`chip-card small ${weeklyHours === item.hours ? 'active' : ''}`}
-                    onClick={() => setWeeklyHours(item.hours)}
-                  >
-                    <b>{item.label}</b>
-                    <small>{item.note}</small>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Searchable Categorized Skill Selector */}
-            <div className="onboarding-group">
-              <label className="group-label">
-                <Sparkles size={16} /> Select Skills: Prior Knowledge vs What You Want to Learn
-              </label>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px 0' }}>
-                Click once to mark as <b>"Want to Learn"</b> (Green), click again to mark as <b>"Know Already"</b> (Blue).
-              </p>
-              <input
-                type="text"
-                value={skillSearchQuery}
-                onChange={(e) => setSkillSearchQuery(e.target.value)}
-                placeholder="Search skills (e.g. C, Python, SQL, React, Loops, APIs)..."
-                style={{
-                  width: '100%',
-                  background: 'var(--bg-main)',
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  padding: '8px 14px',
-                  color: '#FFF',
-                  fontSize: 13,
-                  marginBottom: 14,
-                }}
-              />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {ONBOARDING_SKILL_CATEGORIES.map((cat, idx) => {
-                  const filtered = cat.skills.filter((s) =>
-                    s.toLowerCase().includes(skillSearchQuery.toLowerCase())
-                  );
-                  if (filtered.length === 0) return null;
-                  return (
-                    <div key={idx} style={{ background: 'var(--bg-main)', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--line)' }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--cyan)', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>
-                        {cat.category.toUpperCase()}
-                      </span>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {filtered.map((skill) => {
-                          const isLearn = skillsToLearn.includes(skill);
-                          const isKnown = skillsKnown.includes(skill);
-                          let badgeBg = 'transparent';
-                          let badgeBorder = 'var(--line)';
-                          let badgeColor = 'var(--text-secondary)';
-                          let label = skill;
-
-                          if (isLearn) {
-                            badgeBg = 'rgba(16, 185, 129, 0.18)';
-                            badgeBorder = 'rgba(16, 185, 129, 0.4)';
-                            badgeColor = '#34D399';
-                            label = `${skill} ★ Want to Learn`;
-                          } else if (isKnown) {
-                            badgeBg = 'rgba(77, 141, 255, 0.18)';
-                            badgeBorder = 'rgba(77, 141, 255, 0.4)';
-                            badgeColor = '#60A5FA';
-                            label = `${skill} ✓ Know Already`;
-                          }
-
-                          return (
+                        {activeTurn.multiSelect && selectedChips.length > 0 && (
+                          <div style={{ marginTop: 4 }}>
                             <button
-                              key={skill}
                               type="button"
+                              className="primary small"
+                              disabled={busy}
                               onClick={() => {
-                                if (!isLearn && !isKnown) {
-                                  setSkillsToLearn((prev) => [...prev, skill]);
-                                } else if (isLearn) {
-                                  setSkillsToLearn((prev) => prev.filter((s) => s !== skill));
-                                  setSkillsKnown((prev) => [...prev, skill]);
-                                } else {
-                                  setSkillsKnown((prev) => prev.filter((s) => s !== skill));
-                                }
-                              }}
-                              style={{
-                                background: badgeBg,
-                                border: `1px solid ${badgeBorder}`,
-                                color: badgeColor,
-                                padding: '5px 12px',
-                                borderRadius: 6,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
+                                handleAnswer(selectedChips.join(', '));
+                                setSelectedChips([]);
                               }}
                             >
-                              {label}
+                              Confirm selected ({selectedChips.length})
                             </button>
-                          );
-                        })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Free text answer */}
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (customText.trim()) handleAnswer(customText);
+                      }}
+                      style={{ display: 'flex', gap: 8, paddingLeft: 38, marginTop: 4 }}
+                    >
+                      <input
+                        value={customText}
+                        onChange={(e) => setCustomText(e.target.value)}
+                        placeholder="Or type a custom answer…"
+                        disabled={busy}
+                        style={{ flex: 1, background: '#FAF9FB', border: '1px solid #E7E3EB', borderRadius: 8, padding: '10px 14px', color: '#17151B', fontSize: 13 }}
+                      />
+                      <button
+                        type="submit"
+                        className="primary"
+                        disabled={busy || !customText.trim()}
+                        style={{ minHeight: 38, padding: '0 16px' }}
+                      >
+                        {busy ? <Loader2 size={15} className="spin" /> : <Send size={14} />}
+                      </button>
+                    </form>
+
+                    <div style={{ display: 'flex', gap: 10, paddingLeft: 38, marginTop: 4 }}>
+                      {turns.length > 0 && (
+                        <button
+                          type="button"
+                          className="ghost"
+                          style={{ fontSize: 12, padding: '4px 10px' }}
+                          disabled={busy}
+                          onClick={handleBack}
+                        >
+                          ← Back
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="ghost"
+                        style={{ fontSize: 12, padding: '4px 10px', color: '#4A4553' }}
+                        disabled={busy}
+                        onClick={handleSkip}
+                      >
+                        Skip / Not sure yet
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Completed Discovery Summary Card */}
+                {summary && (
+                  <div style={{ background: '#FAF9FB', border: '1px solid #E7E3EB', borderRadius: 16, padding: 24, marginTop: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#8874C7', marginBottom: 12 }}>
+                      <CheckCircle2 size={20} />
+                      <b style={{ fontSize: 15 }}>BACKGROUND CALIBRATION CONFIRMED</b>
+                    </div>
+                    <p style={{ color: '#4A4553', fontSize: 13, marginBottom: 18, lineHeight: 1.5 }}>
+                      Your learning profile is calibrated. To unlock your personalized roadmap with verified evidence, proceed to the <b>Adaptive Technical Diagnostic</b>.
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 20 }}>
+                      <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 10, border: '1px solid #E7E3EB' }}>
+                        <small style={{ color: '#4A4553', display: 'block', fontSize: 11 }}>EDUCATION STAGE</small>
+                        <b style={{ color: '#17151B', fontSize: 13 }}>{summary.educationLevel}</b>
+                      </div>
+                      <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 10, border: '1px solid #E7E3EB' }}>
+                        <small style={{ color: '#4A4553', display: 'block', fontSize: 11 }}>PRIOR EXPERIENCE</small>
+                        <b style={{ color: '#17151B', fontSize: 13 }}>{summary.programmingExperience}</b>
+                      </div>
+                      <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 10, border: '1px solid #E7E3EB' }}>
+                        <small style={{ color: '#4A4553', display: 'block', fontSize: 11 }}>TARGET CAREER</small>
+                        <b style={{ color: '#17151B', fontSize: 13 }}>{summary.careerGoal}</b>
+                      </div>
+                      <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 10, border: '1px solid #E7E3EB' }}>
+                        <small style={{ color: '#4A4553', display: 'block', fontSize: 11 }}>WEEKLY AVAILABILITY</small>
+                        <b style={{ color: '#17151B', fontSize: 13 }}>{summary.weeklyHours} hours/week</b>
                       </div>
                     </div>
-                  );
-                })}
+
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={handleRestart}
+                        disabled={busy}
+                        style={{ fontSize: 13 }}
+                      >
+                        <RotateCcw size={14} style={{ marginRight: 6 }} /> Restart Dialogue
+                      </button>
+                      <button
+                        type="button"
+                        className="primary"
+                        onClick={handleFinalConfirm}
+                        disabled={busy}
+                        style={{ minHeight: 42, padding: '0 22px', fontSize: 13 }}
+                      >
+                        {busy ? <Loader2 size={16} className="spin" /> : <Sparkles size={15} style={{ marginRight: 6 }} />}
+                        Launch Adaptive Technical Diagnostic
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={scrollRef} />
+              </div>
+            ) : (
+              /* Quick Form Mode */
+              <form onSubmit={handleFormSubmit} className="onboarding-form">
+                <div className="onboarding-group">
+                  <label className="group-label">
+                    <GraduationCap size={16} /> Current Education Level
+                  </label>
+                  <div className="chip-grid">
+                    {[
+                      { id: 'first_year', label: '1st Year Student', note: 'Just starting college' },
+                      { id: 'second_year', label: '2nd Year Student', note: 'Covering core CS topics' },
+                      { id: 'senior', label: '3rd / 4th Year', note: 'Preparing for placements' },
+                      { id: 'self_taught', label: 'Self-taught / Bootcamp', note: 'Learning independently' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`chip-card ${eduLevel === opt.id ? 'active' : ''}`}
+                        onClick={() => setEduLevel(opt.id)}
+                      >
+                        <b>{opt.label}</b>
+                        <small>{opt.note}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="onboarding-group">
+                  <label className="group-label">
+                    <Code2 size={16} /> Prior Programming Experience
+                  </label>
+                  <div className="chip-grid">
+                    {[
+                      { id: 'beginner', label: 'Complete Beginner', note: 'Never written code before' },
+                      { id: 'studied_basics', label: 'Basic Coursework', note: 'Studied intro C, C++, or Python' },
+                      { id: 'small_programs', label: 'Wrote Small Programs', note: 'Comfortable with loops & functions' },
+                      { id: 'built_projects', label: 'Built Projects', note: 'Created apps, scripts, or websites' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`chip-card ${progExp === opt.id ? 'active' : ''}`}
+                        onClick={() => setProgExp(opt.id)}
+                      >
+                        <b>{opt.label}</b>
+                        <small>{opt.note}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="onboarding-actions">
+                  <button type="submit" className="primary submit-setup-btn" disabled={busy}>
+                    {busy ? 'Launching Diagnostic…' : 'Save & Launch Adaptive Diagnostic'}
+                    <ArrowRight size={15} />
+                  </button>
+                  {canDismiss && onClose && (
+                    <button type="button" className="ghost" onClick={onClose} disabled={busy}>
+                      Skip for now
+                    </button>
+                  )}
+                </div>
+              </form>
+            )}
+          </div>
+        ) : (
+          /* TAB 2: LLM-DRIVEN ADAPTIVE TECHNICAL ASSESSMENT */
+          <div className="adaptive-assessment-container" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Header info bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, background: '#FAF9FB', padding: '12px 16px', borderRadius: 12, border: '1px solid #E7E3EB' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Target size={15} color="#8874C7" />
+                <span style={{ fontSize: 13, color: '#17151B' }}>
+                  Target Role: <b>{assessmentSession?.targetRole || careerInterest}</b>
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#4A4553', background: '#FFFFFF', padding: '4px 10px', borderRadius: 999, border: '1px solid #E7E3EB' }}>
+                <span className="live-dot" />
+                <span>{assessmentSession?.provenance === 'llm' ? 'Gemini Adaptive LLM' : 'Verified Adaptive Engine'}</span>
               </div>
             </div>
 
-            <div className="onboarding-actions">
-              <button type="submit" className="primary submit-setup-btn" disabled={busy}>
-                {busy ? 'Saving calibration…' : 'Save & Continue to Diagnostic'}
-                <ArrowRight size={15} />
-              </button>
-              {canDismiss && onClose && (
-                <button type="button" className="ghost" onClick={onClose} disabled={busy}>
-                  Skip for now
-                </button>
-              )}
-            </div>
-          </form>
+            {assessmentError && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#DC2626', padding: '10px 14px', borderRadius: 8, fontSize: 13 }}>
+                {assessmentError}
+              </div>
+            )}
+
+            {/* Assessment not complete: render active conversation & input */}
+            {!assessmentSession?.isComplete ? (
+              <>
+                {/* Dynamic Progress indicator */}
+                <div style={{ marginBottom: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#4A4553', marginBottom: 6 }}>
+                    <span>Questions Evaluated: <b>{assessmentSession?.questionCount || 0}</b></span>
+                    <span>Adaptive Diagnostic (3–6 questions based on evidence)</span>
+                  </div>
+                  <div style={{ width: '100%', height: 4, background: '#E7E3EB', borderRadius: 2, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${Math.min(100, (((assessmentSession?.questionCount || 0) + 0.5) / 6) * 100)}%`,
+                        height: '100%',
+                        background: '#8874C7',
+                        transition: 'width 0.4s ease',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* History of answered questions with evaluations */}
+                {assessmentSession?.history?.map((h) => (
+                  <div key={h.questionNumber} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                    {/* Bot Question */}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#FAF9FB', border: '1px solid #E7E3EB', color: '#8874C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <Bot size={16} />
+                      </div>
+                      <div style={{ background: '#FAF9FB', padding: '12px 16px', borderRadius: 12, color: '#17151B', fontSize: 14, flex: 1, border: '1px solid #E7E3EB' }}>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#E9B3D0', color: '#17151B' }}>
+                            {h.skillId.toUpperCase()}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: '#4A4553' }}>
+                            Level {h.difficulty} · {h.questionType}
+                          </span>
+                        </div>
+                        {h.questionText}
+                      </div>
+                    </div>
+
+                    {/* Student Answer */}
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+                      <div style={{ background: '#8874C7', padding: '10px 16px', borderRadius: 12, color: '#FFFFFF', fontSize: 14, maxWidth: '85%', whiteSpace: 'pre-wrap', fontFamily: h.studentAnswer.includes('{') ? 'var(--font-mono, monospace)' : 'inherit' }}>
+                        {h.studentAnswer}
+                      </div>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#DCD2F0', color: '#17151B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <User size={15} />
+                      </div>
+                    </div>
+
+                    {/* Evaluator Feedback Card */}
+                    <div style={{ paddingLeft: 38 }}>
+                      <div style={{ background: '#FFFFFF', border: '1px solid #E7E3EB', borderRadius: 8, padding: '8px 12px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ color: '#4A4553' }}>{h.evaluation.summary}</span>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            background:
+                              h.evaluation.correctness === 'correct'
+                                ? '#D1FAE5'
+                                : h.evaluation.correctness === 'partial'
+                                ? '#FEF3C7'
+                                : '#FEE2E2',
+                            color:
+                              h.evaluation.correctness === 'correct'
+                                ? '#065F46'
+                                : h.evaluation.correctness === 'partial'
+                                ? '#92400E'
+                                : '#991B1B',
+                          }}
+                        >
+                          {h.evaluation.correctness.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Active Question Card */}
+                {assessmentSession?.currentQuestion?.text && (
+                  <div style={{ background: '#FFFFFF', border: '2px solid #8874C7', borderRadius: 16, padding: 20, boxShadow: '0 8px 24px rgba(136,116,199,0.12)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: '#DCD2F0', color: '#17151B' }}>
+                          {assessmentSession.currentQuestion.skill_id.toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#4A4553', fontWeight: 600 }}>
+                          Level {assessmentSession.currentQuestion.difficulty} · {assessmentSession.currentQuestion.question_type}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 11, color: '#8874C7', fontWeight: 700 }}>
+                        ACTIVE QUESTION
+                      </span>
+                    </div>
+
+                    <h3 style={{ fontSize: 16, fontWeight: 600, color: '#17151B', margin: '0 0 14px 0', lineHeight: 1.5 }}>
+                      {assessmentSession.currentQuestion.text}
+                    </h3>
+
+                    {/* Answer Input Area */}
+                    <form onSubmit={handleAssessmentSubmit}>
+                      <textarea
+                        value={assessmentInput}
+                        onChange={(e) => setAssessmentInput(e.target.value)}
+                        placeholder="Explain your approach, trace loop/state changes, or type code here…"
+                        rows={4}
+                        disabled={assessmentBusy}
+                        style={{
+                          width: '100%',
+                          background: '#FAF9FB',
+                          border: '1px solid #E7E3EB',
+                          borderRadius: 10,
+                          padding: '12px 14px',
+                          color: '#17151B',
+                          fontSize: 13,
+                          fontFamily: 'inherit',
+                          lineHeight: 1.5,
+                          resize: 'vertical',
+                          marginBottom: 12,
+                        }}
+                      />
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={handleAssessmentSkip}
+                          disabled={assessmentBusy}
+                          style={{ fontSize: 12, color: '#4A4553' }}
+                        >
+                          I'm not sure / Skip question
+                        </button>
+
+                        <button
+                          type="submit"
+                          className="primary"
+                          disabled={assessmentBusy || !assessmentInput.trim()}
+                          style={{ minHeight: 40, padding: '0 20px', fontSize: 13 }}
+                        >
+                          {assessmentBusy ? (
+                            <>
+                              <Loader2 size={15} className="spin" style={{ marginRight: 6 }} />
+                              Evaluating answer…
+                            </>
+                          ) : (
+                            <>
+                              Submit Explanation
+                              <ArrowRight size={14} style={{ marginLeft: 6 }} />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                <div ref={assessmentScrollRef} />
+              </>
+            ) : (
+              /* Assessment Complete Summary */
+              <div style={{ background: '#FFFFFF', border: '1px solid #E7E3EB', borderRadius: 16, padding: 28, boxShadow: '0 12px 32px rgba(0,0,0,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(16,185,129,0.12)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Trophy size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#17151B' }}>
+                      Adaptive Assessment Complete!
+                    </h3>
+                    <small style={{ color: '#4A4553', fontSize: 12 }}>
+                      Server-verified skill baseline synthesized into your evidence ledger.
+                    </small>
+                  </div>
+                </div>
+
+                <p style={{ color: '#17151B', fontSize: 14, lineHeight: 1.5, marginBottom: 20 }}>
+                  <b>Diagnostic Conclusion:</b> {assessmentSession.completionReason}
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
+                  <div style={{ background: '#FAF9FB', padding: 14, borderRadius: 10, border: '1px solid #E7E3EB' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#10B981', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+                      <CheckCircle2 size={14} /> ASSESSED STRENGTHS
+                    </span>
+                    {assessmentSession.assessedStrengths.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {assessmentSession.assessedStrengths.map((s) => (
+                          <span key={s} style={{ background: '#D1FAE5', color: '#065F46', padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, color: '#4A4553' }}>Foundational focus recommended</span>
+                    )}
+                  </div>
+
+                  <div style={{ background: '#FAF9FB', padding: 14, borderRadius: 10, border: '1px solid #E7E3EB' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#8874C7', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+                      <Compass size={14} /> IDENTIFIED LEARNING GAPS
+                    </span>
+                    {assessmentSession.assessedGaps.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {assessmentSession.assessedGaps.map((s) => (
+                          <span key={s} style={{ background: '#FAF5FF', border: '1px solid #E9D5FF', color: '#6B21A8', padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, color: '#4A4553' }}>No major foundational gaps found</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                  <button
+                    type="button"
+                    className="primary"
+                    style={{ minHeight: 44, padding: '0 24px', fontSize: 14, fontWeight: 600 }}
+                    onClick={() => {
+                      if (onNavigateToRoadmap) {
+                        onNavigateToRoadmap();
+                      } else if (onClose) {
+                        onClose();
+                      }
+                    }}
+                  >
+                    View Personalized Roadmap
+                    <ArrowRight size={15} style={{ marginLeft: 6 }} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
