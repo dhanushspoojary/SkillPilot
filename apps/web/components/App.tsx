@@ -643,6 +643,7 @@ export function App({ user, onLogout }: {
       <button
         type="button"
         className={`mobile-tab-item ${view === 'today' ? 'active' : ''}`}
+        aria-current={view === 'today' ? 'page' : undefined}
         onClick={() => go('today')}
         aria-label="Home"
       >
@@ -652,6 +653,7 @@ export function App({ user, onLogout }: {
       <button
         type="button"
         className={`mobile-tab-item ${view === 'assess' ? 'active' : ''}`}
+        aria-current={view === 'assess' ? 'page' : undefined}
         onClick={() => go('assess')}
         aria-label="Assess"
       >
@@ -661,6 +663,7 @@ export function App({ user, onLogout }: {
       <button
         type="button"
         className={`mobile-tab-item ${view === 'learn' ? 'active' : ''}`}
+        aria-current={view === 'learn' ? 'page' : undefined}
         onClick={() => go('learn')}
         aria-label="Learn"
       >
@@ -670,6 +673,7 @@ export function App({ user, onLogout }: {
       <button
         type="button"
         className={`mobile-tab-item ${view === 'practice' ? 'active' : ''}`}
+        aria-current={view === 'practice' ? 'page' : undefined}
         onClick={() => go('practice')}
         aria-label="Practice"
       >
@@ -681,6 +685,8 @@ export function App({ user, onLogout }: {
         className={`mobile-tab-item ${menu ? 'active' : ''}`}
         onClick={() => setMenu((prev) => !prev)}
         aria-label="More navigation"
+        aria-expanded={menu}
+        aria-haspopup="dialog"
       >
         <Menu size={20} />
         <span>More</span>
