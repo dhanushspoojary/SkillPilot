@@ -69,6 +69,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
   const [mentorList, setMentorList] = useState<any[]>([]);
   const [loadingMentors, setLoadingMentors] = useState(false);
   const [mentorBooked, setMentorBooked] = useState<string | null>(null);
+  const [bookingMentorId, setBookingMentorId] = useState<string | null>(null);
 
   const rec = useRef<any>(null);
   const startedAt = useRef(0);
@@ -113,6 +114,31 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
         .finally(() => setLoadingMentors(false));
     }
   }, [tab, mentorList.length]);
+
+  async function handleRequestMentorInterview(m: any) {
+    if (!m || !m.id || bookingMentorId) return;
+    setBookingMentorId(m.id);
+    setError('');
+    try {
+      const res = await fetch('/api/mentors/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mentorId: m.id,
+          message: `Requesting 1-on-1 technical mock interview for ${targetRole} (${skill} focus).`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not send interview request');
+      }
+      setMentorBooked(m.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send interview request.');
+    } finally {
+      setBookingMentorId(null);
+    }
+  }
 
   // Animated honest audio waveform canvas
   useEffect(() => {
@@ -747,6 +773,8 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
             Rehearse 1-on-1 with verified college seniors, recent grads, or industry professionals. Mentors provide authentic, high-confidence feedback.
           </p>
 
+          {error && <div className="auth-error" style={{ marginBottom: 16 }}>{error}</div>}
+
           {mentorBooked && (
             <div
               style={{
@@ -816,10 +844,15 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
                   <button
                     type="button"
                     className="primary"
-                    onClick={() => setMentorBooked(m.name)}
+                    disabled={bookingMentorId === m.id || mentorBooked === m.name}
+                    onClick={() => void handleRequestMentorInterview(m)}
                     style={{ marginTop: 14, minHeight: 34, fontSize: 12, width: '100%' }}
                   >
-                    Request 1-on-1 Interview
+                    {bookingMentorId === m.id
+                      ? 'Sending request…'
+                      : mentorBooked === m.name
+                      ? 'Requested'
+                      : 'Request 1-on-1 Interview'}
                   </button>
                 </div>
               ))}
