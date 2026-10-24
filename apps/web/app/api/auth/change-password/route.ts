@@ -1,8 +1,7 @@
-import { currentUser, passwordCheck, passwordHash } from '../../../../lib/auth';
+import { currentUser, passwordCheck, passwordHash, validPassword, clearSession } from '../../../../lib/auth';
 import { db } from '../../../../lib/db';
 import { json, requireOrigin, readJsonBody } from '../../../../lib/server-security';
 import { dbRateLimit, networkKey } from '../../../../lib/guard';
-import { validPassword } from '../../../../lib/auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
@@ -30,6 +29,7 @@ export async function POST(req: Request) {
         const hash = await passwordHash(next);
         await db().query('update users set password_hash=$1,updated_at=now() where id=$2', [hash, user.id]);
         await db().query('delete from sessions where user_id=$1', [user.id]);
+        await clearSession();
         return json({ ok: true, message: 'Password changed. Sign in again on this device.' });
     }
     catch {
