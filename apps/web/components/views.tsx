@@ -1022,6 +1022,7 @@ export function Passport({ state, setName, notify, careerGoal }: {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
             });
+            if (!r.ok) throw new Error('Failed to generate share link');
             const d = await r.json();
             if (d.share) {
                 setShare(d.share);
@@ -1036,12 +1037,16 @@ export function Passport({ state, setName, notify, careerGoal }: {
 
     const revokeShareLink = async () => {
         if (!share) return;
+        if (typeof window !== 'undefined' && !window.confirm('Revoke this public passport verification link? Anyone with the link will no longer be able to view your profile.')) {
+            return;
+        }
         try {
-            await fetch('/api/passport/share', {
+            const r = await fetch('/api/passport/share', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ shareToken: share.shareToken }),
             });
+            if (!r.ok) throw new Error('Failed to revoke link');
             setShare(null);
             notify('Passport link revoked. Public access removed.');
         } catch {
