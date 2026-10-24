@@ -14,8 +14,14 @@ import {
   BookmarkCheck,
   ChevronRight,
   Sparkles,
+  Code,
+  FileText,
 } from 'lucide-react';
 import type { Evidence } from '../lib/types';
+import {
+  validateAssessmentQuestion,
+  type ValidatedAssessmentQuestion,
+} from '../lib/question-contract';
 
 export type AdaptationPayload = {
   direction: 'ELEVATED' | 'DIAGNOSTIC' | 'RESOLVING';
@@ -34,14 +40,6 @@ const SKILL_NAMES: Record<string, string> = {
   javascript: 'JavaScript',
   git: 'Git & GitHub',
   communication: 'Communication',
-};
-
-type Q = {
-  id: string;
-  skill: string;
-  level: number;
-  q: string;
-  options: string[];
 };
 
 type ResultItem = {
@@ -104,8 +102,11 @@ export function Assess({
   onDone: () => void;
 }) {
   const [assessmentId, setAssessmentId] = useState('');
-  const [q, setQ] = useState<Q | null>(null);
+  const [q, setQ] = useState<ValidatedAssessmentQuestion | null>(null);
+  const [rawQuestionId, setRawQuestionId] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
+  const [openEndedAnswer, setOpenEndedAnswer] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [total, setTotal] = useState(0);
@@ -138,9 +139,11 @@ export function Assess({
     setStartError('');
     setSubmitError('');
     setPicked(null);
+    setOpenEndedAnswer('');
     setFeedback(null);
     setAdaptationInfo(null);
     setResults(null);
+    setValidationError(null);
 
     try {
       const r = await fetchWithRetry('/api/assess/start', {
@@ -168,10 +171,22 @@ export function Assess({
       if (!isMountedRef.current) return;
 
       const rawQ = data.question;
-      const parsedQ: Q = typeof rawQ === 'string' ? JSON.parse(rawQ) : rawQ;
+      const qid =
+        rawQ && typeof rawQ === 'object' && ('id' in rawQ || 'question_id' in rawQ)
+          ? String((rawQ as any).id || (rawQ as any).question_id)
+          : null;
+      setRawQuestionId(qid);
+
+      const validation = validateAssessmentQuestion(rawQ);
+      if (validation.valid) {
+        setQ(validation.question);
+        setValidationError(null);
+      } else {
+        setQ(null);
+        setValidationError(validation.error);
+      }
 
       setAssessmentId(data.assessmentId);
-      setQ(parsedQ);
       setTotal(data.total || 12);
       setIndex(data.index ?? 0);
       setIsResumed(Boolean(data.resumed));
@@ -190,86 +205,128 @@ export function Assess({
     void start();
   }, [start]);
 
-  const submit = useCallback(async () => {
-    if (!q || picked === null || !assessmentId || busy || submitInFlightRef.current) return;
+  const submit = useCallback(
+    async (overrideOptions?: { action?: 'skip' | 'dont_know'; choice?: number }) => {
+      const isSkipAction =
+        overrideOptions?.action === 'skip' || overrideOptions?.action === 'dont_know';
+      const targetQid = q?.id || rawQuestionId;
 
-    submitInFlightRef.current = true;
-    setBusy(true);
-    setBusyMessage('Recording and scoring answer…');
-    setSubmitError('');
+      if (!isSkipAction && !q) return;
+      if (!targetQid || !assessmentId || busy || submitInFlightRef.current) return;
 
-    try {
-      const r = await fetchWithRetry('/api/assess/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assessmentId,
-          questionId: q.id,
-          choice: picked,
-        }),
-      });
-
-      let data: any = {};
-      try {
-        data = await r.json();
-      } catch {
-        /* Non-JSON response */
-      }
-
-      if (!r.ok) {
-        throw new Error(data.error || 'Could not record your answer');
-      }
-
-      if (!isMountedRef.current) return;
-
-      if (data.done) {
-        setFeedback('Assessment complete! Computing your authoritative results…');
-        const resList = Array.isArray(data.results) ? data.results : [];
-        setResults(resList);
-        await onFinish(resList);
-        setBusy(false);
-        submitInFlightRef.current = false;
-      } else {
-        if (data.adaptation) {
-          setAdaptationInfo(data.adaptation);
+      if (!isSkipAction) {
+        if (q?.type === 'multiple_choice' && picked === null) {
+          setSubmitError('Please select an answer option above before proceeding to the next question.');
+          return;
         }
-        setFeedback(
-          data.adaptation?.direction === 'ELEVATED'
-            ? `Correct! Elevating challenge to Level ${data.adaptation.nextLevel}.`
-            : data.adaptation?.direction === 'DIAGNOSTIC'
-            ? `Answer recorded. Routing to Level ${data.adaptation.nextLevel} diagnostic.`
-            : 'Answer recorded. Next adaptive question selected.'
-        );
-        window.setTimeout(() => {
-          if (!isMountedRef.current) return;
-          try {
-            const nextQ =
-              typeof data.question === 'string'
-                ? JSON.parse(data.question)
-                : data.question;
-            if (nextQ && nextQ.id) {
-              setQ(nextQ);
+        if (q?.type !== 'multiple_choice' && !openEndedAnswer.trim()) {
+          setSubmitError('Please enter your response or explanation before submitting.');
+          return;
+        }
+      }
+
+      submitInFlightRef.current = true;
+      setBusy(true);
+      setBusyMessage(isSkipAction ? 'Advancing to next question…' : 'Recording and scoring answer…');
+      setSubmitError('');
+
+      try {
+        const payload: Record<string, any> = {
+          assessmentId,
+          questionId: targetQid,
+        };
+
+        if (isSkipAction) {
+          payload.action = 'skip';
+          payload.choice = -1;
+        } else if (q?.type === 'multiple_choice') {
+          payload.choice = picked;
+        } else {
+          payload.choice = 0;
+          payload.answerText = openEndedAnswer.trim();
+        }
+
+        const r = await fetchWithRetry('/api/assess/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        let data: any = {};
+        try {
+          data = await r.json();
+        } catch {
+          /* Non-JSON response */
+        }
+
+        if (!r.ok) {
+          throw new Error(data.error || 'Could not record your answer');
+        }
+
+        if (!isMountedRef.current) return;
+
+        if (data.done) {
+          setFeedback('Assessment complete! Computing your authoritative results…');
+          const resList = Array.isArray(data.results) ? data.results : [];
+          setResults(resList);
+          await onFinish(resList);
+          setBusy(false);
+          submitInFlightRef.current = false;
+        } else {
+          if (data.adaptation) {
+            setAdaptationInfo(data.adaptation);
+          }
+          setFeedback(
+            isSkipAction
+              ? 'Question skipped without score penalty. Next question selected.'
+              : data.adaptation?.direction === 'ELEVATED'
+              ? `Correct! Elevating challenge to Level ${data.adaptation.nextLevel}.`
+              : data.adaptation?.direction === 'DIAGNOSTIC'
+              ? `Answer recorded. Routing to Level ${data.adaptation.nextLevel} diagnostic.`
+              : 'Answer recorded. Next adaptive question selected.'
+          );
+
+          window.setTimeout(() => {
+            if (!isMountedRef.current) return;
+            try {
+              const rawNext = data.question;
+              const nextQid =
+                rawNext && typeof rawNext === 'object' && ('id' in rawNext || 'question_id' in rawNext)
+                  ? String((rawNext as any).id || (rawNext as any).question_id)
+                  : null;
+              setRawQuestionId(nextQid);
+
+              const nextValidation = validateAssessmentQuestion(rawNext);
+              if (nextValidation.valid) {
+                setQ(nextValidation.question);
+                setValidationError(null);
+              } else {
+                setQ(null);
+                setValidationError(nextValidation.error);
+              }
+
               setIndex(typeof data.index === 'number' ? data.index : index + 1);
               if (data.total) setTotal(data.total);
+            } catch (parseErr) {
+              console.error('Error parsing next question', parseErr);
+            } finally {
+              setPicked(null);
+              setOpenEndedAnswer('');
+              setFeedback(null);
+              setBusy(false);
+              submitInFlightRef.current = false;
             }
-          } catch (parseErr) {
-            console.error('Error parsing next question', parseErr);
-          } finally {
-            setPicked(null);
-            setFeedback(null);
-            setBusy(false);
-            submitInFlightRef.current = false;
-          }
-        }, 400);
+          }, 400);
+        }
+      } catch (e) {
+        if (!isMountedRef.current) return;
+        setSubmitError(friendlyErrorMessage(e, 'Could not submit your answer. Please retry.'));
+        setBusy(false);
+        submitInFlightRef.current = false;
       }
-    } catch (e) {
-      if (!isMountedRef.current) return;
-      // Preserve picked answer and question, display inline retry
-      setSubmitError(friendlyErrorMessage(e, 'Could not submit your answer. Please retry.'));
-      setBusy(false);
-      submitInFlightRef.current = false;
-    }
-  }, [q, picked, assessmentId, busy, index, onFinish]);
+    },
+    [q, rawQuestionId, picked, openEndedAnswer, assessmentId, busy, index, onFinish],
+  );
 
   // Keyboard navigation: A/B/C/D or 1/2/3/4 and Enter
   useEffect(() => {
@@ -278,28 +335,39 @@ export function Assess({
       const key = e.key.toUpperCase();
       const num = parseInt(e.key, 10);
 
-      if (['A', 'B', 'C', 'D'].includes(key)) {
-        const optionIndex = key.charCodeAt(0) - 65;
-        if (optionIndex < (q.options?.length ?? 0)) {
-          setPicked(optionIndex);
+      if (q.type === 'multiple_choice') {
+        if (['A', 'B', 'C', 'D'].includes(key)) {
+          const optionIndex = key.charCodeAt(0) - 65;
+          if (optionIndex < (q.options?.length ?? 0)) {
+            setPicked(optionIndex);
+            setSubmitError('');
+          }
+        } else if (!isNaN(num) && num >= 1 && num <= (q.options?.length ?? 0)) {
+          setPicked(num - 1);
           setSubmitError('');
         }
-      } else if (!isNaN(num) && num >= 1 && num <= (q.options?.length ?? 0)) {
-        setPicked(num - 1);
-        setSubmitError('');
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (picked === null) {
-          setSubmitError('Please select an answer option above before proceeding to the next question.');
-        } else {
-          void submit();
+      }
+
+      if (e.key === 'Enter') {
+        // Only trigger submit on enter if not in a textarea
+        const activeElement = document.activeElement;
+        const isTextarea = activeElement instanceof HTMLTextAreaElement;
+        if (!isTextarea) {
+          e.preventDefault();
+          if (q.type === 'multiple_choice' && picked === null) {
+            setSubmitError('Please select an answer option above before proceeding to the next question.');
+          } else if (q.type !== 'multiple_choice' && !openEndedAnswer.trim()) {
+            setSubmitError('Please enter your response or explanation before submitting.');
+          } else {
+            void submit();
+          }
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [busy, q, feedback, results, picked, submit]);
+  }, [busy, q, feedback, results, picked, openEndedAnswer, submit]);
 
   // Full start error view (server unreachable before assessment started)
   if (startError) {
@@ -371,7 +439,6 @@ export function Assess({
 
     const handleDoneClick = async () => {
       if (confirmationStep !== 'all_confirmed') {
-        // Automatically confirm in background if not already confirmed
         await fetch('/api/workflow', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -451,12 +518,12 @@ export function Assess({
           </div>
 
           {/* Workflow Calibration & Baseline Confirmation Section */}
-          <div style={{ width: '100%', background: 'var(--surface-navy)', border: '1px solid var(--cyan-border)', borderRadius: 12, padding: 20, textAlign: 'left', marginTop: 8 }}>
+          <div style={{ width: '100%', background: 'var(--surface-navy, #F5F3FA)', border: '1px solid var(--cyan-border, #E7E3EB)', borderRadius: 12, padding: 20, textAlign: 'left', marginTop: 8 }}>
             {confirmationStep === 'review' && (
               <div>
-                <span className="kicker" style={{ color: 'var(--cyan)' }}>STEP 1: CONFIRM SKILL BASELINE</span>
+                <span className="kicker" style={{ color: 'var(--primary-purple, #8874C7)' }}>STEP 1: CONFIRM SKILL BASELINE</span>
                 <h3 style={{ margin: '4px 0 8px 0', fontSize: 16, color: 'var(--text-primary, #17151B)' }}>Review & Acknowledge Your Baseline</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                <p style={{ color: 'var(--secondary-text, #77727F)', fontSize: 13, margin: '0 0 16px 0', lineHeight: 1.5 }}>
                   SkillPilot requires you to confirm this baseline before generating your roadmap. Acknowledging realistic scores ensures your milestones start at your true level without penalty.
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -473,7 +540,6 @@ export function Assess({
                     <button
                       className="ghost"
                       onClick={() => {
-                        // Start diagnostic focused on first gap
                         focus = gaps[0].skill;
                         void start();
                       }}
@@ -489,9 +555,9 @@ export function Assess({
 
             {confirmationStep === 'skills_confirmed' && (
               <div>
-                <span className="kicker" style={{ color: 'var(--success)' }}>STEP 2: CONFIRM LEARNING GOALS</span>
+                <span className="kicker" style={{ color: 'var(--primary-purple, #8874C7)' }}>STEP 2: CONFIRM LEARNING GOALS</span>
                 <h3 style={{ margin: '4px 0 8px 0', fontSize: 16, color: 'var(--text-primary, #17151B)' }}>Baseline Confirmed · Calibrate Career Target</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 14px 0', lineHeight: 1.5 }}>
+                <p style={{ color: 'var(--secondary-text, #77727F)', fontSize: 13, margin: '0 0 14px 0', lineHeight: 1.5 }}>
                   Select or confirm your primary career target to tailor your 12-week roadmap milestones:
                 </p>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -501,7 +567,7 @@ export function Assess({
                       type="button"
                       className={`chip-card small ${selectedGoal === role ? 'active' : ''}`}
                       onClick={() => setSelectedGoal(role)}
-                      style={{ background: 'var(--surface-indigo)', padding: '8px 14px' }}
+                      style={{ background: '#FAF9FB', padding: '8px 14px' }}
                     >
                       <b>{role}</b>
                     </button>
@@ -521,12 +587,12 @@ export function Assess({
 
             {confirmationStep === 'all_confirmed' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--success-light)', color: '#6EE7B7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(34, 197, 94, 0.15)', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <CheckCircle2 size={22} />
                 </div>
                 <div>
                   <b style={{ color: 'var(--text-primary, #17151B)', fontSize: 15, display: 'block' }}>Baseline & Goals Confirmed</b>
-                  <span style={{ color: 'var(--cyan)', fontSize: 12 }}>Roadmap unlocked! Your 12-week milestones reflect your confirmed baseline.</span>
+                  <span style={{ color: 'var(--primary-purple, #8874C7)', fontSize: 12 }}>Roadmap unlocked! Your 12-week milestones reflect your confirmed baseline.</span>
                 </div>
               </div>
             )}
@@ -546,7 +612,7 @@ export function Assess({
   }
 
   // Initial loading state
-  if (busy && !q) {
+  if (busy && !q && !validationError) {
     return (
       <div className="assessment-shell">
         <div className="result">
@@ -564,9 +630,55 @@ export function Assess({
     );
   }
 
+  // Question validation failure / Malformed question recovery card
+  if (validationError || (!q && !busy)) {
+    return (
+      <div className="assessment-shell">
+        <div className="question-recovery-card" role="alert">
+          <div className="result-icon-alert" role="img" aria-label="Notice">
+            <AlertTriangle size={36} />
+          </div>
+          <span className="kicker">ASSESSMENT RESILIENCE RECOVERY</span>
+          <h2>Diagnostic Question Notice</h2>
+          <p className="error-desc">
+            {validationError
+              ? `The diagnostic question format could not be verified securely (${validationError}).`
+              : 'The question data is currently unavailable.'}
+            <br />
+            Your verified progress is preserved on the server.
+          </p>
+          <div className="result-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => void submit({ action: 'skip' })}
+              disabled={busy}
+            >
+              {busy ? <Loader2 size={16} className="spin" /> : <ArrowRight size={16} />}
+              Skip to Next Question
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={start}
+              disabled={busy}
+            >
+              <RefreshCcw size={16} />
+              Retry Diagnostic
+            </button>
+            <button type="button" className="ghost" onClick={onDone}>
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!q) return null;
 
-  const answered = picked !== null;
+  const answered =
+    q.type === 'multiple_choice' ? picked !== null : openEndedAnswer.trim().length > 0;
   const progressPercent = total > 0 ? Math.round(((index + (answered ? 1 : 0)) / total) * 100) : 0;
 
   return (
@@ -628,30 +740,75 @@ export function Assess({
 
       <h2 className="question-text">{q.q}</h2>
 
-      {/* Answer Options */}
-      <div className="options" role="group" aria-label="Answer options">
-        {q.options.map((option, i) => {
-          const isSelected = picked === i;
-          return (
+      {/* Multiple Choice Question Renderer */}
+      {q.type === 'multiple_choice' && (
+        <div className="options" role="group" aria-label="Answer options">
+          {q.options.map((option, i) => {
+            const isSelected = picked === i;
+            return (
+              <button
+                key={`${q.id}-opt-${i}`}
+                type="button"
+                className={`option-btn ${isSelected ? 'selected-answer' : ''}`}
+                aria-pressed={isSelected}
+                onClick={() => {
+                  if (!busy) {
+                    setPicked(i);
+                    setSubmitError('');
+                  }
+                }}
+                disabled={busy}
+              >
+                <span className="option-letter">{String.fromCharCode(65 + i)}</span>
+                <span className="option-content">{option}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Non-Multiple Choice Question Renderer (Conceptual, Code Tracing, Debugging, Practical) */}
+      {q.type !== 'multiple_choice' && (
+        <div className="open-ended-container">
+          {q.codeSnippet && (
+            <div className="code-snippet-wrapper">
+              <div className="code-header">
+                <Code size={14} />
+                <span>Code Snippet</span>
+              </div>
+              <pre className="code-snippet-box">
+                <code>{q.codeSnippet}</code>
+              </pre>
+            </div>
+          )}
+          <label htmlFor="open-ended-input" className="open-ended-label">
+            <FileText size={14} />
+            <span>Your Response / Explanation</span>
+          </label>
+          <textarea
+            id="open-ended-input"
+            className="open-ended-textarea"
+            rows={5}
+            value={openEndedAnswer}
+            onChange={(e) => {
+              setOpenEndedAnswer(e.target.value);
+              setSubmitError('');
+            }}
+            placeholder="Type your explanation, reasoning, or code solution here…"
+            disabled={busy}
+          />
+          <div className="open-ended-actions">
             <button
-              key={`${q.id}-opt-${i}`}
               type="button"
-              className={`option-btn ${isSelected ? 'selected-answer' : ''}`}
-              aria-pressed={isSelected}
-              onClick={() => {
-                if (!busy) {
-                  setPicked(i);
-                  setSubmitError('');
-                }
-              }}
+              className="ghost skip-question-btn"
+              onClick={() => void submit({ action: 'skip' })}
               disabled={busy}
             >
-              <span className="option-letter">{String.fromCharCode(65 + i)}</span>
-              <span className="option-content">{option}</span>
+              I don&apos;t know / Skip without penalty
             </button>
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      )}
 
       {/* Submit Inline Error */}
       {submitError && (
@@ -662,7 +819,7 @@ export function Assess({
             <button
               type="button"
               className="retry-inline-btn"
-              onClick={submit}
+              onClick={() => void submit()}
               disabled={busy}
             >
               Retry Submission
@@ -690,7 +847,11 @@ export function Assess({
           className={`primary submit-btn ${!answered ? 'needs-answer' : ''}`}
           onClick={() => {
             if (!answered) {
-              setSubmitError('Please select an answer option above before proceeding to the next question.');
+              setSubmitError(
+                q.type === 'multiple_choice'
+                  ? 'Please select an answer option above before proceeding to the next question.'
+                  : 'Please enter your explanation or solution above before proceeding.'
+              );
               return;
             }
             void submit();

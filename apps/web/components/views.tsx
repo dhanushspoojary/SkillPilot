@@ -10,6 +10,7 @@ import { AnimatedMarquee, ConnectedSkillNetwork, ScrollReveal, GuidedJourneyProg
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
 import { extractClaimedSkills } from '../lib/assessment-planner';
 import { RoadmapSkillTree } from './RoadmapSkillTree';
+import { NextActionGuidedModal } from './NextActionGuidedModal';
 export type View = 'today' | 'practice' | 'learn' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
 
@@ -42,19 +43,54 @@ export function Today({
 }) {
   const [dynamicNextAction, setDynamicNextAction] = useState<any | null>(null);
   const [snoozedActionId, setSnoozedActionId] = useState<string | null>(null);
+  const [showGuidedModal, setShowGuidedModal] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
     fetch('/api/learn/next-action', { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled && d.nextAction) setDynamicNextAction(d.nextAction);
+        if (!cancelled && d.nextAction) {
+          setDynamicNextAction(d.nextAction);
+          try {
+            const dismissed = sessionStorage.getItem('skillpilot_guided_step_v4');
+            if (!dismissed) {
+              setShowGuidedModal(true);
+            }
+          } catch {}
+        }
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [state.evidence.length, state.activity.length]);
+
+  const handlePerformGuidedAction = (action: any) => {
+    setShowGuidedModal(false);
+    try {
+      sessionStorage.setItem('skillpilot_guided_step_v4', 'performed');
+    } catch {}
+
+    if (action.route === 'learn') {
+      go('learn', action.lessonId);
+    } else if (action.route === 'projects') {
+      go('projects', action.projectSlug);
+    } else if (action.route === 'assess') {
+      go('assess', action.skillId);
+    } else if (action.route === 'calibration' && onOpenCalibration) {
+      onOpenCalibration();
+    } else {
+      go(action.route as View);
+    }
+  };
+
+  const handleDismissGuidedModal = () => {
+    setShowGuidedModal(false);
+    try {
+      sessionStorage.setItem('skillpilot_guided_step_v4', 'dismissed');
+    } catch {}
+  };
 
   const skills = skillStates(state.evidence);
   const r = readiness(skills);
@@ -403,6 +439,15 @@ export function Today({
               >
                 Pick another task
               </button>
+              <span style={{ color: 'var(--line)' }}>•</span>
+              <button
+                type="button"
+                className="link"
+                style={{ color: 'var(--primary-purple, #8874C7)', cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                onClick={() => setShowGuidedModal(true)}
+              >
+                <Sparkles size={11} /> Guided View
+              </button>
             </div>
           </div>
         </section>
@@ -725,7 +770,14 @@ export function Today({
           </div>
         </div>
       </div>
-
+      {/* SkillPilot 4.0 Guided Next-Task Modal */}
+      <NextActionGuidedModal
+        action={dynamicNextAction}
+        isOpen={showGuidedModal}
+        onClose={handleDismissGuidedModal}
+        onPerformAction={handlePerformGuidedAction}
+        careerGoal={careerGoal}
+      />
     </div>
   );
 }

@@ -4,6 +4,26 @@ import { LESSONS_CATALOG, getLessonById, type LessonDefinition } from './lessons
 import { getStudentLessonProgress } from './practice-engine.ts';
 import { PROJECT_CATALOG } from './project-catalog.ts';
 
+export type JourneyStage = 'DISCOVERY' | 'DIAGNOSTIC' | 'GOALS' | 'SKILLS' | 'READINESS';
+
+export interface NextActionStateOverride {
+  profile?: any | null;
+  activeAssessment?: { id: string; started_at: string } | null;
+  evidenceCount?: number;
+  weakConcept?: {
+    concept: string;
+    skill_slug: string;
+    mastery_status: string;
+    problems_attempted: number;
+    problems_solved: number;
+  } | null;
+  inProgressLesson?: {
+    lesson_id: string;
+    exercises_completed: number;
+  } | null;
+  completedLessonIds?: string[];
+}
+
 export interface ActionableLearningTask {
   id: string;
   type: 'ONBOARDING' | 'ASSESSMENT' | 'LESSON' | 'PRACTICE' | 'PROJECT' | 'REASSESSMENT';
@@ -21,6 +41,10 @@ export interface ActionableLearningTask {
   buttonLabel: string;
   explanation: string;
   progressPercentage?: number;
+  journeyStage: JourneyStage;
+  journeyStep: number; // 1 to 5
+  howItHelpsGoal: string;
+  whatHappensWhenFinished: string;
 }
 
 /**
@@ -29,9 +53,15 @@ export interface ActionableLearningTask {
  *
  * The recommendation is strictly computed from persistent server state and database evidence.
  */
-export async function determineNextAction(userId: string): Promise<ActionableLearningTask> {
+export async function determineNextAction(
+  userId: string,
+  stateOverride?: NextActionStateOverride
+): Promise<ActionableLearningTask> {
   // 1. Check Onboarding Completion
-  let profile = await getStudentCapabilityProfile(userId);
+  let profile = stateOverride && 'profile' in stateOverride 
+    ? stateOverride.profile 
+    : await getStudentCapabilityProfile(userId);
+
   if (!profile || !profile.onboardingCompleted) {
     return {
       id: 'task-onboarding',
@@ -46,19 +76,62 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
       buttonLabel: 'Start Discovery',
       explanation: 'Welcome to SkillPilot! First, let us calibrate your background so we never give you questions that are too easy or assume skills you have not learned.',
       progressPercentage: 10,
+      journeyStage: 'DISCOVERY',
+      journeyStep: 1,
+      howItHelpsGoal: 'Customizes your entire career roadmap so you only study what you actually need to learn.',
+      whatHappensWhenFinished: 'You immediately advance to your baseline skill diagnostic without searching through menus.',
     };
   }
 
-  // 2. Check Baseline Diagnostic Evidence
-  let evidenceCount = 0;
+  // 2. Check for Active / Incomplete Diagnostic Session (Resume)
   try {
-    const row = await one<{ count: string | number }>(
-      `select count(*) as count from user_skill_evidence where user_id = $1`,
-      [userId]
-    );
-    evidenceCount = Number(row?.count || 0);
+    const activeAssessment = stateOverride && 'activeAssessment' in stateOverride
+      ? stateOverride.activeAssessment
+      : await one<{ id: string; started_at: string }>(
+          `select id, started_at from assessments 
+           where user_id = $1 and status = 'in_progress' and now() - started_at < interval '30 minutes' 
+           order by started_at desc limit 1`,
+          [userId]
+        );
+
+    if (activeAssessment) {
+      return {
+        id: `task-resume-assess-${activeAssessment.id}`,
+        type: 'ASSESSMENT',
+        title: 'Resume Your Adaptive Diagnostic',
+        whatYouWillLearn: 'Finish your in-progress evaluation to measure your starting competency without starting over.',
+        whyItMatters: 'Your previous answers were securely recorded on the server. Continuing finishes your baseline.',
+        whatToKnowBefore: 'All progress is preserved.',
+        estimatedMinutes: 5,
+        completionRequires: 'Complete the remaining diagnostic questions to unlock your verified score.',
+        route: 'assess',
+        buttonLabel: 'Resume Assessment',
+        explanation: 'You have a diagnostic in progress. Let us finish it now so your verified skill baseline is established.',
+        progressPercentage: 35,
+        journeyStage: 'DIAGNOSTIC',
+        journeyStep: 2,
+        howItHelpsGoal: 'Provides authoritative server-scored evidence required to unlock your targeted career milestones.',
+        whatHappensWhenFinished: 'You will review your strengths and skill gaps, then unlock your verified 12-week roadmap.',
+      };
+    }
   } catch {
-    evidenceCount = 0;
+    /* assessment table lookup fallback */
+  }
+
+  // 3. Check Baseline Diagnostic Evidence
+  let evidenceCount = 0;
+  if (stateOverride && typeof stateOverride.evidenceCount === 'number') {
+    evidenceCount = stateOverride.evidenceCount;
+  } else {
+    try {
+      const row = await one<{ count: string | number }>(
+        `select count(*) as count from user_skill_evidence where user_id = $1`,
+        [userId]
+      );
+      evidenceCount = Number(row?.count || 0);
+    } catch {
+      evidenceCount = 0;
+    }
   }
 
   const focusSkill = profile.primaryFocusSkill || 'problem-solving';
@@ -78,29 +151,34 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
       buttonLabel: 'Start Adaptive Diagnostic',
       explanation: 'Your background is calibrated. Now establish your verified baseline so your roadmap focuses only on real gaps.',
       progressPercentage: 25,
+      journeyStage: 'DIAGNOSTIC',
+      journeyStep: 2,
+      howItHelpsGoal: 'Identifies exactly which concepts you have already mastered so you never waste time re-learning basics.',
+      whatHappensWhenFinished: 'Unlocks your confirmed skill baseline and tailored 12-week learning roadmap.',
     };
   }
 
-  // 3. Check for Weak Concepts Requiring Remedial Practice
+  // 4. Check for Weak Concepts Requiring Remedial Practice
   // Look for any concept in student_concept_mastery that is 'novice' or had recent failed attempts
   try {
-    const weakConcept = await one<{
-      concept: string;
-      skill_slug: string;
-      mastery_status: string;
-      problems_attempted: number;
-      problems_solved: number;
-    }>(
-      `select concept, skill_slug, status as mastery_status, problems_attempted, problems_solved
-       from student_concept_mastery
-       where user_id = $1 and (status = 'novice' or (problems_attempted > problems_solved and problems_attempted >= 2))
-       order by last_practiced_at desc
-       limit 1`,
-      [userId]
-    );
+    const weakConcept = stateOverride && 'weakConcept' in stateOverride
+      ? stateOverride.weakConcept
+      : await one<{
+          concept: string;
+          skill_slug: string;
+          mastery_status: string;
+          problems_attempted: number;
+          problems_solved: number;
+        }>(
+          `select concept, skill_slug, status as mastery_status, problems_attempted, problems_solved
+           from student_concept_mastery
+           where user_id = $1 and (status = 'novice' or (problems_attempted > problems_solved and problems_attempted >= 2))
+           order by last_practiced_at desc
+           limit 1`,
+          [userId]
+        );
 
     if (weakConcept) {
-      // Find matching lesson
       const matchingLesson = LESSONS_CATALOG.find((l) =>
         l.exercises.some((e) => e.concept === weakConcept.concept) || l.skillSlug === weakConcept.skill_slug
       );
@@ -121,16 +199,22 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
         buttonLabel: 'Practice Weak Concept',
         explanation: `You had difficulty with ${conceptReadable} on your recent attempts (${weakConcept.problems_solved}/${weakConcept.problems_attempted} passed). Let's practice with targeted hints before moving on so the gap does not snowball.`,
         progressPercentage: 45,
+        journeyStage: 'SKILLS',
+        journeyStep: 4,
+        howItHelpsGoal: `Prevents fragile code bugs when implementing ${conceptReadable} in real software projects.`,
+        whatHappensWhenFinished: 'Elevates your concept mastery to Practicing and advances your roadmap completion.',
       };
     }
   } catch {}
 
-  // 4. Check for In-Progress Lessons
+  // 5. Check for In-Progress Lessons
   try {
-    const inProgressLesson = await one<{ lesson_id: string; exercises_completed: number }>(
-      `select lesson_id, exercises_completed from student_lesson_progress where user_id = $1 and status = 'in_progress' order by last_attempted_at desc limit 1`,
-      [userId]
-    );
+    const inProgressLesson = stateOverride && 'inProgressLesson' in stateOverride
+      ? stateOverride.inProgressLesson
+      : await one<{ lesson_id: string; exercises_completed: number }>(
+          `select lesson_id, exercises_completed from student_lesson_progress where user_id = $1 and status = 'in_progress' order by last_attempted_at desc limit 1`,
+          [userId]
+        );
 
     if (inProgressLesson) {
       const lesson = getLessonById(inProgressLesson.lesson_id);
@@ -150,23 +234,32 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
           buttonLabel: 'Resume Lesson',
           explanation: `You started "${lesson.title}". Resume where you left off to complete the interactive walkthrough and lock in your concept mastery.`,
           progressPercentage: Math.round((inProgressLesson.exercises_completed / lesson.exercises.length) * 100),
+          journeyStage: 'SKILLS',
+          journeyStep: 4,
+          howItHelpsGoal: `Teaches you ${lesson.title} using visual trace tables and guided exercises.`,
+          whatHappensWhenFinished: 'Records verified lesson mastery in your Skill Passport.',
         };
       }
     }
   } catch {}
 
-  // 5. Check Next Unstarted Lesson in Curriculum
+  // 6. Check Next Unstarted Lesson in Curriculum
   try {
     const completedLessonIds = new Set<string>();
-    const completedRows = await many<{ lesson_id: string }>(
-      `select lesson_id from student_lesson_progress where user_id = $1 and status = 'completed'`,
-      [userId]
-    );
-    for (const r of completedRows) {
-      completedLessonIds.add(r.lesson_id);
+    if (stateOverride && stateOverride.completedLessonIds) {
+      for (const id of stateOverride.completedLessonIds) {
+        completedLessonIds.add(id);
+      }
+    } else {
+      const completedRows = await many<{ lesson_id: string }>(
+        `select lesson_id from student_lesson_progress where user_id = $1 and status = 'completed'`,
+        [userId]
+      );
+      for (const r of completedRows) {
+        completedLessonIds.add(r.lesson_id);
+      }
     }
 
-    // Find first uncompleted lesson from catalog
     const nextLesson = LESSONS_CATALOG.find((l) => !completedLessonIds.has(l.id));
     if (nextLesson) {
       const estMins = parseInt(String(nextLesson.estimatedMinutes).replace(/\D/g, '') || '15', 10);
@@ -184,11 +277,15 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
         buttonLabel: 'Start Learning',
         explanation: `Great progress! Based on your roadmap and verified evidence, your next high-impact milestone is "${nextLesson.title}".`,
         progressPercentage: 60,
+        journeyStage: 'SKILLS',
+        journeyStep: 4,
+        howItHelpsGoal: `Mastering this concept moves you one milestone closer to full stack readiness.`,
+        whatHappensWhenFinished: 'Marks this curriculum milestone complete and unlocks the corresponding project task.',
       };
     }
   } catch {}
 
-  // 6. When Core Lessons are Completed, Recommend a Practical Project
+  // 7. When Core Lessons are Completed, Recommend a Practical Project
   const sampleProject = PROJECT_CATALOG[0] || {
     slug: 'c-cli-calculator',
     title: 'C CLI Calculator & Expression Parser',
@@ -209,5 +306,9 @@ export async function determineNextAction(userId: string): Promise<ActionableLea
     buttonLabel: 'Open Project Workspace',
     explanation: `You have completed the foundational lessons! Now apply what you know by building "${sampleProject.title}" to turn your learning into verified passport proof.`,
     progressPercentage: 85,
+    journeyStage: 'READINESS',
+    journeyStep: 5,
+    howItHelpsGoal: 'Creates public, tamper-evident proof of practical software engineering readiness on your passport.',
+    whatHappensWhenFinished: 'Generates a verified Skill Passport artifact shareable with recruiters and mentors.',
   };
 }

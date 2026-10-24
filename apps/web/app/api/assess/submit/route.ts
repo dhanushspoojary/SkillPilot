@@ -19,8 +19,10 @@ export async function POST(req: Request) {
         const b = await readJsonBody<any>(req, 10000);
         const aid = safeText(b.assessmentId, 64), qid = safeText(b.questionId, 80);
         const isSkip = b.action === 'skip' || b.action === 'dont_know' || Number(b.choice) === -1;
-        const choice = isSkip ? -1 : Number(b.choice);
-        if (!isUuid(aid) || !qid || (!isSkip && (!Number.isInteger(choice) || choice < 0 || choice > 5)))
+        const answerText = typeof b.answerText === 'string' ? safeText(b.answerText, 2000) : typeof b.explanation === 'string' ? safeText(b.explanation, 2000) : '';
+        const isOpenEnded = Boolean(answerText) && !isSkip;
+        const choice = isSkip ? -1 : isOpenEnded ? 0 : Number(b.choice);
+        if (!isUuid(aid) || !qid || (!isSkip && !isOpenEnded && (!Number.isInteger(choice) || choice < 0 || choice > 5)))
             return json({ error: 'Invalid answer' }, 400);
         const out = await tx(async (c) => {
             const a = await c.query<any>(`select id,started_at,status,server_score from assessments where id=$1 and user_id=$2 for update`, [aid, u.id]);
@@ -67,7 +69,7 @@ export async function POST(req: Request) {
                 await c.query(`update assessments set status='abandoned' where id=$1`, [aid]);
                 throw new Error('expired');
             }
-            const item = await c.query<any>(`select id,question_id,skill_slug,response from assessment_items where assessment_id=$1 and question_id=$2 for update`, [aid, qid]);
+            const item = await c.query<any>(`select id,question_id,skill_slug,response,prompt from assessment_items where assessment_id=$1 and question_id=$2 for update`, [aid, qid]);
             if (!item.rowCount)
                 throw new Error('question');
             if (item.rows[0].response) {
@@ -118,7 +120,25 @@ export async function POST(req: Request) {
                     return { recorded: true, done: true, results, overall: comp.rows[0].server_score ?? 100, workflowStage: 'SKILL_BASELINE_REVIEW' };
                 }
             }
-            const q = QUESTIONS.find(x => x.id === qid);
+            let q = QUESTIONS.find(x => x.id === qid);
+            if (!q && item.rows[0].prompt) {
+                try {
+                    const p = typeof item.rows[0].prompt === 'string' ? JSON.parse(item.rows[0].prompt) : item.rows[0].prompt;
+                    if (p && p.id) {
+                        q = {
+                            id: p.id,
+                            skill: p.skill || item.rows[0].skill_slug,
+                            level: Number(p.level ?? 1),
+                            q: p.q || p.text || '',
+                            options: Array.isArray(p.options) ? p.options : [],
+                            answer: Number(p.answer ?? 0),
+                            why: p.why || '',
+                        };
+                    }
+                } catch {
+                    /* parse error */
+                }
+            }
             if (!q)
                 throw new Error('question');
             
@@ -132,6 +152,7 @@ export async function POST(req: Request) {
                 [
                     JSON.stringify({
                         choice: isSkip ? -1 : choice,
+                        answerText: answerText || undefined,
                         classification: evalResult.classification,
                         misconception: evalResult.misconceptionIdentified,
                         verifiedConcept: evalResult.verifiedConcept,
