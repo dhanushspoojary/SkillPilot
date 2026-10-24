@@ -62,36 +62,21 @@ export function createLimiter(max: number, windowMs: number, maxKeys = 5000) {
 export function originOk(method: string, origin: string | null, allowed: string | undefined): boolean {
     if (!allowed)
         return true;
-    if (origin) {
-        const norm = (o: string) => o.replace(/\/+$/, '').toLowerCase();
-        const oNorm = norm(origin);
-        const aNorm = norm(allowed);
-        if (oNorm === aNorm)
-            return true;
-        if (process.env.NODE_ENV !== 'production') {
-            const devNorm = (o: string) => o.replace('://127.0.0.1:', '://localhost:').replace('://[::1]:', '://localhost:');
-            if (devNorm(oNorm) === devNorm(aNorm))
-                return true;
-        }
-        return false;
-    }
+    if (origin)
+        return origin === allowed;
     return method === 'GET' || method === 'HEAD';
 }
 export const CLIENT_ID_RE = /^[A-Za-z0-9_-]{16,80}$/;
 /** Database-backed limiter for production deployments with multiple web instances. */
 let lastRateLimitPrune = 0;
-interface QueryRunner {
-    query<T extends Record<string, any> = Record<string, any>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
-}
-export async function dbRateLimit(key: string, max: number, windowMs: number, now = Date.now(), client?: QueryRunner): Promise<boolean> {
+export async function dbRateLimit(key: string, max: number, windowMs: number, now = Date.now()): Promise<boolean> {
     const { db } = await import('./db');
-    const runner: QueryRunner = client || db();
-    if (now - lastRateLimitPrune > 5 * 60000 && !client) {
+    if (now - lastRateLimitPrune > 5 * 60000) {
         lastRateLimitPrune = now;
-        await runner.query(`delete from rate_limits where updated_at < now() - interval '2 days'`).catch(() => undefined);
+        await db().query(`delete from rate_limits where updated_at < now() - interval '2 days'`).catch(() => undefined);
     }
     const start = new Date(Math.floor(now / windowMs) * windowMs);
-    const result = await runner.query<{
+    const result = await db().query<{
         count: number;
     }>(`insert into rate_limits(key,window_start,count,updated_at)
      values($1,$2,1,now())

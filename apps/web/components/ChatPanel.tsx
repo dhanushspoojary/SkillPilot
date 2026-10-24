@@ -1,7 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Flag, Send } from 'lucide-react';
-import { formatSafeTime } from '../lib/date-format';
 
 const MAX = 2000;
 const POLL_MS = 4000;
@@ -76,7 +75,7 @@ export function ChatPanel({ requestId, selfId, title }: { requestId: string; sel
     <div ref={box} style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, margin: '10px 0' }}>
       {messages.length === 0 && <small style={{ opacity: .6 }}>No messages yet. Say hello.</small>}
       {messages.map((m) => <div key={m.id} style={{ alignSelf: m.senderId === selfId ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
-        <small style={{ opacity: .6 }}>{m.senderName} · {formatSafeTime(m.at)}</small>
+        <small style={{ opacity: .6 }}>{m.senderName} · {new Date(m.at).toLocaleTimeString()}</small>
         <div style={{ background: m.senderId === selfId ? 'var(--accent,#5b7cfa)' : 'var(--panel,#1c2028)', color: m.senderId === selfId ? '#fff' : 'inherit', borderRadius: 10, padding: '7px 10px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.body}</div>
         {m.senderId !== selfId && !reported.has(m.id) && <button className="link" style={{ fontSize: 11 }} onClick={() => setReporting(reporting === m.id ? null : m.id)}><Flag size={11}/> Report</button>}
         {reporting === m.id && <div style={{ display: 'flex', gap: 6, marginTop: 4 }}><input value={reportText} maxLength={500} placeholder="Why are you reporting this?" style={{ flex: 1 }} onChange={(e) => setReportText(e.target.value)}/><button className="ghost" onClick={() => void report(m.id)}>Report</button></div>}

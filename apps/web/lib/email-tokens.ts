@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { db } from './db.ts';
+import { db } from './db';
 import { hashEmailToken } from './token-hash.ts';
 
 export { hashEmailToken };

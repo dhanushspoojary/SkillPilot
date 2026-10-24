@@ -2,46 +2,8 @@ import type { ReactNode } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import type { SkillState } from '../lib/engine';
 
-export function PageIntro({
-  kicker,
-  title,
-  text,
-  contextTriad,
-}: {
-  kicker: string;
-  title: string;
-  text?: string;
-  contextTriad?: {
-    happening: string;
-    why: string;
-    now: string;
-  };
-}) {
-  return (
-    <div className="page-intro">
-      <span className="kicker">{kicker}</span>
-      <h1>{title}</h1>
-      {text && <p>{text}</p>}
-      {contextTriad && (
-        <div className="context-triad-card" role="region" aria-label="Screen context and current objective">
-          <div className="triad-item">
-            <span className="triad-label">WHAT'S HAPPENING</span>
-            <p className="triad-value">{contextTriad.happening}</p>
-          </div>
-          <div className="triad-divider" aria-hidden="true" />
-          <div className="triad-item">
-            <span className="triad-label">WHY IT MATTERS</span>
-            <p className="triad-value">{contextTriad.why}</p>
-          </div>
-          <div className="triad-divider" aria-hidden="true" />
-          <div className="triad-item highlight">
-            <span className="triad-label">WHAT TO DO NOW</span>
-            <p className="triad-value">{contextTriad.now}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+export function PageIntro({ kicker, title, text }: { kicker: string; title: string; text: string }) {
+  return <div className="page-intro"><span className="kicker">{kicker}</span><h1>{title}</h1><p>{text}</p></div>;
 }
 
 export function Signal({ icon, label, value, note }: { icon: ReactNode; label: string; value: string; note: string }) {

@@ -14,7 +14,6 @@ export async function POST(req: Request) {
   const u = await currentUser();
   if (!u || u.role !== 'student') return json({ error: 'Student account required' }, 401);
   if (!(await dbRateLimit(`activity:${u.id}`, 120, 3_600_000))) return json({ error: 'Too many updates. Try again later.' }, 429);
-
   try {
     const b = await readJsonBody<any>(req, 5_000);
     const actionId = typeof b.actionId === 'string' ? b.actionId : '';

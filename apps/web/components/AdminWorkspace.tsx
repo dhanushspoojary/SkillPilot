@@ -69,12 +69,12 @@ export function AdminWorkspace({ user, onLogout }: {
             setError(e instanceof Error ? e.message : 'Update failed');
         }
     }
-    return <main id="main-content" className="workspace">
+    return <main className="workspace">
     <header className="workspace-top">
       <div className="brand"><span className="brand-mark">S</span><span>SkillPilot Admin</span></div>
       <div className="workspace-user">
         <span><b>{user.name}</b><small>Platform administrator</small></span>
-        <button className="ghost logout-btn" onClick={onLogout} aria-label="Log out"><LogOut size={14}/>Log out</button>
+        <button className="ghost" onClick={onLogout}><LogOut size={14}/>Sign out</button>
       </div>
     </header>
     <div className="workspace-page">
