@@ -131,6 +131,12 @@ export function Assess({
     };
   }, []);
 
+  useEffect(() => {
+    if (careerGoal) {
+      setSelectedGoal(careerGoal);
+    }
+  }, [careerGoal]);
+
   const start = useCallback(async (overrideFocus?: string) => {
     if (startInFlightRef.current) return;
     startInFlightRef.current = true;
