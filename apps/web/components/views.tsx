@@ -11,6 +11,7 @@ import type { StudentCapabilityProfile } from '../lib/capability-profile';
 import { extractClaimedSkills } from '../lib/assessment-planner';
 import { RoadmapSkillTree } from './RoadmapSkillTree';
 import { NextActionGuidedModal } from './NextActionGuidedModal';
+import { formatSafeDate } from '../lib/date-format';
 export type View = 'today' | 'practice' | 'learn' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
 const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
 
@@ -658,7 +659,7 @@ export function Today({
                         <td style={{ fontWeight: 600, color: 'var(--text-primary, #17151B)' }}>{skillName(ev.skill)}</td>
                         <td><span className="evidence-source-tag">{ev.kind}</span></td>
                         <td style={{ color: 'var(--cyan)' }}>{ev.score}%</td>
-                        <td>{new Date(ev.at).toLocaleDateString()}</td>
+                        <td>{formatSafeDate(ev.at, 'Recent')}</td>
                         <td><CheckCircle2 size={14} color="#10B981" /></td>
                       </tr>
                     ))}

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Video, ShieldCheck } from 'lucide-react';
 import { LiveKitVideoCall } from './LiveKitVideoCall';
+import { formatSafeDateTime } from '../lib/date-format';
 
 export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit: boolean }) {
   const [call, setCall] = useState<any>(null);
@@ -52,7 +53,7 @@ export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit
           </span>
         </div>
         <small style={{ opacity: .7 }}>
-          {call?.callAt ? `Scheduled: ${new Date(call.callAt).toLocaleString()}` : 'Ready to connect'}
+          {call?.callAt ? `Scheduled: ${formatSafeDateTime(call.callAt, 'Pending')}` : 'Ready to connect'}
         </small>
       </div>
 

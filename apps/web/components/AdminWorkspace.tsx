@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { Check, LogOut, Search, ShieldCheck, X } from 'lucide-react';
+import { formatSafeDateTime } from '../lib/date-format';
 interface MentorRow {
     id: string;
     name: string;
@@ -115,7 +116,7 @@ export function AdminWorkspace({ user, onLogout }: {
           <span className="count-pill">{reports.length}</span>
         </div>
         {reports.length === 0 ? <div className="empty-state"><b>No reported messages.</b><p>Reported chat messages remain hidden from participants and are retained here for moderation.</p></div> : <div className="admin-list">{reports.map((r) => <article className="admin-row" key={r.id}>
-          <div className="admin-main"><b>{r.senderName || 'Unknown sender'}</b><span>Reported by {r.reporterName || 'unknown user'} · request {r.requestId}</span><small>{new Date(r.reportedAt).toLocaleString()}</small><p className="muted">“{r.body}”</p><small>Reason: {r.reason}</small></div>
+          <div className="admin-main"><b>{r.senderName || 'Unknown sender'}</b><span>Reported by {r.reporterName || 'unknown user'} · request {r.requestId}</span><small>{formatSafeDateTime(r.reportedAt, 'Recent')}</small><p className="muted">“{r.body}”</p><small>Reason: {r.reason}</small></div>
         </article>)}</div>}
       </section>
 

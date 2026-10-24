@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { ChatPanel } from './ChatPanel';
 import { MeetingLink } from './MeetingLink';
+import { formatSafeDateTime } from '../lib/date-format';
 
 const SKILL_OPTIONS: [string, string][] = [
   ['javascript', 'JavaScript'],
@@ -379,7 +380,7 @@ export function MentorWorkspace({ user, onLogout }: {
                       <span className="status-chip">{r.status}</span>
                       <h3>{r.student_name}</h3>
                       <p>{r.message}</p>
-                      <small>{new Date(r.at).toLocaleString()}</small>
+                      <small>{formatSafeDateTime(r.at, 'Recent')}</small>
                     </div>
 
                     <div className="request-card-actions">
