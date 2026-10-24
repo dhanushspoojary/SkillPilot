@@ -176,7 +176,14 @@ export function AuthGate() {
 
       {/* 1. Minimal Sticky Top Navigation */}
       <nav className="landing-nav" aria-label="Main navigation">
-        <a href="#" className="landing-nav-brand">
+        <a
+          href="#overview"
+          className="landing-nav-brand"
+          onClick={(e) => {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        >
           <span className="brand-mark">S</span>
           <b>SkillPilot</b>
           <span className="landing-nav-tag">AI CAREER OS</span>
