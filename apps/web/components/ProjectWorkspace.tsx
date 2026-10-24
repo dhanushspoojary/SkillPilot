@@ -71,6 +71,12 @@ export function ProjectWorkspace({
   const [activeTab, setActiveTab] = useState<'editor' | 'spec'>('editor');
   const [error, setError] = useState<string>('');
 
+  useEffect(() => {
+    if (initialSlug && catalog.some((p) => p.slug === initialSlug)) {
+      setSelectedSlug(initialSlug);
+    }
+  }, [initialSlug, catalog]);
+
   // Fetch project catalog & student's active status
   useEffect(() => {
     let cancelled = false;
