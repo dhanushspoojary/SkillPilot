@@ -61,6 +61,13 @@ export function PracticeArena({
 
   // When problem or language changes, update starter code
   const handleSelectProblem = (slug: string) => {
+    if (slug === selectedSlug) return;
+    const currentStarter = problem.starterCode[selectedLanguage] || problem.starterCode.javascript || '';
+    if (code.trim() !== currentStarter.trim() && !solved) {
+      if (typeof window !== 'undefined' && !window.confirm('Switch problem? Unsaved code in the editor will be discarded.')) {
+        return;
+      }
+    }
     setSelectedSlug(slug);
     const p = PRACTICE_PROBLEMS.find((prob) => prob.slug === slug);
     if (p) {
@@ -74,6 +81,13 @@ export function PracticeArena({
   };
 
   const handleLanguageChange = (lang: ProgrammingLanguage) => {
+    if (lang === selectedLanguage) return;
+    const currentStarter = problem.starterCode[selectedLanguage] || problem.starterCode.javascript || '';
+    if (code.trim() !== currentStarter.trim() && !solved) {
+      if (typeof window !== 'undefined' && !window.confirm('Switch language? Unsaved code in the editor will be discarded.')) {
+        return;
+      }
+    }
     setSelectedLanguage(lang);
     if (problem.starterCode[lang]) {
       setCode(problem.starterCode[lang]);
