@@ -995,10 +995,11 @@ export function Mentors({ state, onSend, selfId }: {
   </div>;
 }
 function UsersIcon() { return <Users size={24}/>; }
-export function Passport({ state, setName, notify }: {
+export function Passport({ state, setName, notify, careerGoal }: {
     state: AppState;
     setName: (n: string) => void;
     notify: (m: string) => void;
+    careerGoal?: string;
 }) {
     const skills = skillStates(state.evidence);
     const [share, setShare] = useState<{ shareToken: string; url: string; viewsCount: number } | null>(null);
@@ -1076,7 +1077,7 @@ export function Passport({ state, setName, notify }: {
     <PageIntro
       kicker="SKILL PASSPORT"
       title="Cryptographically Shareable Proof."
-      text="Software Engineer pathway · private until you choose to share it."
+      text={`${careerGoal || 'Software Engineer'} pathway · private until you choose to share it.`}
       contextTriad={{
         happening: 'Cryptographically shareable Skill Passport summarizing your immutable server evidence.',
         why: 'Employers and mentors verify authentic runtime demonstration rather than unverified resume claims.',
@@ -1086,7 +1087,7 @@ export function Passport({ state, setName, notify }: {
     <div className="passport-top"><div><span className="kicker">SKILL PASSPORT</span>
       <label className="sr-only" htmlFor="pname">Your name</label>
       <input id="pname" className="name-input" value={state.name} placeholder="Add your name" maxLength={60} onChange={(e) => setName(e.target.value)}/>
-      <p>Software Engineer pathway · private until you choose to share it</p></div>
+      <p>{careerGoal || 'Software Engineer'} pathway · private until you choose to share it</p></div>
       <div className="passport-score"><strong>{readiness(skills)}%</strong><span>READINESS</span></div></div>
 
     {/* Share Management Section */}

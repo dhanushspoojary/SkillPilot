@@ -610,7 +610,7 @@ export function App({ user, onLogout }: {
         {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} careerGoal={careerGoal} onFinish={onFinish} onDone={() => go('roadmap')}/>}
         {view === 'mentors' && <Mentors state={state} onSend={onSend} selfId={user.id}/>}
         {view === 'interview' && <MockInterview onDone={() => { void refreshProfile().then(() => setToast('Practice evidence saved at reduced confidence.')).catch(() => undefined); }}/>} 
-        {view === 'passport' && <Passport state={state} setName={(name) => {
+        {view === 'passport' && <Passport state={state} careerGoal={careerGoal} setName={(name) => {
                 setState((s) => ({ ...s, name }));
                 if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
                 nameDebounceRef.current = setTimeout(async () => {
