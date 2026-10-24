@@ -812,10 +812,15 @@ export function Roadmap({ state, actions, go, workflow, onOpenCalibration }: {
 
     const goalLabel = workflow?.confirmedGoals?.[0] || 'SOFTWARE ENGINEER';
     const eduLevel = workflow?.capabilityProfile?.educationLevel || 'first_year';
-    const academicYear = eduLevel === 'first_year' ? 'YEAR 1 (FOUNDATIONS)' :
-      eduLevel === 'second_year' ? 'YEAR 2 (CORE SYSTEMS)' :
-      eduLevel === 'third_year' ? 'YEAR 3 (ADVANCED ARCHITECTURE)' :
-      eduLevel === 'final_year' ? 'YEAR 4 (CAPSTONE READINESS)' : 'YEAR 1';
+    const academicYear = /second|2nd/i.test(eduLevel)
+      ? 'YEAR 2 (CORE SYSTEMS)'
+      : /third|3rd/i.test(eduLevel)
+      ? 'YEAR 3 (ADVANCED ARCHITECTURE)'
+      : /final|4th/i.test(eduLevel)
+      ? 'YEAR 4 (CAPSTONE READINESS)'
+      : /self[- ]taught|bootcamp/i.test(eduLevel)
+      ? 'INDEPENDENT / BOOTCAMP TRACK'
+      : 'YEAR 1 (FOUNDATIONS)';
 
     const semesterFocus = current === 0 ? 'SEM 1: SYNTAX & LOGIC' :
       current === 1 ? 'SEM 2: BUILD & MEMORY' :
