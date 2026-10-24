@@ -1,5 +1,5 @@
 import { currentUser } from '../../../../../../lib/auth';
-import { one } from '../../../../../../lib/db';
+import { one, db } from '../../../../../../lib/db';
 import { dbRateLimit } from '../../../../../../lib/guard';
 import { json, requireOrigin, isUuid } from '../../../../../../lib/server-security';
 import {
@@ -73,6 +73,21 @@ export async function POST(req: Request, ctx: Ctx) {
   try {
     const role = u.id === rawRequest.mentorId ? 'mentor' : 'student';
     const roomName = deriveLiveKitRoomName(id);
+
+    if (role === 'mentor') {
+      await db().query(
+        `insert into mentor_call_sessions(request_id, mentor_id, student_id, room_name, status)
+         values($1, $2, $3, $4, 'ringing')`,
+        [id, u.id, rawRequest.studentId, roomName]
+      );
+    } else if (role === 'student') {
+      await db().query(
+        `update mentor_call_sessions
+         set status='accepted', accepted_at=now()
+         where request_id=$1 and student_id=$2 and status='ringing'`,
+        [id, u.id]
+      );
+    }
 
     const token = await createLiveKitToken({
       requestId: id,

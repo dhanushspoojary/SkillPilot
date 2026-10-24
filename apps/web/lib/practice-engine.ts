@@ -234,7 +234,7 @@ export async function persistGeneratedQuestion(q: GeneratedQuestion): Promise<vo
          id, skill_slug, topic, difficulty, question_type, prompt,
          code_snippet, choices, correct_index, hints, explanation, source, fingerprint
        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       on conflict (id) do nothing`,
+       on conflict (fingerprint) do nothing`,
       [
         q.id,
         q.skillSlug,
@@ -251,8 +251,10 @@ export async function persistGeneratedQuestion(q: GeneratedQuestion): Promise<vo
         q.fingerprint
       ]
     );
-  } catch (err) {
-    console.error('Failed to persist practice question', err);
+  } catch (err: any) {
+    if (err?.code !== '23505') {
+      console.error('Failed to persist practice question', err);
+    }
   }
 }
 

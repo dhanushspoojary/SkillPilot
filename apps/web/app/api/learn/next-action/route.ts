@@ -1,6 +1,6 @@
-import { currentUser } from '../../../../lib/auth.ts';
-import { json } from '../../../../lib/server-security.ts';
-import { determineNextAction } from '../../../../lib/next-action-engine.ts';
+import { currentUser } from '../../../../lib/auth';
+import { json } from '../../../../lib/server-security';
+import { determineNextAction } from '../../../../lib/next-action-engine';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

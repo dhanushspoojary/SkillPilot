@@ -11,6 +11,7 @@ import type { Proposal } from '../lib/agent';
 import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } from './views';
 import { MockInterview } from './MockInterview';
 import { CapabilityOnboarding } from './CapabilityOnboarding';
+import { IncomingCallDialog, type ActiveCallData } from './IncomingCallDialog';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
 interface NavItem {
     id: View;
@@ -95,6 +96,7 @@ export function App({ user, onLogout }: {
         }
         return false;
     });
+    const [activeCall, setActiveCall] = useState<ActiveCallData | null>(null);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const triggerButtonRef = useRef<HTMLButtonElement>(null);
     const nameDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -104,6 +106,34 @@ export function App({ user, onLogout }: {
             if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
         };
     }, []);
+
+    // In-app incoming call detection: poll for active calls scoped to the student
+    useEffect(() => {
+        let stopped = false;
+        async function pollActiveCall() {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            try {
+                const res = await fetch('/api/mentor-requests/call/active', { cache: 'no-store' });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (stopped) return;
+                if (data.activeCall && data.activeCall.status === 'ringing') {
+                    setActiveCall(data.activeCall);
+                } else if (!data.activeCall && activeCall) {
+                    setActiveCall(null);
+                }
+            } catch {
+                // Ignore transient network failures
+            }
+        }
+
+        void pollActiveCall();
+        const timer = window.setInterval(pollActiveCall, 3500);
+        return () => {
+            stopped = true;
+            window.clearInterval(timer);
+        };
+    }, [activeCall]);
 
     const toggleSidebar = () => {
         setSidebarCollapsed((prev) => {
@@ -702,6 +732,12 @@ export function App({ user, onLogout }: {
           setShowCalibration(false);
           go('roadmap');
         }}
+      />
+    )}
+    {activeCall && (
+      <IncomingCallDialog
+        call={activeCall}
+        onDismiss={() => setActiveCall(null)}
       />
     )}
     {toast && (

@@ -21,8 +21,10 @@ import {
   ArrowRight,
   HelpCircle,
   TrendingUp,
+  AlertCircle,
 } from 'lucide-react';
 import { interviewableSkills } from '../lib/interview';
+import { diagnoseMicrophoneError, type MicDiagnostic } from '../lib/microphone-permission';
 
 declare global {
   interface Window {
@@ -73,7 +75,9 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
   const [mentorBooked, setMentorBooked] = useState<string | null>(null);
   const [bookingMentorId, setBookingMentorId] = useState<string | null>(null);
 
+  const [micDiagnostic, setMicDiagnostic] = useState<MicDiagnostic | null>(null);
   const rec = useRef<any>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const startedAt = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -248,6 +252,17 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
   function listen() {
     if (!SR) return;
     stopSpeaking();
+    setError('');
+    setMicDiagnostic(null);
+
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+      const diag = diagnoseMicrophoneError('insecure', isAndroid, false);
+      setMicDiagnostic(diag);
+      setError(diag.message);
+      return;
+    }
+
     const inst = new SR();
     inst.lang = 'en-US';
     inst.interimResults = true;
@@ -260,15 +275,27 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           .slice(0, 6000)
       );
     inst.onend = () => setListening(false);
-    inst.onerror = () => setListening(false);
+    inst.onerror = (e: any) => {
+      setListening(false);
+      const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+      const isSecure = typeof window !== 'undefined' ? window.isSecureContext : true;
+      const diag = diagnoseMicrophoneError(e?.error || 'not-allowed', isAndroid, isSecure);
+      setMicDiagnostic(diag);
+      setError(diag.message);
+    };
     rec.current = inst;
     startedAt.current = Date.now();
     setLive('');
     setListening(true);
     try {
       inst.start();
-    } catch {
+    } catch (err: any) {
       setListening(false);
+      const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+      const isSecure = typeof window !== 'undefined' ? window.isSecureContext : true;
+      const diag = diagnoseMicrophoneError(err?.message || 'not-allowed', isAndroid, isSecure);
+      setMicDiagnostic(diag);
+      setError(diag.message);
     }
   }
 
@@ -642,7 +669,53 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           </div>
         </div>
 
-        {error && <div className="auth-error" style={{ marginBottom: 14 }}>{error}</div>}
+        {micDiagnostic && (
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 10,
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              marginBottom: 14,
+              color: '#92400E',
+              fontSize: '0.88rem',
+              lineHeight: 1.5,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 4 }}>
+              <AlertCircle size={16} color="#D97706" />
+              <span>{micDiagnostic.message}</span>
+            </div>
+            {micDiagnostic.actionRequired && (
+              <div style={{ whiteSpace: 'pre-line', margin: '6px 0 10px 22px', fontSize: '0.84rem' }}>
+                {micDiagnostic.actionRequired}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                className="primary"
+                onClick={listen}
+                style={{ fontSize: 13, minHeight: 34, padding: '4px 14px' }}
+              >
+                <Mic size={13} /> Retry Microphone
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  setMicDiagnostic(null);
+                  textareaRef.current?.focus();
+                }}
+                style={{ fontSize: 13, minHeight: 34, padding: '4px 14px' }}
+              >
+                Type Answer Instead
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && !micDiagnostic && <div className="auth-error" style={{ marginBottom: 14 }}>{error}</div>}
 
         {/* Response Controls */}
         <div style={{ display: 'flex', gap: 10, margin: '12px 0', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -705,6 +778,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
 
         {/* Answer Textarea */}
         <textarea
+          ref={textareaRef}
           rows={6}
           maxLength={6000}
           placeholder={SR ? 'Live speech will appear here. You can also type or edit your answer directly…' : 'Type your detailed answer here…'}
@@ -717,7 +791,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
             borderRadius: 10,
             padding: 14,
             fontSize: 14,
-            color: '#FFFFFF',
+            color: 'var(--text-primary, #17151B)',
             lineHeight: 1.5,
             resize: 'vertical',
             boxSizing: 'border-box',

@@ -74,21 +74,56 @@ export function ChatPanel({ requestId, selfId, title }: { requestId: string; sel
     setMessages((current) => current.filter((m) => m.id !== messageId));
   }
 
-  return <div style={{ border: '1px solid var(--line,#2a2f3a)', borderRadius: 12, padding: 12, marginTop: 10 }}>
-    <b>{title ?? 'Mentor chat'}</b> <small style={{ opacity: .6 }}>· request-scoped · reportable messages</small>
-    <div ref={box} style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, margin: '10px 0' }}>
-      {messages.length === 0 && <small style={{ opacity: .6 }}>No messages yet. Say hello.</small>}
-      {messages.map((m) => <div key={m.id} style={{ alignSelf: m.senderId === selfId ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
-        <small style={{ opacity: .6 }}>{m.senderName} · {formatSafeTime(m.at)}</small>
-        <div style={{ background: m.senderId === selfId ? 'var(--accent,#5b7cfa)' : 'var(--panel,#1c2028)', color: m.senderId === selfId ? '#fff' : 'inherit', borderRadius: 10, padding: '7px 10px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.body}</div>
-        {m.senderId !== selfId && !reported.has(m.id) && <button className="link" style={{ fontSize: 11 }} onClick={() => setReporting(reporting === m.id ? null : m.id)}><Flag size={11}/> Report</button>}
-        {reporting === m.id && <div style={{ display: 'flex', gap: 6, marginTop: 4 }}><input value={reportText} maxLength={500} placeholder="Why are you reporting this?" style={{ flex: 1 }} onChange={(e) => setReportText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void report(m.id); } }}/><button className="ghost" disabled={!reportText.trim()} onClick={() => void report(m.id)}>Report</button></div>}
-      </div>)}
+  return (
+    <div style={{ border: '1px solid var(--border, #E7E3EB)', borderRadius: 12, padding: 14, marginTop: 12, background: 'var(--surface, #FFFFFF)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--border, #E7E3EB)' }}>
+        <b style={{ color: 'var(--text-primary, #17151B)', fontSize: '0.95rem' }}>{title ?? 'Mentor chat'}</b>
+        <small style={{ color: 'var(--text-secondary, #4A4553)', fontSize: '0.75rem' }}>Request-scoped · Verified messaging</small>
+      </div>
+      <div ref={box} style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, margin: '10px 0', paddingRight: 4 }}>
+        {messages.length === 0 && <p style={{ color: 'var(--text-secondary, #4A4553)', fontSize: '0.85rem', margin: '16px 0', textAlign: 'center' }}>No messages yet. Say hello to begin the conversation.</p>}
+        {messages.filter(m => m.body && m.body.trim().length > 0).map((m) => (
+          <div key={m.id} style={{ alignSelf: m.senderId === selfId ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #4A4553)', marginBottom: 3, textAlign: m.senderId === selfId ? 'right' : 'left' }}>
+              {m.senderName} · {formatSafeTime(m.at)}
+            </div>
+            <div style={{
+              background: m.senderId === selfId ? '#594593' : '#F2EFF7',
+              color: m.senderId === selfId ? '#FFFFFF' : '#17151B',
+              border: m.senderId === selfId ? '1px solid transparent' : '1px solid #E2DDE8',
+              borderRadius: 12,
+              borderBottomRightRadius: m.senderId === selfId ? 3 : 12,
+              borderBottomLeftRadius: m.senderId !== selfId ? 3 : 12,
+              padding: '8px 12px',
+              fontSize: '0.9rem',
+              lineHeight: '1.45',
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+            }}>
+              {m.body}
+            </div>
+            {m.senderId !== selfId && !reported.has(m.id) && (
+              <button className="link" style={{ fontSize: 11, marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--text-secondary, #4A4553)' }} onClick={() => setReporting(reporting === m.id ? null : m.id)}>
+                <Flag size={11}/> Report
+              </button>
+            )}
+            {reporting === m.id && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                <input value={reportText} maxLength={500} placeholder="Why are you reporting this?" style={{ flex: 1, fontSize: '0.85rem' }} onChange={(e) => setReportText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void report(m.id); } }}/>
+                <button className="ghost" disabled={!reportText.trim()} onClick={() => void report(m.id)}>Report</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {error && <div className="auth-error" style={{ marginBottom: 8 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <textarea value={text} maxLength={MAX} rows={2} placeholder={`Message (max ${MAX} characters)`} style={{ flex: 1, resize: 'none', borderRadius: 8, border: '1px solid var(--border, #E7E3EB)', padding: '8px 10px', fontSize: '0.9rem' }} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/>
+        <button className="primary" onClick={() => void send()} disabled={!text.trim() || sending} style={{ height: 42, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Send size={14}/> {sending ? 'Sending...' : 'Send'}
+        </button>
+      </div>
     </div>
-    {error && <div className="auth-error">{error}</div>}
-    <div style={{ display: 'flex', gap: 8 }}>
-      <textarea value={text} maxLength={MAX} rows={2} placeholder={`Message (max ${MAX} characters)`} style={{ flex: 1, resize: 'none' }} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/>
-      <button className="primary" onClick={() => void send()} disabled={!text.trim() || sending}><Send size={14}/> {sending ? 'Sending...' : 'Send'}</button>
-    </div>
-  </div>;
+  );
 }

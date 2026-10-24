@@ -130,6 +130,9 @@ async function retryWithBackoff<T>(
 
       const isTransient =
         err instanceof Error &&
+        !signal?.aborted &&
+        err.message !== 'llm_timeout' &&
+        err.message !== 'aborted' &&
         (isRateLimit ||
           err.message.includes('503') ||
           err.message.includes('500') ||
@@ -206,25 +209,44 @@ export class GeminiProviderAdapter implements LLMProvider {
     }));
 
     const systemInstruction = options.systemPrompt ? sanitizePII(options.systemPrompt) : undefined;
-    const signal = options.signal || AbortSignal.timeout(options.timeoutMs ?? 20000);
+    const timeoutMs = options.timeoutMs ?? 15000;
+    const signal = options.signal || AbortSignal.timeout(timeoutMs);
 
-    const response = await retryWithBackoff(
-      async () => {
-        return await this.client.models.generateContent({
-          model,
-          contents,
-          config: {
-            systemInstruction,
-            tools: geminiTools as any,
-            temperature: options.temperature ?? 0.2,
-            maxOutputTokens: options.maxTokens ?? 1000,
-          },
-        });
-      },
-      2,
-      1000,
-      signal,
-    );
+    const callWithTimeout = async () => {
+      let timer: NodeJS.Timeout | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('llm_timeout')), timeoutMs);
+        if (signal) {
+          signal.addEventListener(
+            'abort',
+            () => {
+              if (timer) clearTimeout(timer);
+              reject(new Error('aborted'));
+            },
+            { once: true },
+          );
+        }
+      });
+      try {
+        return await Promise.race([
+          this.client.models.generateContent({
+            model,
+            contents,
+            config: {
+              systemInstruction,
+              tools: geminiTools as any,
+              temperature: options.temperature ?? 0.2,
+              maxOutputTokens: options.maxTokens ?? 1000,
+            },
+          }),
+          timeoutPromise,
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+
+    const response = await retryWithBackoff(callWithTimeout, 1, 1000, signal);
 
     // Extract tool calls and text response
     const toolCalls: ToolCall[] = [];
