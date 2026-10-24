@@ -490,7 +490,7 @@ export function MentorWorkspace({ user, onLogout }: {
                       </div>
 
                       <div className="mentor-form-actions">
-                        <button className="primary" type="submit" disabled={busy}>
+                        <button className="primary" type="submit" disabled={busy || rv.text.trim().length < 10}>
                           {busy ? <Loader2 size={16} className="spin" /> : 'Submit review'}
                         </button>
                         <button
