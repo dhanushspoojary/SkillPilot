@@ -11,6 +11,7 @@ type Message = { id: string; senderId: string; senderName: string; body: string;
 export function ChatPanel({ requestId, selfId, title }: { requestId: string; selfId: string; title?: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [reporting, setReporting] = useState<string | null>(null);
   const [reportText, setReportText] = useState('');
@@ -45,7 +46,8 @@ export function ChatPanel({ requestId, selfId, title }: { requestId: string; sel
 
   async function send() {
     const body = text.trim();
-    if (!body) return;
+    if (!body || sending) return;
+    setSending(true);
     setError('');
     try {
       const r = await fetch(`/api/mentor-requests/${requestId}/chat`, {
@@ -56,6 +58,7 @@ export function ChatPanel({ requestId, selfId, title }: { requestId: string; sel
       setText('');
       await load();
     } catch { setError('Network error. Please try again.'); }
+    finally { setSending(false); }
   }
 
   async function report(messageId: string) {
@@ -79,13 +82,13 @@ export function ChatPanel({ requestId, selfId, title }: { requestId: string; sel
         <small style={{ opacity: .6 }}>{m.senderName} · {formatSafeTime(m.at)}</small>
         <div style={{ background: m.senderId === selfId ? 'var(--accent,#5b7cfa)' : 'var(--panel,#1c2028)', color: m.senderId === selfId ? '#fff' : 'inherit', borderRadius: 10, padding: '7px 10px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.body}</div>
         {m.senderId !== selfId && !reported.has(m.id) && <button className="link" style={{ fontSize: 11 }} onClick={() => setReporting(reporting === m.id ? null : m.id)}><Flag size={11}/> Report</button>}
-        {reporting === m.id && <div style={{ display: 'flex', gap: 6, marginTop: 4 }}><input value={reportText} maxLength={500} placeholder="Why are you reporting this?" style={{ flex: 1 }} onChange={(e) => setReportText(e.target.value)}/><button className="ghost" onClick={() => void report(m.id)}>Report</button></div>}
+        {reporting === m.id && <div style={{ display: 'flex', gap: 6, marginTop: 4 }}><input value={reportText} maxLength={500} placeholder="Why are you reporting this?" style={{ flex: 1 }} onChange={(e) => setReportText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void report(m.id); } }}/><button className="ghost" disabled={!reportText.trim()} onClick={() => void report(m.id)}>Report</button></div>}
       </div>)}
     </div>
     {error && <div className="auth-error">{error}</div>}
     <div style={{ display: 'flex', gap: 8 }}>
       <textarea value={text} maxLength={MAX} rows={2} placeholder={`Message (max ${MAX} characters)`} style={{ flex: 1, resize: 'none' }} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/>
-      <button className="primary" onClick={() => void send()} disabled={!text.trim()}><Send size={14}/> Send</button>
+      <button className="primary" onClick={() => void send()} disabled={!text.trim() || sending}><Send size={14}/> {sending ? 'Sending...' : 'Send'}</button>
     </div>
   </div>;
 }
