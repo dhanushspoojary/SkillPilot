@@ -410,6 +410,19 @@ export function RoadmapSkillTree({ state, actions, go, workflow, onOpenCalibrati
                       </button>
                     )}
 
+                    {selectedNode.projectSlug && (
+                      <button
+                        type="button"
+                        className="ghost drawer-cta-btn"
+                        onClick={() => {
+                          setSelectedNode(null);
+                          go('projects', selectedNode.projectSlug);
+                        }}
+                      >
+                        <Code2 size={16} /> Hands-on Project
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="ghost drawer-cta-btn"
