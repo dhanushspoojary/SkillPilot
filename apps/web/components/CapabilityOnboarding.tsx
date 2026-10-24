@@ -240,6 +240,19 @@ export function CapabilityOnboarding({
     assessmentScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [assessmentSession?.history?.length, assessmentSession?.currentQuestion]);
 
+  // Handle Escape key dismissal when dismissible
+  useEffect(() => {
+    if (!canDismiss || !onClose) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canDismiss, onClose]);
+
   // Restart discovery dialogue
   const handleRestart = async () => {
     if (busy) return;
@@ -526,7 +539,17 @@ export function CapabilityOnboarding({
   };
 
   return (
-    <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="onboard-title">
+    <div
+      className="onboarding-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboard-title"
+      onClick={(e) => {
+        if (canDismiss && onClose && e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="onboarding-modal" style={{ maxWidth: 720, maxHeight: '92vh', overflowY: 'auto' }}>
         {/* Header / Tabs */}
         <div className="onboarding-head">
