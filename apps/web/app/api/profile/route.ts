@@ -114,6 +114,10 @@ export async function PATCH(req: Request) {
       const goal = safeText(b.careerGoal, 60);
       if (goal) {
         await db().query(
+          `update career_goals set active = false where user_id = $1 and active = true`,
+          [u.id]
+        );
+        await db().query(
           `insert into career_goals (user_id, role_name, active, created_at)
            values ($1, $2, true, now())`,
           [u.id, goal]
