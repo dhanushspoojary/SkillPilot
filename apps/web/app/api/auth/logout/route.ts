@@ -1,5 +1,6 @@
 import { clearSession, currentUser } from '../../../../lib/auth';
 import { json, requireOrigin, logSecurityEvent } from '../../../../lib/server-security';
+import { networkKey } from '../../../../lib/guard';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
         await logSecurityEvent({
             userId: user.id,
             eventType: 'auth.logout',
-            ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+            ip: networkKey(req.headers, process.env.SKILLPILOT_TRUST_PROXY === 'true'),
             userAgent: req.headers.get('user-agent'),
         });
     }
