@@ -236,16 +236,21 @@ export function LiveKitVideoCall({
             <b>Media & Audio Troubleshooting Guide:</b>
             <ul style={{ margin: '6px 0 0 20px', padding: 0 }}>
               <li>
-                <strong>Camera/Microphone Permission:</strong> Look for the lock or camera icon in
-                your browser URL bar and set Camera & Microphone to <em>Allow</em>.
+                <strong>Camera/Microphone Permission:</strong> Look for the lock or tune icon in
+                your browser address bar and ensure Camera & Microphone are set to <em>Allow</em>.
+              </li>
+              <li>
+                <strong>Android "This site can't ask for your permission":</strong> Android blocks permission
+                prompts if any app is drawing an overlay on your screen. Close floating chat bubbles (e.g.
+                Messenger chat heads, screen recorders, screen dimmers), then tap the lock icon in Chrome to allow.
               </li>
               <li>
                 <strong>Device In Use:</strong> Close other applications (Zoom, Teams, Google Meet)
-                that might have an exclusive lock on your webcam.
+                that might have an exclusive lock on your camera or microphone.
               </li>
               <li>
                 <strong>Strict Firewalls:</strong> If connecting from a corporate network, ensure
-                WebRTC UDP traffic is not blocked by VPN or proxy.
+                WebRTC UDP traffic is not blocked by a VPN or proxy.
               </li>
             </ul>
           </aside>
@@ -413,7 +418,14 @@ export function LiveKitVideoCall({
                   const msg = err.message || 'LiveKit media error';
                   const isDeviceError = /permission|notallowed|devicesnotfound|notfound|overconstrained|track/i.test(msg);
                   if (isDeviceError) {
-                    setMediaWarning(`Media device notice: ${msg}. You can continue the session in audio or listen-only mode.`);
+                    const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+                    if (isAndroid && /notallowed|permission/i.test(msg)) {
+                      setMediaWarning(
+                        'Microphone/Camera blocked by Android overlay or permission. Close floating chat bubbles/screen recorders and tap the lock icon in the address bar to allow.'
+                      );
+                    } else {
+                      setMediaWarning(`Media device notice: ${msg}. You can continue the session in audio or listen-only mode.`);
+                    }
                   } else {
                     setError(msg);
                   }
