@@ -97,7 +97,7 @@ export function AdminWorkspace({ user, onLogout }: {
           {mentors.length === 0
             ? <div className="empty-state"><b>No mentor accounts yet.</b><p>Mentors only appear after they sign up.</p></div>
             : mentors.map((m) => <article className="admin-row" key={m.id}>
-              <div className="admin-avatar">{m.name.slice(0, 1).toUpperCase()}</div>
+              <div className="admin-avatar">{(m.name || 'M').slice(0, 1).toUpperCase()}</div>
               <div className="admin-main"><b>{m.name}</b><span>{m.email}</span><small>{m.focus || 'No focus added'} · {m.status}</small></div>
               <div className="admin-actions">
                 <span className="status-chip">{m.status}</span>
@@ -132,7 +132,7 @@ export function AdminWorkspace({ user, onLogout }: {
           {users.length === 0
             ? <div className="empty-state"><b>No matching accounts.</b></div>
             : users.map((u) => <article className="admin-row" key={u.id}>
-              <div className="admin-avatar">{u.name.slice(0, 1).toUpperCase()}</div>
+              <div className="admin-avatar">{(u.name || 'U').slice(0, 1).toUpperCase()}</div>
               <div className="admin-main"><b>{u.name}</b><span>{u.email}</span><small>{u.role} · {u.emailVerifiedAt ? 'email confirmed' : 'email unconfirmed'}</small></div>
               <div className="admin-actions">
                 <span className="status-chip">{u.status}</span>
