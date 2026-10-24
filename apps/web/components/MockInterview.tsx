@@ -64,6 +64,8 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
   const [result, setResult] = useState<any>(null);
   const [speakingQuestion, setSpeakingQuestion] = useState(false);
   const [autoSpeak, setAutoSpeak] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Mentor Mock Interview state
   const [mentorList, setMentorList] = useState<any[]>([]);
@@ -211,6 +213,8 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
   };
 
   async function start() {
+    if (starting) return;
+    setStarting(true);
     setError('');
     try {
       const r = await fetch('/api/interview/start', {
@@ -236,6 +240,8 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
       }
     } catch {
       setError('Network error. Please try again.');
+    } finally {
+      setStarting(false);
     }
   }
 
@@ -274,11 +280,13 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
   }
 
   async function submitAnswer() {
+    if (submitting) return;
     const transcript = (typed.trim() || live.trim()).slice(0, 6000);
     if (!transcript) {
       setError('Please provide an answer either by speaking or typing.');
       return;
     }
+    setSubmitting(true);
     setError('');
     stopListen();
     stopSpeaking();
@@ -315,6 +323,8 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
       }
     } catch {
       setError('Network error. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -722,10 +732,17 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           <button
             type="button"
             className="primary"
+            disabled={submitting || (!typed.trim() && !live.trim())}
             onClick={() => void submitAnswer()}
             style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 42, padding: '0 20px' }}
           >
-            <span>{idx + 1 < iv.questions.length ? 'Next Question' : 'Finish & View Diagnostic Report'}</span>
+            <span>
+              {submitting
+                ? 'Submitting…'
+                : idx + 1 < iv.questions.length
+                ? 'Next Question'
+                : 'Finish & View Diagnostic Report'}
+            </span>
             <ArrowRight size={15} />
           </button>
         </div>
@@ -1004,11 +1021,11 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
             <button
               type="button"
               className="primary"
-              disabled={!skill}
+              disabled={!skill || starting}
               onClick={() => void start()}
               style={{ minHeight: 42, padding: '0 24px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}
             >
-              <span>Begin Mock Interview</span>
+              <span>{starting ? 'Starting…' : 'Begin Mock Interview'}</span>
               <ArrowRight size={16} />
             </button>
           </div>
