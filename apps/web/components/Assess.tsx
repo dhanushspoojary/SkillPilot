@@ -115,6 +115,7 @@ export function Assess({
   const [confirmationStep, setConfirmationStep] = useState<'review' | 'skills_confirmed' | 'all_confirmed'>('review');
   const [selectedGoal, setSelectedGoal] = useState(careerGoal);
   const [workflowBusy, setWorkflowBusy] = useState(false);
+  const [workflowError, setWorkflowError] = useState('');
   const [busy, setBusy] = useState(true);
   const [busyMessage, setBusyMessage] = useState('Preparing your diagnostic…');
   const [startError, setStartError] = useState('');
@@ -411,8 +412,9 @@ export function Assess({
 
     const handleConfirmSkills = async () => {
       setWorkflowBusy(true);
+      setWorkflowError('');
       try {
-        await fetch('/api/workflow', {
+        const res = await fetch('/api/workflow', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -420,7 +422,13 @@ export function Assess({
             confirmedSkills: results.map((r) => ({ skill: r.skill, score: r.score })),
           }),
         });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to confirm baseline on the server.');
+        }
         setConfirmationStep('skills_confirmed');
+      } catch (err) {
+        setWorkflowError(err instanceof Error ? err.message : 'Could not confirm skill baseline.');
       } finally {
         setWorkflowBusy(false);
       }
@@ -428,8 +436,9 @@ export function Assess({
 
     const handleConfirmGoals = async () => {
       setWorkflowBusy(true);
+      setWorkflowError('');
       try {
-        await fetch('/api/workflow', {
+        const res = await fetch('/api/workflow', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -437,8 +446,14 @@ export function Assess({
             goals: [selectedGoal],
           }),
         });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to confirm goals on the server.');
+        }
         setConfirmationStep('all_confirmed');
         await onFinish(results);
+      } catch (err) {
+        setWorkflowError(err instanceof Error ? err.message : 'Could not confirm goals.');
       } finally {
         setWorkflowBusy(false);
       }
@@ -526,6 +541,7 @@ export function Assess({
 
           {/* Workflow Calibration & Baseline Confirmation Section */}
           <div style={{ width: '100%', background: 'var(--surface-navy, #F5F3FA)', border: '1px solid var(--cyan-border, #E7E3EB)', borderRadius: 12, padding: 20, textAlign: 'left', marginTop: 8 }}>
+            {workflowError && <div className="auth-error" style={{ marginBottom: 14 }}>{workflowError}</div>}
             {confirmationStep === 'review' && (
               <div>
                 <span className="kicker" style={{ color: 'var(--primary-purple, #8874C7)' }}>STEP 1: CONFIRM SKILL BASELINE</span>
