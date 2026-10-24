@@ -382,7 +382,7 @@ export function Assess({
           <h2>Unable to Start Diagnostic</h2>
           <p className="error-desc">{startError}</p>
           <div className="result-actions">
-            <button className="primary" onClick={start} disabled={busy}>
+            <button className="primary" onClick={() => void start()} disabled={busy}>
               {busy ? <Loader2 size={16} className="spin" /> : <RefreshCcw size={16} />}
               Retry Connection
             </button>
@@ -602,7 +602,7 @@ export function Assess({
             <button className="primary" onClick={handleDoneClick}>
               See Updated Roadmap <ArrowRight size={15} />
             </button>
-            <button className="ghost" onClick={start}>
+            <button className="ghost" onClick={() => void start()}>
               <RefreshCcw size={15} /> Retake Diagnostic
             </button>
           </div>
@@ -660,7 +660,7 @@ export function Assess({
             <button
               type="button"
               className="ghost"
-              onClick={start}
+              onClick={() => void start()}
               disabled={busy}
             >
               <RefreshCcw size={16} />
