@@ -530,9 +530,11 @@ export function AuthGate() {
           </div>
 
           {mode === 'signup' && (
-            <div className="role-picker">
+            <div className="role-picker" role="radiogroup" aria-label="Select account role">
               <button
                 type="button"
+                role="radio"
+                aria-checked={role === 'student'}
                 className={role === 'student' ? 'selected' : ''}
                 onClick={() => setRole('student')}
               >
@@ -542,6 +544,8 @@ export function AuthGate() {
               </button>
               <button
                 type="button"
+                role="radio"
+                aria-checked={role === 'mentor'}
                 className={role === 'mentor' ? 'selected' : ''}
                 onClick={() => setRole('mentor')}
               >
