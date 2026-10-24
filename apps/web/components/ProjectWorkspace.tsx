@@ -138,7 +138,7 @@ export function ProjectWorkspace({
   };
 
   const handleResetCode = () => {
-    if (!activeCatalogItem) return;
+    if (evaluating || !activeCatalogItem) return;
     if (window.confirm('Reset code to initial starter template? Your unsaved edits will be discarded.')) {
       setCode(activeCatalogItem.starterCode);
       setEvaluationFeedback('');
