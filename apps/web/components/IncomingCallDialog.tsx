@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Video, PhoneCall, PhoneOff, ShieldCheck, User } from 'lucide-react';
 import { LiveKitVideoCall } from './LiveKitVideoCall';
 
@@ -26,6 +26,18 @@ export function IncomingCallDialog({ call, onDismiss }: IncomingCallDialogProps)
   const [declining, setDeclining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inCall, setInCall] = useState(false);
+
+  useEffect(() => {
+    if (inCall) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !accepting && !declining) {
+        event.preventDefault();
+        void handleDecline();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [inCall, accepting, declining, call.requestId]);
 
   async function handleAccept() {
     setAccepting(true);
