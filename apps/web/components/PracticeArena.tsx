@@ -332,6 +332,30 @@ export function PracticeArena({
               </span>
               <span style={{ fontSize: 12, color: 'var(--secondary-text)' }}>~{problem.estimatedMinutes} mins</span>
               <span style={{ fontSize: 12, color: 'var(--secondary-text)' }}>• {problem.track}</span>
+              {onGoToLearn && (
+                <button
+                  type="button"
+                  onClick={() => onGoToLearn(problem.slug === 'c-pointer-swap' ? 'c-pointers-memory' : 'ps-loop-tracing')}
+                  style={{
+                    marginLeft: 'auto',
+                    background: 'transparent',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 14,
+                    padding: '3px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--primary-purple)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                  title="Open interactive walkthrough lesson for this concept"
+                >
+                  <BookOpen size={12} />
+                  <span>Review Concept in Learn</span>
+                </button>
+              )}
             </div>
 
             <h3 style={{ margin: '0 0 12px 0', fontSize: 18, color: 'var(--main-text)', fontWeight: 700 }}>{problem.title}</h3>
