@@ -256,7 +256,7 @@ export function AuthGate() {
         </div>
 
         <div className="landing-lime-grid">
-          <div className="landing-lime-card">
+          <div className="landing-lime-card" id="features">
             <div>
               <div className="landing-lime-card-tag"><Activity size={14} /> ADAPTIVE TESTING ENGINE</div>
               <h3>Dynamic Diagnostic Calibration</h3>
