@@ -1,4 +1,5 @@
 import { currentUser } from '../../../lib/auth';
+import { dbRateLimit } from '../../../lib/guard';
 import { json, requireOrigin, readJsonBody } from '../../../lib/server-security';
 import {
   PROJECT_CATALOG,
@@ -62,6 +63,10 @@ export async function POST(req: Request) {
   const u = await currentUser();
   if (!u || u.role !== 'student') {
     return json({ error: 'Student account required' }, 401);
+  }
+
+  if (!(await dbRateLimit(`project-eval:${u.id}`, 20, 10 * 60000))) {
+    return json({ error: 'Too many project evaluations. Slow down.' }, 429);
   }
 
   try {
