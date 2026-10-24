@@ -240,11 +240,11 @@ export function LearnWorkspace({
   // Submit exercise answer
   const handleSubmitAnswer = async () => {
     if (selectedChoice === null || !lessonData || submitting) return;
-    setSubmitting(true);
     const activeEx =
       dynamicQuestion || lessonData.exercises[currentExerciseIndex];
     if (!activeEx) return;
 
+    setSubmitting(true);
     try {
       const res = await fetch("/api/learn/attempt", {
         method: "POST",
