@@ -30,39 +30,43 @@ export async function GET(req: Request) {
   let recentAttempts: any[] = [];
   try {
     const exerciseIds = lesson.exercises.map((e) => e.id);
-    recentAttempts = await many(
-      `select question_id as exercise_id, is_correct, hints_used, created_at
-       from student_practice_attempts
-       where user_id = $1 and question_id = any($2)
-       order by created_at desc limit 20`,
-      [u.id, exerciseIds]
-    );
+    if (exerciseIds.length > 0) {
+      recentAttempts = await many(
+        `select question_id as exercise_id, is_correct, hints_used, created_at
+         from student_practice_attempts
+         where user_id = $1 and question_id = any($2)
+         order by created_at desc limit 20`,
+        [u.id, exerciseIds]
+      );
+    }
   } catch {}
 
   // Fetch concept mastery for concepts covered in this lesson
   let conceptsMastery: Record<string, any> = {};
   try {
     const conceptNames = lesson.exercises.map((e) => e.concept);
-    const masteryRows = await many<{
-      concept: string;
-      status: string;
-      mastery_score: number;
-      problems_solved: number;
-      problems_attempted: number;
-    }>(
-      `select concept, status, mastery_score, problems_solved, problems_attempted
-       from student_concept_mastery
-       where user_id = $1 and concept = any($2)`,
-      [u.id, conceptNames]
-    );
+    if (conceptNames.length > 0) {
+      const masteryRows = await many<{
+        concept: string;
+        status: string;
+        mastery_score: number;
+        problems_solved: number;
+        problems_attempted: number;
+      }>(
+        `select concept, status, mastery_score, problems_solved, problems_attempted
+         from student_concept_mastery
+         where user_id = $1 and concept = any($2)`,
+        [u.id, conceptNames]
+      );
 
-    for (const m of masteryRows) {
-      conceptsMastery[m.concept] = {
-        status: m.status,
-        score: m.mastery_score,
-        solved: m.problems_solved,
-        attempted: m.problems_attempted,
-      };
+      for (const m of masteryRows) {
+        conceptsMastery[m.concept] = {
+          status: m.status,
+          score: m.mastery_score,
+          solved: m.problems_solved,
+          attempted: m.problems_attempted,
+        };
+      }
     }
   } catch {}
 
