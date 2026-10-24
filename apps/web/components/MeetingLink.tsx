@@ -10,6 +10,7 @@ export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit
   const [at, setAt] = useState('');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [isCallOpen, setIsCallOpen] = useState(false);
 
   useEffect(() => {
@@ -28,6 +29,8 @@ export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit
   }, [requestId]);
 
   async function save() {
+    if (saving) return;
+    setSaving(true);
     setError(''); setSaved(false);
     try {
       const r = await fetch(`/api/mentor-requests/${requestId}/call`, {
@@ -39,6 +42,7 @@ export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit
       if (!r.ok) { setError(x.error || 'Could not save link'); return; }
       setCall(x.call); setSaved(true);
     } catch { setError('Network error. Please try again.'); }
+    finally { setSaving(false); }
   }
 
   const isLiveKitAvailable = Boolean(call?.livekit?.available);
@@ -86,10 +90,24 @@ export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit
               value={url}
               placeholder="https://meet.google.com/… (optional backup)"
               style={{ flex: 2, minWidth: 220 }}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setSaved(false);
+                setError('');
+              }}
             />
-            <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)}/>
-            <button className="ghost" onClick={() => void save()}>Save backup link</button>
+            <input
+              type="datetime-local"
+              value={at}
+              onChange={(e) => {
+                setAt(e.target.value);
+                setSaved(false);
+                setError('');
+              }}
+            />
+            <button className="ghost" disabled={saving} onClick={() => void save()}>
+              {saving ? 'Saving...' : 'Save backup link'}
+            </button>
           </div>
         </details>
       )}
