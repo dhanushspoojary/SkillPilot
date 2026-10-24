@@ -674,7 +674,7 @@ export function App({ user, onLogout }: {
         <span>More</span>
       </button>
     </nav>
-    {showCalibration && view === 'today' && (
+    {showCalibration && (
       <CapabilityOnboarding
         initialProfile={capabilityProfile ?? undefined}
         onSave={saveCalibration}
