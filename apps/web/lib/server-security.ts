@@ -6,7 +6,7 @@ import { originOk, securityHeaders } from './guard.ts';
 
 export function json(body: unknown, status=200) { return Response.json(body,{status,headers:securityHeaders()}); }
 export function requireOrigin(req: Request): boolean {
-  const allowed = process.env.SKILLPILOT_ALLOWED_ORIGIN;
+  const allowed = process.env.SKILLPILOT_ALLOWED_ORIGIN || (process.env.NODE_ENV !== 'production' ? 'http://localhost:3000' : undefined);
   const isProd = process.env.NODE_ENV === 'production';
   if (isProd && !allowed) return false;
 
