@@ -784,6 +784,14 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           placeholder={SR ? 'Live speech will appear here. You can also type or edit your answer directly…' : 'Type your detailed answer here…'}
           value={typed || live}
           onChange={(e) => setTyped(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault();
+              if (!submitting && (typed.trim() || live.trim())) {
+                void submitAnswer();
+              }
+            }
+          }}
           style={{
             width: '100%',
             background: 'var(--surface-navy)',
