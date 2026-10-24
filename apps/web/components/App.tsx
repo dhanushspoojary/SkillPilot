@@ -97,6 +97,13 @@ export function App({ user, onLogout }: {
     });
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const triggerButtonRef = useRef<HTMLButtonElement>(null);
+    const nameDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+        };
+    }, []);
 
     const toggleSidebar = () => {
         setSidebarCollapsed((prev) => {
@@ -603,16 +610,19 @@ export function App({ user, onLogout }: {
         {view === 'assess' && <Assess key={round} evidence={state.evidence} focus={focus} careerGoal={careerGoal} onFinish={onFinish} onDone={() => go('roadmap')}/>}
         {view === 'mentors' && <Mentors state={state} onSend={onSend} selfId={user.id}/>}
         {view === 'interview' && <MockInterview onDone={() => { void refreshProfile().then(() => setToast('Practice evidence saved at reduced confidence.')).catch(() => undefined); }}/>} 
-        {view === 'passport' && <Passport state={state} setName={async (name) => {
+        {view === 'passport' && <Passport state={state} setName={(name) => {
                 setState((s) => ({ ...s, name }));
-                try {
-                    const r = await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
-                    if (!r.ok)
+                if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+                nameDebounceRef.current = setTimeout(async () => {
+                    try {
+                        const r = await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+                        if (!r.ok)
+                            setToast('Could not save your name on the server.');
+                    }
+                    catch {
                         setToast('Could not save your name on the server.');
-                }
-                catch {
-                    setToast('Could not save your name on the server.');
-                }
+                    }
+                }, 500);
             }} notify={setToast}/>}
         {view === 'settings' && (
           <SettingsView
