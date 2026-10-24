@@ -94,6 +94,11 @@ export function IncomingCallDialog({ call, onDismiss }: IncomingCallDialogProps)
       role="dialog"
       aria-modal="true"
       aria-labelledby="incoming-call-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !accepting && !declining) {
+          void handleDecline();
+        }
+      }}
       style={{
         position: 'fixed',
         top: 0,
