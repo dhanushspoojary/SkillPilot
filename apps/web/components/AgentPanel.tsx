@@ -436,6 +436,18 @@ export function AgentPanel({
     }
   };
 
+  useEffect(() => {
+    if (!showMemoriesModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMemoriesModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showMemoriesModal]);
+
   const handleDeleteMemory = async (memoryId: string) => {
     if (typeof window !== 'undefined' && !window.confirm('Delete this saved learning memory?')) {
       return;
