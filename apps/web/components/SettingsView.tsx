@@ -935,6 +935,12 @@ export function SettingsView({
                     className="settings-input"
                     value={deletePassword}
                     onChange={(e) => setDeletePassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && deletePassword.trim() && !deleteBusy) {
+                        e.preventDefault();
+                        void handleDeleteAccount();
+                      }
+                    }}
                     placeholder="Enter your current password"
                     style={{ marginBottom: 16 }}
                   />
@@ -945,7 +951,7 @@ export function SettingsView({
                       className="primary"
                       style={{ background: '#DC2626', borderColor: '#DC2626' }}
                       onClick={handleDeleteAccount}
-                      disabled={deleteBusy}
+                      disabled={deleteBusy || !deletePassword.trim()}
                     >
                       {deleteBusy ? <Loader2 size={15} className="spin" /> : <Trash2 size={15} />}
                       Permanently Delete Account
