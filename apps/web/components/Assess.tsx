@@ -131,7 +131,7 @@ export function Assess({
     };
   }, []);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (overrideFocus?: string) => {
     if (startInFlightRef.current) return;
     startInFlightRef.current = true;
     setBusy(true);
@@ -146,10 +146,11 @@ export function Assess({
     setValidationError(null);
 
     try {
+      const targetFocus = overrideFocus !== undefined ? overrideFocus : focus;
       const r = await fetchWithRetry('/api/assess/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ focus }),
+        body: JSON.stringify({ focus: targetFocus }),
       });
 
       let data: any = {};
@@ -540,8 +541,7 @@ export function Assess({
                     <button
                       className="ghost"
                       onClick={() => {
-                        focus = gaps[0].skill;
-                        void start();
+                        void start(gaps[0].skill);
                       }}
                       disabled={workflowBusy}
                       style={{ minHeight: 40, padding: '0 14px', fontSize: 13 }}
