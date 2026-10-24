@@ -13,7 +13,7 @@ import { RoadmapSkillTree } from './RoadmapSkillTree';
 import { NextActionGuidedModal } from './NextActionGuidedModal';
 import { formatSafeDate } from '../lib/date-format';
 export type View = 'today' | 'practice' | 'learn' | 'agent' | 'projects' | 'roadmap' | 'skills' | 'assess' | 'mentors' | 'interview' | 'passport' | 'settings';
-const skillName = (id: string) => SKILLS.find((s) => s.id === id)?.name ?? id;
+const skillName = (id?: string | null) => (id ? (SKILLS.find((s) => s.id === id)?.name ?? id) : '');
 
 export function Today({
   state,
