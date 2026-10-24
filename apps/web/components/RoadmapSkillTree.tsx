@@ -191,7 +191,7 @@ export function RoadmapSkillTree({ state, actions, go, workflow, onOpenCalibrati
         <span className="legend-item"><span className="legend-dot locked" /> Locked (Prerequisite Pending)</span>
       </div>
 
-      <div className="skill-tree-path" role="tree" aria-label="Personalized Career Learning Path">
+      <div className="skill-tree-path" role="list" aria-label="Personalized Career Learning Path">
         {MILESTONES_GRAPH.map((node, idx) => {
           const nodeState = getNodeState(node);
           const skillData = skillsMap.get(node.id);
@@ -201,6 +201,7 @@ export function RoadmapSkillTree({ state, actions, go, workflow, onOpenCalibrati
           return (
             <div
               key={node.id}
+              role="listitem"
               className={`skill-tree-node-row ${nodeState} ${isSelected ? 'selected' : ''}`}
             >
               {/* Connector Line */}
