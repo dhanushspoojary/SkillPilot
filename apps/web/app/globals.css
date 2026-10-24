@@ -25,6 +25,9 @@
   --text-primary: #17151B;
   --text-secondary: #4A4553;
   --border: #E7E3EB;
+  --panel: #FFFFFF;
+  --panel-muted: #F8F7FA;
+  --surface-raised: #F2EFF7;
   --shadow-modal: 0 20px 40px -10px rgba(23, 21, 27, 0.08);
 
   /* Core Reference Palettes */
