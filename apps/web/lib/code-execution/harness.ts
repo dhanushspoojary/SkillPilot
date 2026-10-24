@@ -195,6 +195,7 @@ function wrapC(code: string, problem: string, stdin: string): { sourceCode: stri
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 int main() {
     int nums[1000];
@@ -210,6 +211,28 @@ int main() {
         }
     }
     printf("%d\\n", maxSubArray(nums, count));
+    return 0;
+}
+`;
+    return { sourceCode: `${code}\n${harness}`, stdin };
+  } else if (problem === 'valid-parentheses') {
+    const harness = `
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+
+int main() {
+    char s[4096];
+    if (!fgets(s, sizeof(s), stdin)) return 0;
+    s[strcspn(s, "\\r\\n")] = 0;
+    char* p = s;
+    if (*p == '"') {
+        p++;
+        char* end = strrchr(p, '"');
+        if (end) *end = 0;
+    }
+    printf("%s\\n", isValid(p) ? "true" : "false");
     return 0;
 }
 `;
