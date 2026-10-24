@@ -74,11 +74,13 @@ export async function POST(req: Request) {
       }
       await c.query(`update mock_interviews set status='completed',mode=$1,model=$2,server_score=$3,completed_at=now(),updated_at=now() where id=$4 and user_id=$5`, [mode, model, avg, interviewId, u.id]);
       const skillRow = await c.query('select id from skills where slug=$1', [owned.skill_slug]);
-      await c.query(
-        `insert into user_skill_evidence(user_id,skill_id,source,score,confidence,metadata)
-         values($1,$2,'practice',$3,$4,$5)`,
-        [u.id, skillRow.rows[0].id, avg, confidence, JSON.stringify({ label: mode === 'ai' ? 'AI-scored voice mock interview' : 'Offline voice mock interview score', interviewId, mode })],
-      );
+      if (skillRow.rows[0]?.id) {
+        await c.query(
+          `insert into user_skill_evidence(user_id,skill_id,source,score,confidence,metadata)
+           values($1,$2,'practice',$3,$4,$5)`,
+          [u.id, skillRow.rows[0].id, avg, confidence, JSON.stringify({ label: mode === 'ai' ? 'AI-scored voice mock interview' : 'Offline voice mock interview score', interviewId, mode })],
+        );
+      }
       return { avg, mode };
     });
 

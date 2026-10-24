@@ -116,6 +116,8 @@ export function App({ user, onLogout }: {
     };
 
     const handleLogout = async () => {
+        setProfileOpen(false);
+        setToast('');
         try {
             await fetch('/api/auth/logout', {
                 method: 'POST',

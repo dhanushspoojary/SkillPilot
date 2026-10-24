@@ -60,12 +60,13 @@ export function createLimiter(max: number, windowMs: number, maxKeys = 5000) {
 }
 /** Browsers always send Origin on cross-origin and on PUT/POST; a mismatch is rejected. */
 export function originOk(method: string, origin: string | null, allowed: string | undefined): boolean {
-    if (!allowed)
+    const effectiveAllowed = allowed || (process.env.NODE_ENV !== 'production' ? 'http://localhost:3000' : undefined);
+    if (!effectiveAllowed)
         return true;
     if (origin) {
         const norm = (o: string) => o.replace(/\/+$/, '').toLowerCase();
         const oNorm = norm(origin);
-        const aNorm = norm(allowed);
+        const aNorm = norm(effectiveAllowed);
         if (oNorm === aNorm)
             return true;
         if (process.env.NODE_ENV !== 'production') {
