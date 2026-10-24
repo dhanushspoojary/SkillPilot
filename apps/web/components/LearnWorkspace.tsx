@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   BookOpen,
   Code2,
@@ -165,6 +165,25 @@ export function LearnWorkspace({
   const [tutorInput, setTutorInput] = useState("");
   const [tutorLoading, setTutorLoading] = useState(false);
   const [tutorError, setTutorError] = useState<string | null>(null);
+  const tutorMessagesBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showTutorModal) {
+      tutorMessagesBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [tutorMessages.length, tutorLoading, showTutorModal]);
+
+  useEffect(() => {
+    if (!showTutorModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowTutorModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showTutorModal]);
 
   // Load lesson catalog
   const loadLessons = useCallback(async () => {
@@ -1336,6 +1355,11 @@ export function LearnWorkspace({
           role="dialog"
           aria-modal="true"
           aria-label="AI Tutor"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowTutorModal(false);
+            }
+          }}
         >
           <div className="tutor-modal-card">
             <div className="tutor-modal-header">
@@ -1437,6 +1461,7 @@ export function LearnWorkspace({
                   <span>{tutorError}</span>
                 </div>
               )}
+              <div ref={tutorMessagesBottomRef} />
             </div>
 
             {/* Input Row */}
