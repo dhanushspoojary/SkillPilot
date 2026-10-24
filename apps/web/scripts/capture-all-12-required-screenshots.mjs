@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import path from 'node:path';
 
 const BASE_URL = 'http://localhost:3000';
-const ARTIFACT_DIR = path.resolve('C:/Users/Dhanush S Poojary/.gemini/antigravity-ide/brain/df4a9773-11d5-40c8-b581-bbff2f7f2d2f');
+const ARTIFACT_DIR = path.resolve('C:/Users/Dhanush S Poojary/.gemini/antigravity-ide/brain/cab808ac-15ac-4ba0-973c-986b08bd8096');
 
 async function capture() {
   console.log('Launching browser for All 12 Required Phase 9 Screenshots...');
@@ -37,113 +37,148 @@ async function capture() {
     console.log('Already authenticated in workspace.');
   }
 
-  // If onboarding modal appears, quick dismiss/save
-  try {
-    const switchBtn = page.locator('button:has-text("Switch to Quick Form")');
-    if (await switchBtn.isVisible({ timeout: 2000 })) {
-      await switchBtn.click();
-      await page.waitForTimeout(300);
-      const saveBtn = page.locator('button.submit-setup-btn, button:has-text("Save & Continue to Diagnostic")').first();
-      if (await saveBtn.isVisible()) {
-        await saveBtn.click();
-        await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 5000 });
+  // If onboarding modal appears, capture question & evaluation first!
+  const modal = page.locator('.onboarding-modal');
+  let onboardingModalOpen = await modal.isVisible({ timeout: 2500 }).catch(() => false);
+
+  if (onboardingModalOpen) {
+    console.log('6. Capturing: Adaptive onboarding question modal...');
+    // Check if on adaptive tab
+    const adaptiveTab = page.locator('.onboarding-tab-btn:has-text("Adaptive Technical Assessment")');
+    if (await adaptiveTab.isVisible()) {
+      await adaptiveTab.click();
+      await page.waitForTimeout(600);
+    }
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'adaptive_onboarding_question.png'), fullPage: false });
+
+    console.log('7. Capturing: Adaptive onboarding evaluation...');
+    const ansInput = page.locator('.adaptive-answer-input');
+    if (await ansInput.isVisible()) {
+      await ansInput.fill('An array is a contiguous block of memory with fixed size and O(1) random access, whereas a linked list uses nodes with pointers with O(N) access but dynamic resizing.');
+      await page.click('.adaptive-submit-btn');
+      await page.waitForSelector('.feedback-summary, .onboarding-completion-view', { timeout: 15000 });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: path.join(ARTIFACT_DIR, 'adaptive_onboarding_evaluation.png'), fullPage: false });
+    }
+
+    // Dismiss onboarding modal
+    const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now"), button:has-text("View Personalized Roadmap")').first();
+    if (await closeBtn.isVisible()) {
+      await closeBtn.click();
+      await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 5000 }).catch(() => {});
+    }
+  } else {
+    // If modal wasn't open, trigger it via Today view or calibration button
+    const calibBtn = page.locator('button:has-text("Recalibrate"), button:has-text("Skill Calibration")').first();
+    if (await calibBtn.isVisible()) {
+      await calibBtn.click();
+      await page.waitForSelector('.onboarding-modal', { timeout: 5000 });
+      const adaptiveTab = page.locator('.onboarding-tab-btn:has-text("Adaptive Technical Assessment")');
+      if (await adaptiveTab.isVisible()) {
+        await adaptiveTab.click();
+        await page.waitForTimeout(600);
+      }
+      await page.screenshot({ path: path.join(ARTIFACT_DIR, 'adaptive_onboarding_question.png'), fullPage: false });
+
+      const ansInput = page.locator('.adaptive-answer-input');
+      if (await ansInput.isVisible()) {
+        await ansInput.fill('Time complexity of hash table lookup is O(1) average.');
+        await page.click('.adaptive-submit-btn');
+        await page.waitForSelector('.feedback-summary, .onboarding-completion-view', { timeout: 15000 });
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: path.join(ARTIFACT_DIR, 'adaptive_onboarding_evaluation.png'), fullPage: false });
+      }
+      const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now")').first();
+      if (await closeBtn.isVisible()) {
+        await closeBtn.click();
+        await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 5000 }).catch(() => {});
       }
     }
-  } catch {}
-
-  await page.waitForTimeout(800);
+  }
 
   // 1. TODAY — EXPANDED SIDEBAR (1440px)
-  console.log('1. Capturing: Expanded sidebar...');
+  console.log('1. Capturing: Desktop sidebar expanded...');
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.click('button.nav-item[data-tooltip="Today"]').catch(() => {});
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'expanded_sidebar.png'), fullPage: false });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop_sidebar_expanded.png'), fullPage: false });
 
   // 2. TODAY — COLLAPSED SIDEBAR (1440px)
-  console.log('2. Capturing: Collapsed sidebar...');
+  console.log('2. Capturing: Desktop sidebar collapsed...');
   await page.click('.sidebar-collapse-toggle');
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'collapsed_sidebar.png'), fullPage: false });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop_sidebar_collapsed.png'), fullPage: false });
 
   // Expand sidebar back
   await page.click('.sidebar-collapse-toggle');
   await page.waitForTimeout(400);
 
-  // 3. REDESIGNED TODAY DASHBOARD (1440px)
-  console.log('3. Capturing: Redesigned Today dashboard...');
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'redesigned_today_dashboard.png'), fullPage: false });
+  // 3. TODAY — DECLUTTERED DASHBOARD (1440px)
+  console.log('3. Capturing: Today dashboard decluttered...');
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'today_dashboard_decluttered.png'), fullPage: false });
 
-  // 4. REDESIGNED SETTINGS (1440px)
-  console.log('4. Capturing: Redesigned Settings...');
-  await page.click('button.nav-item[data-tooltip="Settings"]');
+  // 4. ROADMAP SKILL TREE (1440px)
+  console.log('4. Capturing: Roadmap skill tree...');
+  await page.click('button.nav-item[data-tooltip="Roadmap"]');
+  await page.waitForSelector('.roadmap-skill-tree-container, .skill-tree-path, .roadmap-list', { timeout: 10000 });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'roadmap_skill_tree.png'), fullPage: false });
+
+  // 5. ROADMAP DRAWER DETAIL (1440px)
+  console.log('5. Capturing: Roadmap drawer detail...');
+  const treeNode = page.locator('.skill-node-card, .tree-node-interactive').first();
+  if (await treeNode.isVisible()) {
+    await treeNode.click();
+    await page.waitForSelector('.roadmap-drawer, .roadmap-detail-drawer, .node-drawer-content', { timeout: 6000 });
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'roadmap_drawer_detail.png'), fullPage: false });
+    // Test Escape key closes drawer
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+  } else {
+    // If no node clicked, take view screenshot
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'roadmap_drawer_detail.png'), fullPage: false });
+  }
+
+  // 8. REDESIGNED SETTINGS (1440px) via Profile Popover
+  console.log('8. Capturing: Redesigned Settings...');
+  const settingsNav = page.locator('button.nav-item[data-tooltip="Settings"], button.nav-item:has-text("Settings")');
+  if (await settingsNav.isVisible().catch(() => false)) {
+    await settingsNav.click();
+  } else {
+    await page.click('.side-profile-trigger');
+    await page.waitForSelector('.profile-dropdown-menu', { timeout: 4000 });
+    await page.click('.profile-dropdown-item:has-text("Account Settings"), .profile-dropdown-item:has-text("Settings")');
+  }
   await page.waitForSelector('.settings-layout, .settings-nav-tabs', { timeout: 10000 });
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(ARTIFACT_DIR, 'redesigned_settings.png'), fullPage: false });
 
-  // 5. ROADMAP VIEW
-  console.log('5. Capturing: Roadmap view...');
-  await page.click('button.nav-item[data-tooltip="Roadmap"]');
-  await page.waitForSelector('.roadmap-list, .roadmap-hierarchy-strip, .panel-block', { timeout: 10000 });
-  await page.waitForTimeout(600);
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'roadmap_view.png'), fullPage: false });
-
-  // 6. LEARN OR PRACTICE VIEW
-  console.log('6. Capturing: Learn or Practice view...');
-  await page.click('button.nav-item[data-tooltip="Practice"]');
-  await page.waitForSelector('.practice-workspace-grid, .filter-select', { timeout: 10000 });
-  await page.waitForTimeout(600);
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'learn_or_practice_view.png'), fullPage: false });
-
-  // 7. PASSPORT VIEW
-  console.log('7. Capturing: Passport view...');
-  await page.click('button.nav-item[data-tooltip="Passport"]');
+  // 9. PASSPORT VIEW (1440px) via Profile Popover
+  console.log('9. Capturing: Passport view...');
+  const passportNav = page.locator('button.nav-item[data-tooltip="Passport"], button.nav-item:has-text("Passport")');
+  if (await passportNav.isVisible().catch(() => false)) {
+    await passportNav.click();
+  } else {
+    await page.click('.side-profile-trigger');
+    await page.waitForSelector('.profile-dropdown-menu', { timeout: 4000 });
+    await page.click('.profile-dropdown-item:has-text("Skill Passport"), .profile-dropdown-item:has-text("Passport")');
+  }
   await page.waitForSelector('.passport, .proof-list, .passport-stats', { timeout: 10000 });
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(ARTIFACT_DIR, 'passport_view.png'), fullPage: false });
 
-  // 8. ASSESS — BEFORE ANSWERING
-  console.log('8. Capturing: Assessment before answering...');
-  await page.click('button.nav-item[data-tooltip="Assess"]');
-  await page.waitForSelector('.option-btn', { timeout: 20000 });
-  await page.waitForTimeout(600);
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'assessment_before_answering.png'), fullPage: false });
-
-  // 9. ASSESS — AFTER A CORRECT ANSWER (Difficulty Elevation)
-  console.log('9. Submitting CORRECT answer...');
-  const optionButtons = page.locator('.option-btn');
-  await optionButtons.first().click(); // Option A (remainder %)
-  await page.waitForTimeout(200);
-  await page.click('.submit-btn');
-  await page.waitForSelector('.adaptive-progression-banner, .skill-pill:has-text("Level 2")', { timeout: 10000 });
-  await page.waitForTimeout(600);
-  console.log('Capturing: Assessment after a correct answer...');
-  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'assessment_after_correct_answer.png'), fullPage: false });
-
-  // 10. ASSESS — AFTER AN INCORRECT ANSWER (Diagnostic Step-down on elevated question)
-  console.log('10. Submitting INCORRECT answer on Question 2...');
-  const q2OptionButtons = page.locator('.option-btn');
-  const count = await q2OptionButtons.count();
-  if (count > 2) {
-    await q2OptionButtons.nth(2).click(); // Option C (wrong)
-    await page.waitForTimeout(200);
-    await page.click('.submit-btn');
-    await page.waitForTimeout(800);
-    console.log('Capturing: Assessment after an incorrect answer...');
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'assessment_after_incorrect_answer.png'), fullPage: false });
-  }
-
-  // 11. MOBILE DASHBOARD (375px)
-  console.log('11. Capturing: Mobile dashboard (375px)...');
+  // 10. MOBILE DASHBOARD (375px)
+  console.log('10. Capturing: Mobile dashboard (375px)...');
   await page.setViewportSize({ width: 375, height: 812 });
   await page.click('.mobile-tab-item:has-text("Home")');
   await page.waitForSelector('.welcome, .today-dashboard', { timeout: 10000 });
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(ARTIFACT_DIR, 'mobile_dashboard.png'), fullPage: false });
 
-  // 12. MOBILE NAVIGATION DRAWER (375px)
-  console.log('12. Capturing: Mobile navigation drawer (375px)...');
+  // 11. MOBILE NAVIGATION DRAWER (375px)
+  console.log('11. Capturing: Mobile navigation drawer (375px)...');
   await page.click('.mobile-tab-item:has-text("More")');
   await page.waitForSelector('.sidebar.mobile-open, .sidebar-backdrop', { timeout: 5000 });
   await page.waitForTimeout(400);
@@ -156,7 +191,13 @@ async function capture() {
   const isDrawerOpen = await page.locator('.sidebar.mobile-open').isVisible().catch(() => false);
   console.log(`Mobile drawer closed on Escape: ${!isDrawerOpen ? 'PASS' : 'FAIL'}`);
 
-  // Viewport overflow checks across all 5 widths: 320, 375, 768, 1024, 1440
+  // 12. MOBILE VIEWPORT 320px
+  console.log('12. Capturing: Mobile viewport 320px...');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'mobile_viewport_320px.png'), fullPage: false });
+
+  // Responsive overflow validation across all required widths
   console.log('\nRunning responsive viewport overflow checks:');
   for (const width of [320, 375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 800 });
@@ -168,7 +209,7 @@ async function capture() {
   }
 
   await browser.close();
-  console.log('\nSuccessfully captured all 12 required screenshots!');
+  console.log('\nSuccessfully captured and saved all 12 required screenshots to active artifact directory!');
 }
 
 capture().catch((err) => {

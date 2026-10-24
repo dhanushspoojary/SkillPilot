@@ -870,7 +870,7 @@ export function AgentPanel({
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Sparkles size={14} color="var(--cyan)" />
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#FFFFFF' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #17151B)' }}>
                 {threads.find((t) => t.id === activeThreadId)?.title || 'Career AI Assistant'}
               </span>
             </div>
@@ -1209,7 +1209,7 @@ export function AgentPanel({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <BrainCircuit size={18} color="var(--cyan)" />
-                <h3 style={{ margin: 0, color: '#FFFFFF' }}>Durable Student Memories</h3>
+                <h3 style={{ margin: 0, color: 'var(--text-primary, #17151B)' }}>Durable Student Memories</h3>
               </div>
               <button
                 type="button"
@@ -1238,7 +1238,7 @@ export function AgentPanel({
                   <div
                     key={m.id}
                     style={{
-                      background: 'rgba(0,0,0,0.3)',
+                      background: 'rgba(0,0,0,0.04)',
                       border: '1px solid var(--line)',
                       borderRadius: 8,
                       padding: 12,
@@ -1260,7 +1260,7 @@ export function AgentPanel({
                       >
                         {m.category}
                       </span>
-                      <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#FFFFFF' }}>{m.fact}</p>
+                      <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-primary, #17151B)' }}>{m.fact}</p>
                     </div>
 
                     <button

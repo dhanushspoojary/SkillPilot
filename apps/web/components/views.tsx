@@ -436,7 +436,7 @@ export function Today({
       {top.slice(1).length > 0 && (
         <details className="upcoming-queue-details" style={{ marginBottom: 24, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
           <summary style={{ cursor: 'pointer', padding: '12px 16px', background: 'rgba(255, 255, 255, 0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, userSelect: 'none' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#FFFFFF', fontWeight: 600 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text-primary, #17151B)', fontWeight: 600 }}>
               <Layers size={14} color="var(--cyan)" />
               Upcoming Queue ({top.slice(1).length} secondary actions)
             </span>
@@ -610,7 +610,7 @@ export function Today({
                   <tbody>
                     {recentEvidence.map((ev) => (
                       <tr key={ev.id}>
-                        <td style={{ fontWeight: 600, color: '#FFFFFF' }}>{skillName(ev.skill)}</td>
+                        <td style={{ fontWeight: 600, color: 'var(--text-primary, #17151B)' }}>{skillName(ev.skill)}</td>
                         <td><span className="evidence-source-tag">{ev.kind}</span></td>
                         <td style={{ color: 'var(--cyan)' }}>{ev.score}%</td>
                         <td>{new Date(ev.at).toLocaleDateString()}</td>
@@ -794,7 +794,7 @@ export function Roadmap({ state, actions, go, workflow, onOpenCalibration }: {
           <Sparkles size={18} />
           <b style={{ fontSize: 13, letterSpacing: '0.05em' }}>CALIBRATION REQUIRED TO UNLOCK ROADMAP</b>
         </div>
-        <h3 style={{ fontSize: 20, color: '#FFFFFF', margin: '0 0 8px 0' }}>Personalized Roadmap Calibration Pending</h3>
+        <h3 style={{ fontSize: 20, color: 'var(--text-primary, #17151B)', margin: '0 0 8px 0' }}>Personalized Roadmap Calibration Pending</h3>
         <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 18px 0', lineHeight: 1.5, maxWidth: 640 }}>
           {workflow?.featuresLocked?.roadmapReason || 'Your step-by-step career roadmap is personalized to your confirmed skill baseline. Complete your initial diagnostic assessment to unlock your roadmap.'}
         </p>

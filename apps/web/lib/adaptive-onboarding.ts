@@ -1,7 +1,7 @@
 import { getActiveLLMProvider, sanitizePII, redactSecrets, type LLMMessage } from './llm-provider.ts';
 import { SKILLS, QUESTIONS } from './questions.ts';
 import type { Question } from './types.ts';
-import { tx, one } from './db.ts';
+import { db, tx, one } from './db.ts';
 import { saveStudentCapabilityProfile, getStudentCapabilityProfile } from './capability-profile.ts';
 import { transitionWorkflowStage } from './workflow.ts';
 
@@ -410,12 +410,20 @@ Remaining Question Budget: ${remainingBudget}
 Evaluate this answer and determine the next adaptive step. Return JSON only:`;
 
   try {
-    const responseText = await provider.generateText(userPrompt, {
-      systemPrompt,
-      temperature: 0.2,
-      maxTokens: 1000,
-      timeoutMs: 12000,
-    });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('LLM call timeout exceeded (8000ms)')), 8000)
+    );
+
+    const responseText = await Promise.race([
+      provider.generateText(userPrompt, {
+        tier: 'fast',
+        systemPrompt,
+        temperature: 0.2,
+        maxTokens: 1000,
+        timeoutMs: 8000,
+      }),
+      timeoutPromise,
+    ]);
 
     // Clean JSON text of any stray markdown code fences
     const cleanText = responseText.replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
@@ -561,8 +569,8 @@ export async function startAdaptiveOnboardingSession(params: {
     const aid = newAss.rows[0].id;
 
     await client.query(
-      `insert into assessment_items (assessment_id, question_id, skill_slug, prompt, position) values ($1, $2, $3, $4, $5)`,
-      [aid, `onboarding-q-1`, firstQ.skill_id, JSON.stringify(firstQ), 1]
+      `insert into assessment_items (assessment_id, question_id, skill_slug, prompt) values ($1, $2, $3, $4)`,
+      [aid, `onboarding-q-1`, firstQ.skill_id, JSON.stringify(firstQ)]
     );
 
     return {
@@ -598,99 +606,100 @@ export async function submitAdaptiveOnboardingAnswer(params: {
 }): Promise<AdaptiveOnboardingState> {
   const { sessionId, userId, answer, targetRole = 'Software Engineer' } = params;
 
+  // 1. Read outside transaction
+  const assRow = await db().query<{
+    id: string;
+    user_id: string;
+    status: string;
+    started_at: string;
+  }>(`select id, user_id, status, started_at from assessments where id = $1 and user_id = $2`, [
+    sessionId,
+    userId,
+  ]);
+
+  if (!assRow.rowCount || !assRow.rows[0]) {
+    throw new Error('Assessment session not found or unauthorized');
+  }
+
+  if (assRow.rows[0].status === 'completed') {
+    throw new Error('Assessment is already completed');
+  }
+
+  // Retrieve existing items
+  const items = await db().query<{
+    id: string;
+    question_id: string;
+    skill_slug: string;
+    prompt: string | Record<string, unknown>;
+    response: string | Record<string, unknown> | null;
+    position: number;
+  }>(
+    `select id, question_id, skill_slug, prompt, response, position from assessment_items where assessment_id = $1 order by position asc`,
+    [sessionId]
+  );
+
+  const history: OnboardingTurnHistory[] = [];
+  let pendingItem: typeof items.rows[0] | null = null;
+
+  for (const item of items.rows) {
+    const promptObj = typeof item.prompt === 'string' ? JSON.parse(item.prompt) : item.prompt;
+    if (item.response) {
+      const respObj = typeof item.response === 'string' ? JSON.parse(item.response) : item.response;
+      history.push({
+        questionNumber: item.position,
+        questionText: promptObj.text || promptObj.q || '',
+        skillId: item.skill_slug,
+        difficulty: Number(promptObj.difficulty ?? 1),
+        questionType: (promptObj.question_type as QuestionType) || 'conceptual',
+        studentAnswer: respObj.answer || '',
+        evaluation: respObj.evaluation || {
+          summary: 'Recorded',
+          correctness: 'correct',
+          misconceptions: [],
+        },
+        provenance: respObj.provenance || 'deterministic',
+      });
+    } else {
+      pendingItem = item;
+    }
+  }
+
+  if (!pendingItem) {
+    throw new Error('No pending unanswered question found for this assessment');
+  }
+
+  const currentPromptObj =
+    typeof pendingItem.prompt === 'string' ? JSON.parse(pendingItem.prompt) : pendingItem.prompt;
+
+  const currentQuestionData: NextQuestionData = {
+    text: currentPromptObj.text || currentPromptObj.q || '',
+    skill_id: pendingItem.skill_slug,
+    difficulty: Number(currentPromptObj.difficulty ?? 1),
+    question_type: (currentPromptObj.question_type as QuestionType) || 'conceptual',
+    options: currentPromptObj.options || null,
+  };
+
+  // Add current turn to history for evaluation
+  const evalInputHistory = [...history, {
+    questionNumber: pendingItem.position,
+    questionText: currentQuestionData.text,
+    skillId: currentQuestionData.skill_id,
+    difficulty: currentQuestionData.difficulty,
+    questionType: currentQuestionData.question_type,
+    studentAnswer: answer,
+    evaluation: { summary: '', correctness: 'uncertain' as EvaluationCorrectness, misconceptions: [] },
+    provenance: 'deterministic' as const,
+  }];
+
+  // 2. Perform LLM call OUTSIDE transaction
+  const { output, provenance } = await generateAdaptiveLLMTurn({
+    targetRole,
+    history: evalInputHistory,
+    lastAnswer: answer,
+  });
+
+  // 3. Fast atomic write transaction (takes only ~5ms)
   return await tx(async (client) => {
-    // Lock assessment record and verify ownership
-    const assRow = await client.query<{
-      id: string;
-      user_id: string;
-      status: string;
-      started_at: string;
-    }>(`select id, user_id, status, started_at from assessments where id = $1 and user_id = $2 for update`, [
-      sessionId,
-      userId,
-    ]);
-
-    if (!assRow.rowCount || !assRow.rows[0]) {
-      throw new Error('Assessment session not found or unauthorized');
-    }
-
-    if (assRow.rows[0].status === 'completed') {
-      throw new Error('Assessment is already completed');
-    }
-
-    // Retrieve existing items
-    const items = await client.query<{
-      id: string;
-      question_id: string;
-      skill_slug: string;
-      prompt: string | Record<string, unknown>;
-      response: string | Record<string, unknown> | null;
-      position: number;
-    }>(
-      `select id, question_id, skill_slug, prompt, response, position from assessment_items where assessment_id = $1 order by position asc`,
-      [sessionId]
-    );
-
-    const history: OnboardingTurnHistory[] = [];
-    let pendingItem: typeof items.rows[0] | null = null;
-
-    for (const item of items.rows) {
-      const promptObj = typeof item.prompt === 'string' ? JSON.parse(item.prompt) : item.prompt;
-      if (item.response) {
-        const respObj = typeof item.response === 'string' ? JSON.parse(item.response) : item.response;
-        history.push({
-          questionNumber: item.position,
-          questionText: promptObj.text || promptObj.q || '',
-          skillId: item.skill_slug,
-          difficulty: Number(promptObj.difficulty ?? 1),
-          questionType: (promptObj.question_type as QuestionType) || 'conceptual',
-          studentAnswer: respObj.answer || '',
-          evaluation: respObj.evaluation || {
-            summary: 'Recorded',
-            correctness: 'correct',
-            misconceptions: [],
-          },
-          provenance: respObj.provenance || 'deterministic',
-        });
-      } else {
-        pendingItem = item;
-      }
-    }
-
-    if (!pendingItem) {
-      throw new Error('No pending unanswered question found for this assessment');
-    }
-
-    const currentPromptObj =
-      typeof pendingItem.prompt === 'string' ? JSON.parse(pendingItem.prompt) : pendingItem.prompt;
-
-    const currentQuestionData: NextQuestionData = {
-      text: currentPromptObj.text || currentPromptObj.q || '',
-      skill_id: pendingItem.skill_slug,
-      difficulty: Number(currentPromptObj.difficulty ?? 1),
-      question_type: (currentPromptObj.question_type as QuestionType) || 'conceptual',
-      options: currentPromptObj.options || null,
-    };
-
-    // Add current turn to history for evaluation
-    const evalInputHistory = [...history, {
-      questionNumber: pendingItem.position,
-      questionText: currentQuestionData.text,
-      skillId: currentQuestionData.skill_id,
-      difficulty: currentQuestionData.difficulty,
-      questionType: currentQuestionData.question_type,
-      studentAnswer: answer,
-      evaluation: { summary: '', correctness: 'uncertain' as EvaluationCorrectness, misconceptions: [] },
-      provenance: 'deterministic' as const,
-    }];
-
-    // Generate adaptive evaluation and next question
-    const { output, provenance } = await generateAdaptiveLLMTurn({
-      targetRole,
-      history: evalInputHistory,
-      lastAnswer: answer,
-    });
-
     // Authoritative score calculation for this item
     const earnedPoints =
       output.evaluation.correctness === 'correct'
@@ -711,7 +720,7 @@ export async function submitAdaptiveOnboardingAnswer(params: {
           provenance,
         }),
         earnedPoints,
-        pendingItem.id,
+        pendingItem!.id,
       ]
     );
 
@@ -833,9 +842,9 @@ export async function submitAdaptiveOnboardingAnswer(params: {
     const nextPosition = history.length + 1;
 
     await client.query(
-      `insert into assessment_items (assessment_id, question_id, skill_slug, prompt, position)
-       values ($1, $2, $3, $4, $5)`,
-      [sessionId, `onboarding-q-${nextPosition}`, nextQ.skill_id, JSON.stringify(nextQ), nextPosition]
+      `insert into assessment_items (assessment_id, question_id, skill_slug, prompt)
+       values ($1, $2, $3, $4)`,
+      [sessionId, `onboarding-q-${nextPosition}`, nextQ.skill_id, JSON.stringify(nextQ)]
     );
 
     return {

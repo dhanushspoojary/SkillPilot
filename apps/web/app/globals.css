@@ -6275,14 +6275,14 @@ nav {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #FFFFFF;
+  color: var(--text-primary, #17151B);
   margin-bottom: 12px;
 }
 
 .sidebar-section-title {
   font-size: 13px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--text-primary, #17151B);
   margin: 0;
 }
 
@@ -6317,23 +6317,23 @@ nav {
   padding: 2px 6px;
   border-radius: 4px;
   text-transform: uppercase;
-  background: rgba(156, 163, 175, 0.15);
-  color: #9CA3AF;
+  background: rgba(74, 69, 83, 0.1);
+  color: var(--secondary-text, #4A4553);
 }
 
 .mastery-badge.proficient {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60A5FA;
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563EB;
 }
 
 .mastery-badge.mastered {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34D399;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
 }
 
 .mastery-badge.practicing {
-  background: rgba(245, 158, 11, 0.15);
-  color: #FBBF24;
+  background: rgba(245, 158, 11, 0.12);
+  color: #D97706;
 }
 
 .mastery-progress-bar {
@@ -6380,7 +6380,7 @@ nav {
 .next-action-title {
   font-size: 14px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--text-primary, #17151B);
   margin: 0;
 }
 
@@ -6713,14 +6713,14 @@ nav {
   border-radius: 4px;
 }
 
-.catalog-status-badge.completed { background: rgba(16, 185, 129, 0.2); color: #34D399; }
-.catalog-status-badge.in_progress { background: rgba(245, 158, 11, 0.2); color: #FBBF24; }
-.catalog-status-badge.not_started { background: rgba(156, 163, 175, 0.15); color: #9CA3AF; }
+.catalog-status-badge.completed { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.catalog-status-badge.in_progress { background: rgba(245, 158, 11, 0.12); color: #D97706; }
+.catalog-status-badge.not_started { background: rgba(74, 69, 83, 0.1); color: var(--secondary-text, #4A4553); }
 
 .catalog-card-title {
   font-size: 15px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--text-primary, #17151B);
   margin: 0;
 }
 
@@ -7934,7 +7934,7 @@ input:checked + .toggle-slider:before {
 
 .node-icon-wrap.locked {
   background: #F1F5F9;
-  color: #94A3B8;
+  color: #64748B;
 }
 
 .node-content-col {

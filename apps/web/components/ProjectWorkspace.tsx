@@ -269,7 +269,7 @@ export function ProjectWorkspace({
                   {activeCatalogItem.difficulty} · ~{activeCatalogItem.estimatedHours} hours
                 </span>
               </div>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: 18, color: '#FFFFFF' }}>{activeCatalogItem.title}</h3>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: 18, color: 'var(--text-primary, #17151B)' }}>{activeCatalogItem.title}</h3>
               <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 {activeCatalogItem.description}
               </p>
@@ -319,7 +319,7 @@ export function ProjectWorkspace({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Terminal size={16} color="var(--cyan)" />
-                  <h4 style={{ margin: 0, fontSize: 14, color: '#FFFFFF' }}>Automated Test Suite</h4>
+                  <h4 style={{ margin: 0, fontSize: 14, color: 'var(--text-primary, #17151B)' }}>Automated Test Suite</h4>
                 </div>
                 <span style={{ fontSize: 12, color: 'var(--cyan)', fontWeight: 700 }}>
                   {passedTestsCount} of {testResults.length} Passed
@@ -352,12 +352,12 @@ export function ProjectWorkspace({
                       style={{
                         padding: 12,
                         borderRadius: 8,
-                        background: 'rgba(0, 0, 0, 0.2)',
+                        background: 'rgba(0, 0, 0, 0.04)',
                         border: `1px solid ${isPassed ? 'rgba(52, 211, 153, 0.3)' : isFailed ? 'rgba(239, 68, 68, 0.3)' : 'var(--line)'}`,
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <b style={{ fontSize: 13, color: '#FFFFFF' }}>{tc.name}</b>
+                        <b style={{ fontSize: 13, color: 'var(--text-primary, #17151B)' }}>{tc.name}</b>
                         {isPassed && (
                           <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#34D399', fontSize: 11 }}>
                             <CheckCircle2 size={13} /> Passed
@@ -449,7 +449,7 @@ export function ProjectWorkspace({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Terminal size={15} color="var(--cyan)" />
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#FFFFFF' }}>Solution Implementation</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #17151B)' }}>Solution Implementation</span>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                   ({selectedSlug === 'rest-bookstore-service' ? 'JavaScript' : 'PostgreSQL'})
                 </span>

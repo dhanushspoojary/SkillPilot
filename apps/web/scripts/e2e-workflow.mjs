@@ -201,6 +201,18 @@ try {
   await page.click('button.nav-item:has-text("Today")');
   await page.waitForSelector('.priority-card, .welcome, #main-content', { timeout: 15000 });
 
+  // Dismiss onboarding modal if present
+  try {
+    const modal = page.locator('.onboarding-modal');
+    if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now")').first();
+      if (await closeBtn.isVisible().catch(() => false)) {
+        await closeBtn.click();
+        await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 3000 }).catch(() => {});
+      }
+    }
+  } catch {}
+
   // Open upcoming queue details if present
   const queueSummary = page.locator('.upcoming-queue-details summary');
   if (await queueSummary.isVisible().catch(() => false)) {

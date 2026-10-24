@@ -362,7 +362,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
                   {selectedMode.toUpperCase()} MOCK INTERVIEW EVALUATION
                 </span>
               </div>
-              <h1 style={{ fontSize: 24, margin: '0 0 6px 0', color: '#FFFFFF' }}>
+              <h1 style={{ fontSize: 24, margin: '0 0 6px 0', color: 'var(--text-primary, #17151B)' }}>
                 Overall Score: {result.score} / 100
               </h1>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -432,7 +432,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
         </div>
 
         {/* Question Details with STAR Structure */}
-        <h3 style={{ fontSize: 16, color: '#FFFFFF', margin: '20px 0 12px 0' }}>Spoken Answers & Diagnostic Feedback</h3>
+        <h3 style={{ fontSize: 16, color: 'var(--text-primary, #17151B)', margin: '20px 0 12px 0' }}>Spoken Answers & Diagnostic Feedback</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {result.questions.map((q: any) => (
             <div
@@ -545,7 +545,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
             marginBottom: 20,
           }}
         >
-          <h2 style={{ fontSize: 20, color: '#FFFFFF', margin: '0 0 14px 0', lineHeight: 1.4 }}>
+          <h2 style={{ fontSize: 20, color: 'var(--text-primary, #17151B)', margin: '0 0 14px 0', lineHeight: 1.4 }}>
             {q.prompt}
           </h2>
 
@@ -742,7 +742,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
             padding: 24,
           }}
         >
-          <h2 style={{ fontSize: 20, color: '#FFFFFF', margin: '0 0 6px 0' }}>Request Mentor-Led Mock Interview</h2>
+          <h2 style={{ fontSize: 20, color: 'var(--text-primary, #17151B)', margin: '0 0 6px 0' }}>Request Mentor-Led Mock Interview</h2>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 20px 0' }}>
             Rehearse 1-on-1 with verified college seniors, recent grads, or industry professionals. Mentors provide authentic, high-confidence feedback.
           </p>
@@ -837,7 +837,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
           }}
         >
           <div style={{ marginBottom: 20 }}>
-            <h2 style={{ fontSize: 20, color: '#FFFFFF', margin: '0 0 6px 0' }}>AI Voice & Text Mock Interview</h2>
+            <h2 style={{ fontSize: 20, color: 'var(--text-primary, #17151B)', margin: '0 0 6px 0' }}>AI Voice & Text Mock Interview</h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
               Simulate realistic interview rounds with speech recognition, spoken questions, and structured diagnostic feedback.
             </p>

@@ -455,7 +455,7 @@ export function Assess({
             {confirmationStep === 'review' && (
               <div>
                 <span className="kicker" style={{ color: 'var(--cyan)' }}>STEP 1: CONFIRM SKILL BASELINE</span>
-                <h3 style={{ margin: '4px 0 8px 0', fontSize: 16, color: '#FFFFFF' }}>Review & Acknowledge Your Baseline</h3>
+                <h3 style={{ margin: '4px 0 8px 0', fontSize: 16, color: 'var(--text-primary, #17151B)' }}>Review & Acknowledge Your Baseline</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px 0', lineHeight: 1.5 }}>
                   SkillPilot requires you to confirm this baseline before generating your roadmap. Acknowledging realistic scores ensures your milestones start at your true level without penalty.
                 </p>
@@ -490,7 +490,7 @@ export function Assess({
             {confirmationStep === 'skills_confirmed' && (
               <div>
                 <span className="kicker" style={{ color: 'var(--success)' }}>STEP 2: CONFIRM LEARNING GOALS</span>
-                <h3 style={{ margin: '4px 0 8px 0', fontSize: 16, color: '#FFFFFF' }}>Baseline Confirmed · Calibrate Career Target</h3>
+                <h3 style={{ margin: '4px 0 8px 0', fontSize: 16, color: 'var(--text-primary, #17151B)' }}>Baseline Confirmed · Calibrate Career Target</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 14px 0', lineHeight: 1.5 }}>
                   Select or confirm your primary career target to tailor your 12-week roadmap milestones:
                 </p>
@@ -525,7 +525,7 @@ export function Assess({
                   <CheckCircle2 size={22} />
                 </div>
                 <div>
-                  <b style={{ color: '#FFFFFF', fontSize: 15, display: 'block' }}>Baseline & Goals Confirmed</b>
+                  <b style={{ color: 'var(--text-primary, #17151B)', fontSize: 15, display: 'block' }}>Baseline & Goals Confirmed</b>
                   <span style={{ color: 'var(--cyan)', fontSize: 12 }}>Roadmap unlocked! Your 12-week milestones reflect your confirmed baseline.</span>
                 </div>
               </div>
