@@ -62,7 +62,6 @@ export function AuthGate() {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [resetToken, setResetToken] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [unverified, setUnverified] = useState(false);
