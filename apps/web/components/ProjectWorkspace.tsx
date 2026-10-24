@@ -120,6 +120,23 @@ export function ProjectWorkspace({
 
   const activeCatalogItem = catalog.find((p) => p.slug === selectedSlug) || catalog[0] || PROJECT_CATALOG[0];
 
+  const handleSelectProject = (slug: string) => {
+    if (slug === selectedSlug) return;
+    if (
+      activeCatalogItem &&
+      code.trim() !== activeCatalogItem.starterCode.trim() &&
+      project?.status !== 'verified'
+    ) {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm('Switch project? Unsaved code in the editor will be discarded.')
+      ) {
+        return;
+      }
+    }
+    setSelectedSlug(slug);
+  };
+
   const handleResetCode = () => {
     if (!activeCatalogItem) return;
     if (window.confirm('Reset code to initial starter template? Your unsaved edits will be discarded.')) {
@@ -193,7 +210,7 @@ export function ProjectWorkspace({
               <button
                 key={item.slug}
                 type="button"
-                onClick={() => setSelectedSlug(item.slug)}
+                onClick={() => handleSelectProject(item.slug)}
                 className={isSelected ? 'primary' : 'ghost'}
                 style={{
                   minHeight: 38,
