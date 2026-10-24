@@ -41,6 +41,44 @@ export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit
     } catch { setError('Network error. Please try again.'); }
   }
 
+  const [initiating, setInitiating] = useState(false);
+
+  async function handleLaunchCall() {
+    if (canEdit) {
+      setInitiating(true);
+      setError('');
+      try {
+        const res = await fetch(`/api/mentor-requests/${requestId}/call/initiate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || 'Could not initiate call');
+          setInitiating(false);
+          return;
+        }
+        setIsCallOpen(true);
+      } catch {
+        setError('Network error initiating call');
+      } finally {
+        setInitiating(false);
+      }
+    } else {
+      setIsCallOpen(true);
+    }
+  }
+
+  async function handleCloseCall() {
+    setIsCallOpen(false);
+    try {
+      await fetch(`/api/mentor-requests/${requestId}/call/end`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch {}
+  }
+
   const isLiveKitAvailable = Boolean(call?.livekit?.available);
 
   return (
@@ -60,10 +98,11 @@ export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit
       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <button
           className="primary"
-          onClick={() => setIsCallOpen(true)}
+          onClick={handleLaunchCall}
+          disabled={initiating}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: '0.9rem' }}
         >
-          <Video size={16} /> Launch Video Call
+          <Video size={16} /> {initiating ? 'Ringing Student…' : 'Launch Video Call'}
         </button>
 
         {call?.callUrl && (
@@ -100,7 +139,7 @@ export function MeetingLink({ requestId, canEdit }: { requestId: string; canEdit
       <LiveKitVideoCall
         requestId={requestId}
         isOpen={isCallOpen}
-        onClose={() => setIsCallOpen(false)}
+        onClose={handleCloseCall}
         externalFallbackUrl={call?.callUrl}
       />
     </div>
