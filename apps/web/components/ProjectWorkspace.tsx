@@ -87,15 +87,21 @@ export function ProjectWorkspace({
         if (Array.isArray(data.catalog) && data.catalog.length > 0) {
           setCatalog(data.catalog);
         }
-        if (data.studentProject) {
-          setProject(data.studentProject);
-          if (data.studentProject.submissionCode) {
-            setCode(data.studentProject.submissionCode);
-          }
-        }
+        const targetCatalogItem =
+          (Array.isArray(data.catalog) ? data.catalog : catalog).find((p: any) => p.slug === selectedSlug) ||
+          PROJECT_CATALOG.find((p) => p.slug === selectedSlug);
+
+        setProject(data.studentProject || null);
+        setCode(data.studentProject?.submissionCode || targetCatalogItem?.starterCode || '');
+        setEvaluationFeedback('');
       } catch (e) {
         if (!cancelled) {
-          // Keep local fallback intact
+          const fallback = catalog.find((p) => p.slug === selectedSlug) || PROJECT_CATALOG.find((p) => p.slug === selectedSlug);
+          if (fallback) {
+            setCode(fallback.starterCode);
+          }
+          setProject(null);
+          setEvaluationFeedback('');
         }
       }
     }
