@@ -496,7 +496,10 @@ export function MentorWorkspace({ user, onLogout }: {
                         <button
                           type="button"
                           className="ghost"
-                          onClick={() => setReviewing(null)}
+                          onClick={() => {
+                            setReviewing(null);
+                            setRv({ skill: 'rest-apis', score: '80', text: '' });
+                          }}
                         >
                           Cancel
                         </button>
