@@ -125,7 +125,7 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
           margin: 0,
           fontSize: 13,
           fontFamily: 'Consolas, Monaco, monospace',
-          color: '#A5F3FC',
+          color: 'var(--main-text, #17151B)',
           lineHeight: 1.5,
         }}
       >
