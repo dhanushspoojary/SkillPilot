@@ -25,7 +25,25 @@ export function skillStates(rawEvidence: Evidence[]): SkillState[] {
         const score = weight > 0 ? Math.round(items.reduce((s, e) => s + e.score * e.confidence, 0) / weight) : 0;
         const kinds = [...new Set(items.map((e) => e.kind))];
         const verified = items.length >= 3 && kinds.length >= 2;
-        return { def, score, count: items.length, kinds, verified, gap: Math.max(0, def.target - score) };
+        let status: import('./types.ts').SkillStatus = 'not_assessed';
+        let statusLabel = 'Not Assessed';
+        if (items.length === 0) {
+            status = 'not_assessed';
+            statusLabel = 'Not Assessed';
+        } else if (verified || (kinds.includes('project') && score >= 80)) {
+            status = 'independent_application';
+            statusLabel = verified ? 'Independent Application (Verified)' : `Independent Application (${score}%)`;
+        } else if (score >= 70) {
+            status = 'foundational';
+            statusLabel = `Foundational (${score}%)`;
+        } else if (score >= 45) {
+            status = 'emerging';
+            statusLabel = `Emerging (${score}%)`;
+        } else {
+            status = 'insufficient_evidence';
+            statusLabel = `Insufficient Evidence (${score}%)`;
+        }
+        return { def, score, count: items.length, kinds, verified, gap: Math.max(0, def.target - score), status, statusLabel };
     });
 }
 function credit(s: SkillState): number {
@@ -43,39 +61,278 @@ function hasPendingWork(state: AppState, skill: string): boolean {
     const since = lastAssessmentAt(state.evidence, skill) ?? '';
     return state.activity.some((a) => a.skill === skill && a.kind === 'BUILD' && a.at > since);
 }
+export const SKILL_PREREQUISITES: Record<string, string[]> = {
+    'problem-solving': [],
+    'javascript': ['problem-solving'],
+    'sql': ['problem-solving'],
+    'git': [],
+    'communication': [],
+    'rest-apis': ['javascript', 'problem-solving'],
+};
+
+export interface CareerGoalDef {
+    role: string;
+    requiredSkills: string[];
+    targetOverrides?: Record<string, number>;
+}
+
+export const CAREER_GOALS: Record<string, CareerGoalDef> = {
+    'Software Engineer': {
+        role: 'Software Engineer',
+        requiredSkills: ['javascript', 'problem-solving', 'sql', 'rest-apis', 'communication', 'git'],
+    },
+    'Frontend Engineer': {
+        role: 'Frontend Engineer',
+        requiredSkills: ['javascript', 'problem-solving', 'communication', 'git', 'rest-apis'],
+        targetOverrides: { javascript: 85, 'rest-apis': 75 },
+    },
+    'Backend Engineer': {
+        role: 'Backend Engineer',
+        requiredSkills: ['rest-apis', 'sql', 'problem-solving', 'git', 'communication'],
+        targetOverrides: { 'rest-apis': 85, sql: 80 },
+    },
+    'Full Stack Engineer': {
+        role: 'Full Stack Engineer',
+        requiredSkills: ['javascript', 'rest-apis', 'sql', 'problem-solving', 'communication', 'git'],
+        targetOverrides: { javascript: 85, 'rest-apis': 80, sql: 75 },
+    },
+};
+
+export const DEFAULT_CAREER_GOAL = 'Software Engineer';
+
+export function getCareerGoal(roleName?: string): CareerGoalDef {
+    if (!roleName || !CAREER_GOALS[roleName]) {
+        return CAREER_GOALS[DEFAULT_CAREER_GOAL];
+    }
+    return CAREER_GOALS[roleName];
+}
+
+/**
+ * Safely resolves skill dependency ordering with circular dependency protection
+ * and missing prerequisite handling.
+ */
+export function resolveSkillOrder(
+    skills: string[],
+    prerequisites: Record<string, string[]> = SKILL_PREREQUISITES
+): string[] {
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    const result: string[] = [];
+
+    function visit(skill: string) {
+        if (visited.has(skill)) return;
+        if (visiting.has(skill)) {
+            // Cycle detected! Break cycle gracefully to prevent infinite recursion
+            return;
+        }
+        visiting.add(skill);
+        const deps = prerequisites[skill] || [];
+        for (const dep of deps) {
+            if (skills.includes(dep)) {
+                visit(dep);
+            }
+        }
+        visiting.delete(skill);
+        visited.add(skill);
+        if (!result.includes(skill)) {
+            result.push(skill);
+        }
+    }
+
+    for (const s of skills) {
+        visit(s);
+    }
+    return result;
+}
+
 /** Deterministic next actions, highest priority first. Never invents scores. */
-export function planActions(state: AppState): PlanAction[] {
-    const skills = skillStates(state.evidence);
+export function planActions(
+    state: AppState,
+    roleName?: string,
+    capabilityProfile?: {
+        programmingExperience?: string;
+        educationLevel?: string;
+        focusAreas?: string[];
+        careerInterests?: string[];
+        preferredPace?: string;
+        difficultyPreference?: string;
+        primaryFocusSkill?: string;
+        dailyMinutes?: number;
+    }
+): PlanAction[] {
+    const goal = getCareerGoal(roleName);
+    const skills = skillStates(state.evidence).filter(s => goal.requiredSkills.includes(s.def.id));
     const total = skills.reduce((s, k) => s + k.def.weight, 0);
     const out: PlanAction[] = [];
+    const gapsBySkill = new Map(skills.map(s => [s.def.id, s.gap]));
+
+    const isBeginner = capabilityProfile?.programmingExperience === 'beginner' ||
+        capabilityProfile?.educationLevel === 'first_year' ||
+        (Array.isArray(capabilityProfile?.focusAreas) && capabilityProfile.focusAreas.some((f: string) => /fundamentals|problem solving|c programming/i.test(f)));
+
+    const primaryFocus = capabilityProfile?.primaryFocusSkill || (isBeginner ? 'problem-solving' : undefined);
+    const timeMinutes = capabilityProfile?.dailyMinutes || 30;
+    const diffPref = capabilityProfile?.difficultyPreference || 'standard';
+
     for (const s of skills) {
         const unverifiedGap = s.verified ? 0 : 8;
         if (s.gap <= 0 && s.verified)
             continue;
-        const priority = s.def.weight * (s.gap + unverifiedGap);
+        
+        // Prerequisite ordering boost: if this skill is a prerequisite for another skill with an unmet gap, boost its priority
+        let prereqBoost = 0;
+        for (const [dependent, deps] of Object.entries(SKILL_PREREQUISITES)) {
+            if (deps.includes(s.def.id) && (gapsBySkill.get(dependent) ?? 0) > 0) {
+                prereqBoost += 25;
+            }
+        }
+
+        // For beginners or first-year students, prioritize foundational problem-solving & logic
+        if (isBeginner && s.def.id === 'problem-solving') {
+            prereqBoost += 200;
+        }
+
+        // Primary focus boost
+        if (primaryFocus && s.def.id === primaryFocus) {
+            prereqBoost += 150;
+        }
+
+        const priority = s.def.weight * (s.gap + unverifiedGap) + prereqBoost;
         const upTo = Math.max(1, Math.round((s.def.weight * (s.gap / s.def.target) * 100) / total));
-        const facts = `${s.def.name} is ${s.gap} points below target (${s.score} vs ${s.def.target}) with ${s.count} evidence item${s.count === 1 ? '' : 's'}${s.verified ? '' : ', not yet verified'}.`;
+        const isAssessed = s.count > 0;
+        const facts = isAssessed
+            ? `${s.def.name} demonstrated score is ${s.score}% (target: ${s.def.target}%)${s.verified ? ', verified by evidence' : ', not yet verified'}.`
+            : `${s.def.name} ability has not yet been measured. Complete practice tasks or a diagnostic to establish your baseline.`;
+
+        const actionDifficulty: PlanAction['difficulty'] = diffPref === 'simpler_explanations'
+            ? 'foundational'
+            : diffPref === 'harder_challenge'
+            ? 'advanced'
+            : s.score === 0 ? 'introductory' : s.score < 60 ? 'foundational' : s.score < 85 ? 'intermediate' : 'advanced';
+
+        const prerequisites = SKILL_PREREQUISITES[s.def.id] || [];
+
         if (s.def.assessable && hasPendingWork(state, s.def.id)) {
-            out.push({ id: `PROVE:${s.def.id}`, kind: 'PROVE', skill: s.def.id, title: `Retest ${s.def.name}`, detail: 'Adaptive check · 4 min', reason: `You did the work; a retest turns it into evidence. ${facts}`, upTo, priority: priority + 1000, route: 'assess' });
+            out.push({
+                id: `PROVE:${s.def.id}`,
+                kind: 'PROVE',
+                skill: s.def.id,
+                title: `Retest ${s.def.name}`,
+                detail: `Adaptive check · ${Math.min(timeMinutes, 10)} min`,
+                reason: `You did the work; a retest turns it into evidence. ${facts}`,
+                upTo,
+                priority: priority + 1000,
+                route: 'assess',
+                outcome: `Prove improved capability on ${s.def.name} and convert completed practice into verified evidence.`,
+                prerequisites,
+                time: `${Math.min(timeMinutes, 10)} min`,
+                difficulty: actionDifficulty,
+                resourceActivity: `Adaptive diagnostic check on ${s.def.name}`,
+                completionCriteria: 'Complete adaptive check with score >= 70% to register fresh signal.',
+                evidenceToCollect: 'Automated assessment evidence signal in user_skill_evidence',
+                status: 'pending',
+                nextAction: `Review score results and unlock dependent milestones.`,
+            });
         }
         else if (s.gap >= 15 || !s.def.assessable) {
             if (s.gap > 0)
-                out.push({ id: `BUILD:${s.def.id}`, kind: 'BUILD', skill: s.def.id, title: s.def.task.title, detail: s.def.task.detail, reason: facts, upTo, priority, route: 'complete' });
+                out.push({
+                    id: `BUILD:${s.def.id}`,
+                    kind: 'BUILD',
+                    skill: s.def.id,
+                    title: s.def.task.title,
+                    detail: s.def.task.detail,
+                    reason: facts,
+                    upTo,
+                    priority,
+                    route: 'complete',
+                    outcome: `Build practical hands-on experience in ${s.def.name} through applied tasks.`,
+                    prerequisites,
+                    time: `${timeMinutes} min`,
+                    difficulty: actionDifficulty,
+                    resourceActivity: s.def.task.detail,
+                    completionCriteria: 'Complete the task checklist and record working code or documentation.',
+                    evidenceToCollect: 'Demonstrated practice or practical build evidence',
+                    status: 'pending',
+                    nextAction: `Retest ${s.def.name} once build tasks are finished.`,
+                });
         }
         else if (s.def.assessable) {
-            out.push({ id: `PROVE:${s.def.id}`, kind: 'PROVE', skill: s.def.id, title: `Prove ${s.def.name}`, detail: 'Adaptive check · 4 min', reason: facts, upTo, priority, route: 'assess' });
+            out.push({
+                id: `PROVE:${s.def.id}`,
+                kind: 'PROVE',
+                skill: s.def.id,
+                title: `Prove ${s.def.name}`,
+                detail: `Adaptive check · ${Math.min(timeMinutes, 10)} min`,
+                reason: facts,
+                upTo,
+                priority,
+                route: 'assess',
+                outcome: `Calibrate baseline capability on ${s.def.name}.`,
+                prerequisites,
+                time: `${Math.min(timeMinutes, 10)} min`,
+                difficulty: actionDifficulty,
+                resourceActivity: `Adaptive diagnostic check on ${s.def.name}`,
+                completionCriteria: 'Answer adaptive questions to establish verified score.',
+                evidenceToCollect: 'Diagnostic evidence signal in user_skill_evidence',
+                status: 'pending',
+                nextAction: `Advance to practice and practical projects.`,
+            });
         }
+    }
+
+    // If student has no evidence yet, recommend baseline diagnostic check first
+    if (state.evidence.length === 0) {
+        out.push({
+            id: 'PROVE:problem-solving',
+            kind: 'PROVE',
+            skill: 'problem-solving',
+            title: 'Start Baseline Diagnostic: Problem Solving',
+            detail: `Adaptive check · ${Math.min(timeMinutes, 10)} min`,
+            reason: 'Calibrate your initial logic and code-tracing baseline to personalize your learning roadmap.',
+            upTo: 25,
+            priority: 2500,
+            route: 'assess',
+            outcome: 'Establish baseline capability on Problem Solving without prerequisites.',
+            prerequisites: [],
+            time: `${Math.min(timeMinutes, 10)} min`,
+            difficulty: 'introductory',
+            resourceActivity: 'Introductory diagnostic on memory, loops, and logic',
+            completionCriteria: 'Complete 2-4 adaptive questions.',
+            evidenceToCollect: 'Initial baseline evidence signal in user_skill_evidence',
+            status: 'pending',
+            nextAction: 'Personalized roadmap generation based on verified baseline.',
+        });
     }
     // Mentor feedback is only shown when a real mentor request is awaiting review.
     const hasOpenMentorWork = state.requests.some((r) => ['accepted'].includes(r.status));
     if (!state.mentorNoteResolved && hasOpenMentorWork) {
-        out.push({ id: 'MENTOR:feedback', kind: 'MENTOR', skill: 'communication', title: 'Review mentor feedback', detail: 'Open mentor session', reason: 'An active mentor session can change your next action.', upTo: 1, priority: 15, route: 'complete' });
+        out.push({
+            id: 'MENTOR:feedback',
+            kind: 'MENTOR',
+            skill: 'communication',
+            title: 'Review mentor feedback',
+            detail: 'Open mentor session',
+            reason: 'An active mentor session can change your next action.',
+            upTo: 1,
+            priority: 15,
+            route: 'complete',
+            outcome: 'Incorporate senior engineer review into current roadmap items.',
+            prerequisites: [],
+            time: '15 min',
+            difficulty: 'intermediate',
+            resourceActivity: 'Mentor review notes and suggested improvements',
+            completionCriteria: 'Read mentor feedback and mark action item resolved.',
+            evidenceToCollect: 'Mentor review signal in user_skill_evidence',
+            status: 'pending',
+            nextAction: 'Apply suggested refinements to current project code.',
+        });
     }
     const done = new Set(state.activity.map((a) => a.id));
     return out.filter((a) => a.kind === 'PROVE' || !done.has(a.id)).sort((a, b) => b.priority - a.priority);
 }
-export function explainPlan(state: AppState): string {
-    const top = planActions(state)[0];
+export function explainPlan(state: AppState, roleName?: string, capabilityProfile?: any): string {
+    const top = planActions(state, roleName, capabilityProfile)[0];
     return top ? `${top.title}. ${top.reason}` : 'Every tracked skill meets its target and is verified. Time to raise the target role.';
 }
 export function toggleActivity(state: AppState, action: PlanAction | {
@@ -125,7 +382,7 @@ export function parseStateStrict(raw: string | null): AppState | null {
             typeof e.at === 'string' && typeof e.label === 'string' && e.label.length <= 200 &&
             ['assessment', 'project', 'mentor', 'practice'].includes(e.kind) && SKILLS.some((skill) => skill.id === e.skill));
         const okActivity = p.activity.every((a: any) => typeof a?.id === 'string' && a.id.length <= 120 && typeof a?.skill === 'string' && SKILLS.some((skill) => skill.id === a.skill) && ['BUILD', 'PROVE', 'MENTOR'].includes(a.kind) && typeof a.at === 'string');
-        const okRequests = p.requests.every((r: any) => typeof r?.mentorId === 'string' && r.mentorId.length <= 100 && typeof r.message === 'string' && r.message.length <= 1200 && ['sent', 'pending', 'accepted', 'declined', 'completed', 'cancelled'].includes(r.status) && typeof r.at === 'string');
+        const okRequests = p.requests.every((r: any) => typeof r?.id === 'string' && typeof r?.mentorId === 'string' && r.mentorId.length <= 100 && typeof r.message === 'string' && r.message.length <= 1200 && ['sent', 'pending', 'accepted', 'declined', 'completed', 'cancelled'].includes(r.status) && typeof r.at === 'string');
         if (!okEvidence || !okActivity || !okRequests)
             return null;
         const agentRuns = Array.isArray(p.agentRuns) ? p.agentRuns.filter((r: any) => typeof r?.id === 'string' && typeof r?.at === 'string' && ['ai', 'fallback'].includes(r.mode) &&

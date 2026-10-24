@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   if (!requireOrigin(req)) return json({ error: 'Origin not allowed' }, 403);
   const ip = networkKey(req.headers, process.env.SKILLPILOT_TRUST_PROXY === 'true');
-  if (!(await dbRateLimit(`login:${ip}`, 8, 60_000))) return json({ error: 'Too many sign-in attempts. Try again later.' }, 429);
   try {
+    if (!(await dbRateLimit(`login:${ip}`, 8, 60_000))) return json({ error: 'Too many sign-in attempts. Try again later.' }, 429);
     const b = await readJsonBody<any>(req, 10_000);
     const email = safeText(b.email, 254)?.toLowerCase();
     const password = typeof b.password === 'string' && Buffer.byteLength(b.password, 'utf8') <= 72 ? b.password : null;
@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const m = e instanceof Error ? e.message : '';
     if (m === 'body_too_large') return json({ error: 'Request too large' }, 413);
     if (m === 'invalid_json') return json({ error: 'Invalid JSON' }, 400);
+    console.error('Login error:', e instanceof Error ? e.message : 'unknown');
     return json({ error: 'Could not sign in' }, 500);
   }
 }

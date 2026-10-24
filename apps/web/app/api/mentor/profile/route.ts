@@ -21,7 +21,7 @@ export async function PATCH(req: Request) {
         const rawSkills = Array.isArray(b.skills) ? b.skills : [];
         if (rawSkills.length > 12 || rawSkills.some((x: any) => typeof x !== 'string' || x.trim().length > 64))
             return json({ error: 'Invalid mentor skills' }, 400);
-        const skills = [...new Set(rawSkills.map((x: string) => x.trim().toLowerCase()))];
+        const skills = [...new Set<string>(rawSkills.map((x: string) => x.trim().toLowerCase()))];
         if (skills.some((x: string) => !SKILLS.some(s => s.id === x)))
             return json({ error: 'Mentor skill list contains an unknown skill' }, 400);
         const r = await db().query(`update mentor_profiles set bio=$1,focus=$2,skills=$3 where user_id=$4 returning *`, [bio, focus, JSON.stringify(skills), u.id]);

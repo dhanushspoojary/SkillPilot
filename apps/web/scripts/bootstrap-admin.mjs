@@ -1,5 +1,16 @@
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
+import fsSync from 'node:fs';
+
+if (!process.env.DATABASE_URL) {
+    for (const f of ['.env.local', '../.env.local', '.env', '../.env']) {
+        if (fsSync.existsSync(f)) {
+            try { process.loadEnvFile(f); } catch {}
+            if (process.env.DATABASE_URL) break;
+        }
+    }
+}
+
 const { Pool } = pg;
 const email=(process.env.SKILLPILOT_ADMIN_EMAIL||'').trim().toLowerCase();
 const password=process.env.SKILLPILOT_ADMIN_PASSWORD||'';

@@ -1,7 +1,12 @@
-import { cookies } from 'next/headers';
 import { createHash, randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { db, one, tx } from './db';
+import { db, one, tx } from './db.ts';
+
+async function getCookies() {
+    const { cookies } = await import('next/headers');
+    return cookies();
+}
+
 export const BCRYPT_COST = 12;
 export const SESSION_COOKIE = 'skillpilot_session';
 const SESSION_DAYS = 14;
@@ -29,22 +34,25 @@ export async function issueSession(userId: string) {
     await db().query('delete from sessions where user_id=$1 and expires_at<=now()', [userId]);
     await db().query('insert into sessions(id,user_id,token_hash,expires_at) values(gen_random_uuid(),$1,$2,now()+$3::interval)', [userId, hash, `${SESSION_DAYS} days`]);
     await db().query(`delete from sessions where user_id=$1 and id not in (select id from sessions where user_id=$1 order by created_at desc limit 5)`, [userId]);
-    (await cookies()).set(SESSION_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' && process.env.SKILLPILOT_SECURE_COOKIES !== 'false', sameSite: 'lax', path: '/', maxAge: SESSION_DAYS * 86400 });
+    (await getCookies()).set(SESSION_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' && process.env.SKILLPILOT_SECURE_COOKIES !== 'false', sameSite: 'lax', path: '/', maxAge: SESSION_DAYS * 86400 });
 }
 export async function clearSession() {
-    const jar = await cookies();
+    const jar = await getCookies();
     const token = jar.get(SESSION_COOKIE)?.value;
     if (token)
         await db().query('delete from sessions where token_hash=$1', [hashToken(token)]).catch(() => undefined);
-    jar.set(SESSION_COOKIE, '', { httpOnly: true, secure: process.env.NODE_ENV === 'production' && process.env.SKILLPILOT_SECURE_COOKIES !== 'false', sameSite: 'lax', path: '/', maxAge: 0 });
+    jar.set(SESSION_COOKIE, '', { httpOnly: true, secure: process.env.NODE_ENV === 'production' && process.env.SKILLPILOT_SECURE_COOKIES !== 'false', sameSite: 'lax', path: '/', maxAge: 0, expires: new Date(0) });
 }
 export async function currentUser(): Promise<User | null> {
-    const token = (await cookies()).get(SESSION_COOKIE)?.value;
+    const token = (await getCookies()).get(SESSION_COOKIE)?.value;
     if (!token)
         return null;
     const row = await one<User & {
         expires_at: string;
-    }>(`select u.id,u.email,u.name,u.role,u.status,coalesce(mp.status='approved',false) as "mentorApproved",s.expires_at from sessions s join users u on u.id=s.user_id left join mentor_profiles mp on mp.user_id=u.id where s.token_hash=$1 and s.expires_at>now() and u.status='active'`, [hashToken(token)]).catch(() => null);
+    }>(`select u.id,u.email,u.name,u.role,u.status,coalesce(mp.status='approved',false) as "mentorApproved",s.expires_at from sessions s join users u on u.id=s.user_id left join mentor_profiles mp on mp.user_id=u.id where s.token_hash=$1 and s.expires_at>now() and u.status='active'`, [hashToken(token)]).catch((err) => {
+        console.error('currentUser database query failed:', err instanceof Error ? err.message : err);
+        return null;
+    });
     if (!row)
         return null;
     await db().query(`update sessions set last_seen_at=now() where token_hash=$1 and last_seen_at < now()-interval '5 minutes'`, [hashToken(token)]).catch(() => undefined);

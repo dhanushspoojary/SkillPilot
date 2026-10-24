@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
     "img-src 'self' data: blob:",
     "style-src 'self' 'unsafe-inline'",
     `script-src 'self' 'nonce-${n}' 'strict-dynamic'${prod ? '' : " 'unsafe-eval'"}`,
-    "connect-src 'self'",
+    "connect-src 'self' https://*.livekit.cloud wss://*.livekit.cloud",
     "font-src 'self' data:",
     ...(prod && process.env.SKILLPILOT_SECURE_COOKIES !== 'false' ? ['upgrade-insecure-requests'] : []),
   ].join('; ');

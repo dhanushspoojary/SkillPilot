@@ -3,14 +3,20 @@ import { Pool, types, type PoolClient, type QueryResultRow } from 'pg';
 // JSON API expect plain numbers and ISO strings, so parse them once, here, at the boundary.
 types.setTypeParser(1700, (v) => parseFloat(v)); // numeric
 types.setTypeParser(1184, (v) => new Date(v).toISOString()); // timestamptz
-let pool: Pool | null = null;
+declare global {
+    var skillpilotPool: Pool | undefined;
+}
+let pool: Pool | null = globalThis.skillpilotPool ?? null;
 export function db(): Pool {
     if (!process.env.DATABASE_URL)
         throw new Error('DATABASE_URL is not configured');
     if (!pool) {
-        pool = new Pool({ connectionString: process.env.DATABASE_URL, password: process.env.PGPASSWORD || undefined, max: Number(process.env.DB_POOL_MAX ?? 10), idleTimeoutMillis: 30000, connectionTimeoutMillis: 5000, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== 'false' } : undefined });
+        pool = new Pool({ connectionString: process.env.DATABASE_URL, password: process.env.PGPASSWORD || undefined, max: Number(process.env.DB_POOL_MAX ?? 10), idleTimeoutMillis: 30000, connectionTimeoutMillis: 15000, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== 'false' } : undefined });
         // An idle client can error (e.g. Postgres restart). Without a listener Node treats it as fatal.
         pool.on('error', (err) => { console.error('postgres pool error', err.message); });
+        if (process.env.NODE_ENV !== 'production') {
+            globalThis.skillpilotPool = pool;
+        }
     }
     return pool;
 }

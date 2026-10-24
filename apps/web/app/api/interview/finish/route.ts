@@ -5,6 +5,8 @@ import { json, readJsonBody, requireOrigin, isUuid } from '../../../../lib/serve
 import { SKILLS } from '../../../../lib/questions';
 import { buildScoringUserMessage, fallbackScore, parseScores, PRACTICE_CONFIDENCE_AI, PRACTICE_CONFIDENCE_FALLBACK, SCORING_SYSTEM, INTERVIEW_QUESTION_COUNT, INTERVIEW_MAX_SCORING_CHARS } from '../../../../lib/interview';
 
+import { getActiveLLMProvider } from '../../../../lib/llm-provider';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -41,27 +43,24 @@ export async function POST(req: Request) {
     let mode: 'ai' | 'fallback' = 'fallback';
     let model: string | null = null;
     let scores: { position: number; score: number; feedback: string }[] | null = null;
-    const apiKey = process.env.ANTHROPIC_API_KEY;
 
-    if (apiKey) {
+    const { provider: llm, strongModel } = getActiveLLMProvider();
+
+    if (llm) {
       mode = 'ai';
-      model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+      model = strongModel;
       try {
-        const ctl = new AbortController();
-        const timer = setTimeout(() => ctl.abort(), 30000);
-        try {
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            signal: ctl.signal,
-            headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({ model, max_tokens: 1200, system: SCORING_SYSTEM, messages: [{ role: 'user', content: buildScoringUserMessage(skillName, rows) }] }),
-          });
-          if (!res.ok) throw new Error(`provider_${res.status}`);
-          const parsed: any = await res.json();
-          const text = (parsed.content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('');
-          scores = parseScores(text, rows.length);
-        } finally { clearTimeout(timer); }
-      } catch { scores = null; }
+        const text = await llm.generateText(buildScoringUserMessage(skillName, rows), {
+          systemPrompt: SCORING_SYSTEM,
+          tier: 'strong',
+          maxTokens: 1200,
+          timeoutMs: 30000,
+        });
+        scores = parseScores(text, rows.length);
+      } catch (err) {
+        console.warn('AI scoring failed, falling back to heuristic:', err);
+        scores = null;
+      }
       if (!scores) mode = 'fallback';
     }
 

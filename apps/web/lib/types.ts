@@ -32,11 +32,13 @@ export type ActionKind = 'BUILD' | 'PROVE' | 'MENTOR';
 export interface Question {
   id: string;
   skill: string;
-  level: 1 | 2 | 3;
+  level: 0 | 1 | 2 | 3 | 4 | 5 | number;
   q: string;
   options: string[];
   answer: number;
   why: string;
+  prerequisiteConcept?: string;
+  misconceptions?: Record<number, string>;
 }
 
 export interface Mentor {
@@ -47,6 +49,17 @@ export interface Mentor {
   strengths: Record<string, number>;
 }
 
+export type SkillStatus =
+  | 'not_assessed'
+  | 'insufficient_evidence'
+  | 'emerging'
+  | 'foundational'
+  | 'independent_application'
+  | 'self_reported'
+  | 'demonstrated'
+  | 'practical_submitted'
+  | 'mentor_verified';
+
 export interface SkillState {
   def: SkillDef;
   score: number;
@@ -54,6 +67,8 @@ export interface SkillState {
   kinds: EvidenceKind[];
   verified: boolean;
   gap: number;
+  status: SkillStatus;
+  statusLabel: string;
 }
 
 export interface PlanAction {
@@ -66,9 +81,19 @@ export interface PlanAction {
   upTo: number; // estimated maximum readiness points
   priority: number;
   route: 'complete' | 'assess';
+  outcome?: string;
+  prerequisites?: string[];
+  time?: string;
+  difficulty?: 'introductory' | 'foundational' | 'intermediate' | 'advanced';
+  resourceActivity?: string;
+  completionCriteria?: string;
+  evidenceToCollect?: string;
+  status?: 'pending' | 'in_progress' | 'completed';
+  nextAction?: string;
 }
 
 export interface MentorRequest {
+  id: string;
   mentorId: string;
   message: string;
   status: 'sent' | 'pending' | 'accepted' | 'declined' | 'completed' | 'cancelled';
