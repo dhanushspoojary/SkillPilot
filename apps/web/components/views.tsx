@@ -289,7 +289,7 @@ export function Today({
             <b style={{ fontSize: 16 }}>{careerGoal}</b>
           </div>
           <div className="summary-metric-footnote">
-            {workflow?.capabilityProfile?.educationLevel ? `${workflow.capabilityProfile.educationLevel.replace('_', ' ').toUpperCase()} Track` : 'Calibrated Track'}
+            {workflow?.capabilityProfile?.educationLevel ? `${workflow.capabilityProfile.educationLevel.replace(/_/g, ' ').toUpperCase()} Track` : 'Calibrated Track'}
           </div>
         </div>
 
