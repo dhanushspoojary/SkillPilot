@@ -1,6 +1,6 @@
-import { currentUser } from '../../../../../lib/auth.ts';
-import { json, requireOrigin, readJsonBody } from '../../../../../lib/server-security.ts';
-import { generateContinuousPracticeQuestion } from '../../../../../lib/practice-engine.ts';
+import { currentUser } from '../../../../../lib/auth';
+import { json, requireOrigin, readJsonBody } from '../../../../../lib/server-security';
+import { generateContinuousPracticeQuestion } from '../../../../../lib/practice-engine';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

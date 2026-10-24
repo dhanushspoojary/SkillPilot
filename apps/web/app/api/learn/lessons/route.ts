@@ -1,7 +1,7 @@
-import { currentUser } from '../../../../lib/auth.ts';
-import { json } from '../../../../lib/server-security.ts';
-import { LESSONS_CATALOG } from '../../../../lib/lessons-catalog.ts';
-import { many } from '../../../../lib/db.ts';
+import { currentUser } from '../../../../lib/auth';
+import { json } from '../../../../lib/server-security';
+import { LESSONS_CATALOG } from '../../../../lib/lessons-catalog';
+import { many } from '../../../../lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

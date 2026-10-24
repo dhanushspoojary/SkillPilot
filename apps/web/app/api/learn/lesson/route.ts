@@ -1,8 +1,8 @@
-import { currentUser } from '../../../../lib/auth.ts';
-import { json } from '../../../../lib/server-security.ts';
-import { getLessonById } from '../../../../lib/lessons-catalog.ts';
-import { getStudentLessonProgress } from '../../../../lib/practice-engine.ts';
-import { many } from '../../../../lib/db.ts';
+import { currentUser } from '../../../../lib/auth';
+import { json } from '../../../../lib/server-security';
+import { getLessonById } from '../../../../lib/lessons-catalog';
+import { getStudentLessonProgress } from '../../../../lib/practice-engine';
+import { many } from '../../../../lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
