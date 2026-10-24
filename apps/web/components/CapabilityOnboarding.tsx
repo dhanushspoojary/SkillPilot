@@ -156,6 +156,8 @@ export function CapabilityOnboarding({
                 weeklyHours: parseInt(avail.match(/\d+/)?.[0] || '5', 10),
                 selfReported: true,
               });
+              setEduLevel(edu);
+              setProgExp(exp);
               setActiveTurn(null);
             } else {
               setActiveTurn({
@@ -350,6 +352,8 @@ export function CapabilityOnboarding({
         setSummary(data.summary);
         setCareerInterest(data.summary.careerGoal || 'Software Engineer');
         setWeeklyHours(data.summary.weeklyHours || 5);
+        if (data.summary.educationLevel) setEduLevel(data.summary.educationLevel);
+        if (data.summary.programmingExperience) setProgExp(data.summary.programmingExperience);
       } else if (data.nextTurn) {
         const nextTurn: OnboardingTurn = {
           ...data.nextTurn,
@@ -383,9 +387,11 @@ export function CapabilityOnboarding({
 
       const chosenGoal = summary?.careerGoal || careerInterest;
       const hours = summary?.weeklyHours || weeklyHours;
+      const finalEduLevel = summary?.educationLevel || eduLevel;
+      const finalProgExp = summary?.programmingExperience || progExp;
       await onSave({
-        educationLevel: eduLevel,
-        programmingExperience: progExp,
+        educationLevel: finalEduLevel,
+        programmingExperience: finalProgExp,
         fieldOfStudy: 'computer_science',
         careerInterests: [chosenGoal],
         weeklyHours: hours,
