@@ -106,7 +106,7 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
         .then((r) => r.json())
         .then((d) => {
           if (Array.isArray(d.mentors)) {
-            setMentorList(d.mentors.filter((m: any) => m.status === 'approved' || m.approvedAt));
+            setMentorList(d.mentors.filter((m: any) => m && m.id));
           }
         })
         .catch(() => {})
