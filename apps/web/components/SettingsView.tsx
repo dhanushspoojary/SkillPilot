@@ -236,10 +236,19 @@ export function SettingsView({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to change password');
 
-      setPasswordSuccess('Password changed successfully. Please remember your new password.');
+      setPasswordSuccess(
+        data.message || 'Password changed successfully. Signing out, please sign in with your new password...'
+      );
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setTimeout(() => {
+        if (onLogout) {
+          onLogout();
+        } else {
+          window.location.href = '/';
+        }
+      }, 1500);
     } catch (err) {
       setPasswordError(err instanceof Error ? err.message : 'Could not change password.');
     } finally {
