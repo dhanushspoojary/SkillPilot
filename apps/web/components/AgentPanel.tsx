@@ -437,6 +437,9 @@ export function AgentPanel({
   };
 
   const handleDeleteMemory = async (memoryId: string) => {
+    if (typeof window !== 'undefined' && !window.confirm('Delete this saved learning memory?')) {
+      return;
+    }
     try {
       const res = await fetch(`/api/agent/memories?id=${encodeURIComponent(memoryId)}`, {
         method: 'DELETE',
