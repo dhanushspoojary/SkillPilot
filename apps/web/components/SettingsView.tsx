@@ -288,6 +288,19 @@ export function SettingsView({
     }
   };
 
+  useEffect(() => {
+    if (!deleteConfirmOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !deleteBusy) {
+        setDeleteConfirmOpen(false);
+        setDeletePassword('');
+        setDeleteError('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteConfirmOpen, deleteBusy]);
+
   return (
     <div className="wide settings-container">
       <PageIntro
