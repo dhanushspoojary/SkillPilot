@@ -1,8 +1,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
-# Use wildcard to gracefully handle missing package-lock.json
-COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts --no-audit --no-fund; else npm install --include=dev --ignore-scripts --no-audit --no-fund; fi
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --ignore-scripts --no-audit --no-fund
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
