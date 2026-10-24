@@ -48,7 +48,12 @@ export function AdminWorkspace({ user, onLogout }: {
         api<{ reports: any[] }>('/api/admin/chat-reports').then((x) => setReports(x.reports || [])).catch(() => { });
     }, [loadMentors, loadUsers]);
     async function setMentorStatus(id: string, status: string) {
-        const reason = status === 'rejected' ? window.prompt('Reason (optional)') || '' : '';
+        let reason = '';
+        if (status === 'rejected') {
+            const p = window.prompt('Reason for rejection (optional, click Cancel to abort):');
+            if (p === null) return;
+            reason = p;
+        }
         try {
             await api('/api/admin/mentors', send('PATCH', { mentorId: id, status, reason }));
             setError('');
