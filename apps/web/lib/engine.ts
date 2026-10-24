@@ -282,7 +282,7 @@ export function planActions(
     }
 
     // If student has no evidence yet, recommend baseline diagnostic check first
-    if (state.evidence.length === 0) {
+    if (state.evidence.length === 0 && !out.some((a) => a.id === 'PROVE:problem-solving')) {
         out.push({
             id: 'PROVE:problem-solving',
             kind: 'PROVE',
