@@ -33,11 +33,10 @@ function withEnv(vars: Record<string, string | undefined>, fn: () => void | Prom
         throw e;
     }
 }
-test('verification defaults on only in production with a mail provider', () => {
-    withEnv({ SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: undefined, NODE_ENV: 'production', RESEND_API_KEY: 'k', MAIL_FROM: 'a@b.c' }, () => assert.equal(verificationRequired(), true));
-    withEnv({ SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: undefined, NODE_ENV: 'production', RESEND_API_KEY: undefined, MAIL_FROM: undefined }, () => assert.equal(verificationRequired(), false));
-    withEnv({ SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'true', NODE_ENV: 'development' }, () => assert.equal(verificationRequired(), true));
-    withEnv({ SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'false', NODE_ENV: 'production', RESEND_API_KEY: 'k', MAIL_FROM: 'a@b.c' }, () => assert.equal(verificationRequired(), false));
+test('verification is disabled across all environments', () => {
+    withEnv({ SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: undefined, NODE_ENV: 'production' }, () => assert.equal(verificationRequired(), false));
+    withEnv({ SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'true', NODE_ENV: 'development' }, () => assert.equal(verificationRequired(), false));
+    withEnv({ SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'false', NODE_ENV: 'production' }, () => assert.equal(verificationRequired(), false));
 });
 test('production refuses to run without a real hash secret', () => {
     withEnv({ NODE_ENV: 'production', SKILLPILOT_HASH_SECRET: undefined, NEXT_PHASE: undefined }, () => assert.throws(() => hashSecret(), /SKILLPILOT_HASH_SECRET/));
@@ -70,8 +69,7 @@ test('email tokens are stored only as SHA-256 hashes', () => {
 });
 
 test('production configuration fails closed when public security requirements are missing', () => {
-    withEnv({ NODE_ENV: 'production', SKILLPILOT_ALLOWED_ORIGIN: 'http://example.com', SKILLPILOT_SECURE_COOKIES: 'true', RESEND_API_KEY: 'k', MAIL_FROM: 'SkillPilot <no-reply@example.com>', SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'true' }, () => assert.throws(() => assertProductionConfig(), /HTTPS/));
-    withEnv({ NODE_ENV: 'production', SKILLPILOT_ALLOWED_ORIGIN: 'https://example.com', SKILLPILOT_SECURE_COOKIES: 'false', RESEND_API_KEY: 'k', MAIL_FROM: 'SkillPilot <no-reply@example.com>', SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'true' }, () => assert.throws(() => assertProductionConfig(), /Secure cookies/));
-    withEnv({ NODE_ENV: 'production', SKILLPILOT_ALLOWED_ORIGIN: 'https://example.com', SKILLPILOT_SECURE_COOKIES: 'true', RESEND_API_KEY: undefined, MAIL_FROM: undefined, SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'true' }, () => assert.throws(() => assertProductionConfig(), /RESEND|MAIL|email/));
-    withEnv({ NODE_ENV: 'production', SKILLPILOT_ALLOWED_ORIGIN: 'https://example.com', SKILLPILOT_SECURE_COOKIES: 'true', RESEND_API_KEY: 'k', MAIL_FROM: 'SkillPilot <no-reply@example.com>', SKILLPILOT_REQUIRE_EMAIL_VERIFICATION: 'true' }, () => assert.doesNotThrow(() => assertProductionConfig()));
+    withEnv({ NODE_ENV: 'production', SKILLPILOT_ALLOWED_ORIGIN: 'http://example.com', SKILLPILOT_SECURE_COOKIES: 'true' }, () => assert.throws(() => assertProductionConfig(), /HTTPS/));
+    withEnv({ NODE_ENV: 'production', SKILLPILOT_ALLOWED_ORIGIN: 'https://example.com', SKILLPILOT_SECURE_COOKIES: 'false' }, () => assert.throws(() => assertProductionConfig(), /Secure cookies/));
+    withEnv({ NODE_ENV: 'production', SKILLPILOT_ALLOWED_ORIGIN: 'https://example.com', SKILLPILOT_SECURE_COOKIES: 'true', RESEND_API_KEY: undefined, MAIL_FROM: undefined }, () => assert.doesNotThrow(() => assertProductionConfig()));
 });

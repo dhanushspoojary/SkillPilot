@@ -20,16 +20,39 @@ async function call(path, { method = 'GET', headers = {}, body } = {}) {
     catch { /* non-JSON */ }
     return { res, status: res.status, data };
 }
-// --- signup, profile, agent -------------------------------------------------------------
+// --- authentication validation suite (a-f) ------------------------------------------------
+// e. Invalid signup input
+const invalidEmail = await call('/api/auth/signup', { method: 'POST', body: { email: 'invalid-email-format', name: 'Test', password: 'integration-password-123', role: 'student' } });
+check(invalidEmail.status === 400, 'invalid email format must be rejected with 400');
+const shortPass = await call('/api/auth/signup', { method: 'POST', body: { email: `short-${stamp}@example.test`, name: 'Test', password: 'short', role: 'student' } });
+check(shortPass.status === 400, 'short password must be rejected with 400');
+
+// f. Unauthorized access to protected endpoints
+const unauthProfile = await call('/api/profile');
+check(unauthProfile.status === 401, 'unauthorized access to /api/profile must be rejected with 401');
+
+// a. Successful signup without email delivery
 const email = `integration-${stamp}@example.test`;
 const signup = await call('/api/auth/signup', { method: 'POST', body: { email, name: 'API Integration Student', password: 'integration-password-123', role: 'student' } });
-check(signup.status === 201 || signup.status === 202, `signup failed: ${signup.status}`);
-check(signup.status === 201, 'signup should create a session when email verification is off (CI has no mail provider)');
+check(signup.status === 201, 'signup should immediately create account and session with 201 (no email provider needed)');
 const cookie = signup.res.headers.get('set-cookie')?.split(';')[0];
 check(cookie, 'signup did not issue a session cookie');
+
+// b. Immediate authenticated access after signup
 const auth = { cookie };
 const profile = await call('/api/profile', { headers: auth });
-check(profile.status === 200, `profile route failed: ${profile.status}`);
+check(profile.status === 200, `profile route failed for newly registered user: ${profile.status}`);
+
+// c. Duplicate-email rejection
+const dupSignup = await call('/api/auth/signup', { method: 'POST', body: { email, name: 'Duplicate User', password: 'integration-password-123', role: 'student' } });
+check(dupSignup.status === 400, 'duplicate signup must be rejected with 400');
+check(dupSignup.data.error === 'Could not create account with this email address', 'duplicate email must not reveal account existence');
+
+// d. Login for existing users
+const loginRes = await call('/api/auth/login', { method: 'POST', body: { email, password: 'integration-password-123' } });
+check(loginRes.status === 200, `existing user login failed: ${loginRes.status}`);
+check(loginRes.res.headers.get('set-cookie'), 'login did not issue a session cookie');
+
 const agent = await call('/api/agent', { method: 'POST', headers: auth, body: { question: 'What should I do next?' } });
 check(agent.status === 200, `agent route failed: ${agent.status}`);
 // --- capability profile calibration ----------------------------------------------------
@@ -86,17 +109,17 @@ after = await call('/api/profile', { headers: auth });
 check(after.data.activity.length === 0, 'undo should remove the stored activity');
 const noOrigin = await fetch(`${base}/api/activity`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ actionId: 'BUILD:sql', done: true }) });
 check(noOrigin.status === 403, 'mutations without an Origin header must be rejected');
-// --- account recovery and moderation ----------------------------------------------------
+// --- account recovery and moderation (g. Password-reset endpoints after email removal) ---
 const forgotKnown = await call('/api/auth/forgot', { method: 'POST', body: { email } });
 const forgotUnknown = await call('/api/auth/forgot', { method: 'POST', body: { email: `nobody-${stamp}@example.test` } });
-check(forgotKnown.status === 202 && forgotUnknown.status === 202, 'forgot-password must answer 202 either way');
+check(forgotKnown.status === 400 && forgotUnknown.status === 400, 'forgot-password must be safely disabled with 400');
 check(JSON.stringify(forgotKnown.data) === JSON.stringify(forgotUnknown.data), 'forgot-password responses must be identical (no enumeration)');
 const badReset = await call('/api/auth/reset', { method: 'POST', body: { token: 'x'.repeat(43), newPassword: 'another-long-password-1' } });
-check(badReset.status === 400, 'reset with an unknown token must fail');
+check(badReset.status === 400, 'reset endpoint must be safely disabled with 400');
 const badVerify = await call('/api/auth/verify', { method: 'POST', body: { token: 'x'.repeat(43) } });
-check(badVerify.status === 400, 'verify with an unknown token must fail');
+check(badVerify.status === 200, 'verify endpoint reports email verification is no longer required with 200');
 const resend = await call('/api/auth/resend-verification', { method: 'POST', body: { email: `nobody-${stamp}@example.test` } });
-check(resend.status === 202, 'resend must answer 202 for unknown addresses');
+check(resend.status === 400, 'resend endpoint must be safely disabled with 400');
 const adminList = await call('/api/admin/users', { headers: auth });
 check(adminList.status === 403, 'students must not reach the admin user list');
 const adminSuspend = await call('/api/admin/users', { method: 'PATCH', headers: auth, body: { userId: '00000000-0000-4000-8000-000000000000', status: 'suspended' } });

@@ -3,8 +3,12 @@ import bcrypt from 'bcryptjs';
 import { db, one, tx } from './db.ts';
 
 async function getCookies() {
-    const { cookies } = await import('next/headers');
-    return cookies();
+    try {
+        const { cookies } = await import('next/headers');
+        return await cookies();
+    } catch {
+        return { get: () => undefined, set: () => undefined } as any;
+    }
 }
 
 export const BCRYPT_COST = 12;
@@ -80,7 +84,7 @@ export async function registerUser(emailRaw: string, password: string, nameRaw: 
         const status = 'active';
         let user: User;
         try {
-            user = (await c.query(`insert into users(email,password_hash,role,name,status) values($1,$2,$3,$4,$5) returning id,email,name,role,status`, [email, hash, role, name, status])).rows[0] as User;
+            user = (await c.query(`insert into users(email,password_hash,role,name,status,email_verified_at) values($1,$2,$3,$4,$5,now()) returning id,email,name,role,status`, [email, hash, role, name, status])).rows[0] as User;
         }
         catch (e) {
             // A concurrent signup with the same email lost the race.

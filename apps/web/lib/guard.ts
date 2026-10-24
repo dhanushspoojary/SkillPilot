@@ -83,8 +83,13 @@ let lastRateLimitPrune = 0;
 interface QueryRunner {
     query<T extends Record<string, any> = Record<string, any>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
 }
+const fallbackLimiter = createLimiter(100, 60000, 10000);
+
 export async function dbRateLimit(key: string, max: number, windowMs: number, now = Date.now(), client?: QueryRunner): Promise<boolean> {
-    const { db } = await import('./db');
+    if (!process.env.DATABASE_URL && !client) {
+        return fallbackLimiter.hit(key, now);
+    }
+    const { db } = await import('./db.ts');
     const runner: QueryRunner = client || db();
     if (now - lastRateLimitPrune > 5 * 60000 && !client) {
         lastRateLimitPrune = now;
@@ -103,10 +108,12 @@ export async function dbRateLimit(key: string, max: number, windowMs: number, no
     return Number(result.rows[0]?.count ?? max + 1) <= max;
 }
 export async function dbRateLimitReset(key: string): Promise<void> {
-    const { db } = await import('./db');
+    if (!process.env.DATABASE_URL) return;
+    const { db } = await import('./db.ts');
     await db().query('delete from rate_limits where key=$1', [key]).catch(() => undefined);
 }
 export async function pruneRateLimits(): Promise<void> {
-    const { db } = await import('./db');
+    if (!process.env.DATABASE_URL) return;
+    const { db } = await import('./db.ts');
     await db().query(`delete from rate_limits where updated_at < now() - interval '2 days'`).catch(() => undefined);
 }

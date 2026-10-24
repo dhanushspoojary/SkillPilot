@@ -1,5 +1,4 @@
-import { one } from '../../../../lib/db';
-import { verificationRequired } from '../../../../lib/config';
+import { db, one } from '../../../../lib/db';
 import { maybeRunRetention } from '../../../../lib/retention';
 import { issueSession, passwordCheck, passwordCheckDummy } from '../../../../lib/auth';
 import { json, requireOrigin, safeText, logSecurityEvent, readJsonBody, hashInput } from '../../../../lib/server-security';
@@ -30,9 +29,8 @@ export async function POST(req: Request) {
       await logSecurityEvent({ eventType: 'auth.login_failed', ip, userAgent: req.headers.get('user-agent'), metadata: { reason: 'invalid_credentials' } });
       return json({ error: 'Invalid email or password' }, 401);
     }
-    // Only reveal "unverified" to someone who proved they know the password.
-    if (verificationRequired() && !u.email_verified_at) {
-      return json({ error: 'Please confirm your email address first. Check your inbox, or request a new link.', code: 'email_unverified' }, 403);
+    if (!u.email_verified_at) {
+      await db().query('update users set email_verified_at=now() where id=$1', [u.id]).catch(() => {});
     }
     await dbRateLimitReset(pairKey);
     void maybeRunRetention();

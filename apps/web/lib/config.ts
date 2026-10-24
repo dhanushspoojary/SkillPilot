@@ -10,10 +10,7 @@ export function mailConfigured(): boolean {
  * the address is registered, which closes the account-enumeration hole.
  */
 export function verificationRequired(): boolean {
-  const flag = process.env.SKILLPILOT_REQUIRE_EMAIL_VERIFICATION;
-  if (flag === 'true') return true;
-  if (flag === 'false') return false;
-  return process.env.NODE_ENV === 'production' && mailConfigured();
+  return false;
 }
 
 export function appUrl(): string {
@@ -25,8 +22,6 @@ export function assertProductionConfig(): void {
   const origin = process.env.SKILLPILOT_ALLOWED_ORIGIN || '';
   if (!/^https:\/\/[^/]+$/.test(origin)) throw new Error('Production requires an exact HTTPS SKILLPILOT_ALLOWED_ORIGIN');
   if (process.env.SKILLPILOT_SECURE_COOKIES === 'false') throw new Error('Secure cookies cannot be disabled in production');
-  if (!mailConfigured()) throw new Error('Production requires RESEND_API_KEY and MAIL_FROM');
-  if (process.env.SKILLPILOT_REQUIRE_EMAIL_VERIFICATION === 'false' && process.env.CI !== 'true') throw new Error('Production requires email verification');
   if (process.env.SKILLPILOT_TRUST_PROXY === 'true' && !process.env.SKILLPILOT_ALLOWED_ORIGIN) throw new Error('Trusted proxy requires an exact allowed origin');
 }
 

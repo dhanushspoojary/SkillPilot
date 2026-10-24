@@ -69,21 +69,10 @@ export function AuthGate() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    // Links from emails arrive as /?verify=TOKEN or /?reset=TOKEN. Strip the token from the URL immediately.
+    // Strip query parameters from URL if any
     const params = new URLSearchParams(window.location.search);
-    const verify = params.get('verify');
-    const reset = params.get('reset');
-    if (verify || reset) {
+    if (params.get('verify') || params.get('reset')) {
       window.history.replaceState(null, '', window.location.pathname);
-    }
-    if (reset) {
-      setResetToken(reset);
-      setMode('reset');
-    }
-    if (verify) {
-      post('/api/auth/verify', { token: verify }).then((r) =>
-        r.ok ? setNotice(r.data.message) : setError(r.data.error || 'Could not confirm email'),
-      );
     }
     const safetyTimer = window.setTimeout(() => setLoading(false), 3000);
     fetch('/api/auth/me', { cache: 'no-store' })
@@ -125,45 +114,23 @@ export function AuthGate() {
     setNotice('');
     setUnverified(false);
     try {
-      if (mode === 'forgot') {
-        const r = await post('/api/auth/forgot', { email });
-        if (!r.ok) throw new Error(r.data.error || 'Could not continue');
-        setNotice(r.data.message);
-      } else if (mode === 'reset') {
-        const r = await post('/api/auth/reset', { token: resetToken, newPassword: password });
-        if (!r.ok) throw new Error(r.data.error || 'Could not reset password');
-        setPassword('');
-        setResetToken('');
-        setMode('login');
-        setNotice(r.data.message);
-      } else {
-        const r = await post(
-          mode === 'login' ? '/api/auth/login' : '/api/auth/signup',
-          mode === 'login' ? { email, password } : { email, name, password, role },
-        );
-        if (r.status === 202) {
-          setPassword('');
-          setNotice(r.data.message);
-          return;
-        }
-        if (!r.ok) {
-          setUnverified(r.data.code === 'email_unverified');
-          throw new Error(r.data.error || 'Could not continue');
-        }
-        setUser(r.data.user);
+      if (mode === 'forgot' || mode === 'reset') {
+        setError('Email password reset is disabled. Signed-in users can update their password in Settings.');
+        return;
       }
+      const r = await post(
+        mode === 'login' ? '/api/auth/login' : '/api/auth/signup',
+        mode === 'login' ? { email, password } : { email, name, password, role },
+      );
+      if (!r.ok) {
+        throw new Error(r.data.error || 'Could not continue');
+      }
+      setUser(r.data.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not continue');
     } finally {
       setBusy(false);
     }
-  }
-
-  async function resendVerification() {
-    const r = await post('/api/auth/resend-verification', { email });
-    setError('');
-    setUnverified(false);
-    setNotice(r.data.message || 'If that address has an unconfirmed account, a new link is on its way.');
   }
 
   async function logout() {
@@ -635,14 +602,6 @@ export function AuthGate() {
             {error && (
               <div className="auth-error" role="alert">
                 {error}
-                {unverified && (
-                  <>
-                    {' '}
-                    <button type="button" onClick={resendVerification} style={{ color: 'var(--primary-purple)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}>
-                      Send a new link
-                    </button>
-                  </>
-                )}
               </div>
             )}
 
@@ -653,35 +612,9 @@ export function AuthGate() {
                 ? 'Enter SkillPilot'
                 : mode === 'signup'
                 ? 'Create account'
-                : mode === 'forgot'
-                ? 'Send reset link'
-                : 'Set new password'}
+                : 'Enter SkillPilot'}
               <ArrowRight size={15} />
             </button>
-
-            {mode === 'login' && (
-              <div className="auth-links" style={{ textAlign: 'center', marginTop: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => switchMode('forgot')}
-                  style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}
-                >
-                  Forgot password?
-                </button>
-              </div>
-            )}
-
-            {(mode === 'forgot' || mode === 'reset') && (
-              <div className="auth-links" style={{ textAlign: 'center', marginTop: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => switchMode('login')}
-                  style={{ color: 'var(--primary-purple)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}
-                >
-                  Back to sign in
-                </button>
-              </div>
-            )}
           </form>
 
           <p className="auth-foot">
