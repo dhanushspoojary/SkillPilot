@@ -47,9 +47,13 @@ export function AdminWorkspace({ user, onLogout }: {
         loadUsers('').catch((e) => setError(e.message));
         api<{ reports: any[] }>('/api/admin/chat-reports').then((x) => setReports(x.reports || [])).catch(() => { });
     }, [loadMentors, loadUsers]);
-    async function setMentorStatus(id: string, status: string) {
+    async function setMentorStatus(id: string, status: string, name?: string) {
         let reason = '';
-        if (status === 'rejected') {
+        if (status === 'suspended') {
+            if (typeof window !== 'undefined' && !window.confirm(`Suspend mentor ${name || id}? They will be hidden from student discovery.`)) {
+                return;
+            }
+        } else if (status === 'rejected') {
             const p = window.prompt('Reason for rejection (optional, click Cancel to abort):');
             if (p === null) return;
             reason = p;
@@ -107,9 +111,9 @@ export function AdminWorkspace({ user, onLogout }: {
               <div className="admin-main"><b>{m.name}</b><span>{m.email}</span><small>{m.focus || 'No focus added'} · {m.status}</small></div>
               <div className="admin-actions">
                 <span className="status-chip">{m.status}</span>
-                {m.status !== 'approved' && <button className="primary" onClick={() => setMentorStatus(m.id, 'approved')}><Check size={14}/>Approve</button>}
-                {m.status === 'approved' && <button className="ghost" onClick={() => setMentorStatus(m.id, 'suspended')}><X size={14}/>Suspend</button>}
-                {m.status !== 'rejected' && m.status !== 'suspended' && <button className="ghost" onClick={() => setMentorStatus(m.id, 'rejected')}><X size={14}/>Reject</button>}
+                {m.status !== 'approved' && <button className="primary" onClick={() => setMentorStatus(m.id, 'approved', m.name)}><Check size={14}/>Approve</button>}
+                {m.status === 'approved' && <button className="ghost" onClick={() => setMentorStatus(m.id, 'suspended', m.name)}><X size={14}/>Suspend</button>}
+                {m.status !== 'rejected' && m.status !== 'suspended' && <button className="ghost" onClick={() => setMentorStatus(m.id, 'rejected', m.name)}><X size={14}/>Reject</button>}
               </div>
             </article>)}
         </div>
@@ -132,7 +136,19 @@ export function AdminWorkspace({ user, onLogout }: {
         </div>
         <form className="mentor-profile-form" onSubmit={(e) => { e.preventDefault(); loadUsers(query).catch((err) => setError(err.message)); }}>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or email" maxLength={80} aria-label="Search accounts"/>
-          <button className="ghost"><Search size={14}/>Search</button>
+          <button className="ghost" type="submit"><Search size={14}/>Search</button>
+          {query && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setQuery('');
+                void loadUsers('');
+              }}
+            >
+              Clear
+            </button>
+          )}
         </form>
         <div className="admin-list">
           {users.length === 0
