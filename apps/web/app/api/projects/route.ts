@@ -21,8 +21,11 @@ export async function GET(req: Request) {
   const slug = url.searchParams.get('slug');
 
   if (slug) {
-    const project = await getOrStartStudentProject(u.id, slug);
     const catalogItem = PROJECT_CATALOG.find((p) => p.slug === slug);
+    if (!catalogItem) {
+      return json({ error: 'Project not found in catalog' }, 404);
+    }
+    const project = await getOrStartStudentProject(u.id, slug);
     return json({
       catalog: PROJECT_CATALOG,
       project,
@@ -80,6 +83,11 @@ export async function POST(req: Request) {
 
     if (!slug || !code.trim()) {
       return json({ error: 'slug and code are required' }, 400);
+    }
+
+    const catalogItem = PROJECT_CATALOG.find((p) => p.slug === slug);
+    if (!catalogItem) {
+      return json({ error: 'Project not found in catalog' }, 404);
     }
 
     const evaluation = await evaluateProjectSubmission(u.id, slug, code);
