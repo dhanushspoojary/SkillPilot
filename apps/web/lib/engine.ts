@@ -335,16 +335,22 @@ export function explainPlan(state: AppState, roleName?: string, capabilityProfil
     const top = planActions(state, roleName, capabilityProfile)[0];
     return top ? `${top.title}. ${top.reason}` : 'Every tracked skill meets its target and is verified. Time to raise the target role.';
 }
-export function toggleActivity(state: AppState, action: PlanAction | {
-    id: string;
-    skill: string;
-    kind: Activity['kind'];
-}, at: string): AppState {
+export function toggleActivity(
+    state: AppState,
+    action: PlanAction | {
+        id: string;
+        skill: string;
+        kind: Activity['kind'];
+    },
+    at: string,
+    roleName?: string,
+    capabilityProfile?: any
+): AppState {
     const exists = state.activity.some((a) => a.id === action.id);
     const activity = exists ? state.activity.filter((a) => a.id !== action.id) : [...state.activity, { id: action.id, skill: action.skill, kind: action.kind, at }];
     const resolved = action.id === 'MENTOR:feedback' ? !exists : state.mentorNoteResolved;
     const next = { ...state, activity, mentorNoteResolved: resolved };
-    return { ...next, planNote: explainPlan(next) };
+    return { ...next, planNote: explainPlan(next, roleName, capabilityProfile) };
 }
 export function passportSummary(name: string, evidence: Evidence[]): string {
     const skills = skillStates(evidence);
