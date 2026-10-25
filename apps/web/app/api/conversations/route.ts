@@ -56,7 +56,10 @@ export async function POST(req: Request) {
 
   try {
     const body = await readJsonBody<any>(req, 10000);
-    const title = typeof body?.title === 'string' ? body.title : 'New Conversation';
+    const title =
+      typeof body?.title === 'string' && body.title.trim()
+        ? body.title.trim().slice(0, 100)
+        : 'New Conversation';
     const newThread = await createConversationThread(u.id, title);
     const threads = await listConversationThreads(u.id);
 
@@ -121,8 +124,11 @@ export async function DELETE(req: Request) {
 
     if (threadId) {
       const deleted = await deleteConversationThread(u.id, threadId);
+      if (!deleted) {
+        return json({ error: 'Thread not found or unauthorized' }, 404);
+      }
       const threads = await listConversationThreads(u.id);
-      return json({ ok: true, cleared: true, deleted, threads });
+      return json({ ok: true, cleared: true, deleted: true, threads });
     }
 
     await clearConversationHistory(u.id);
