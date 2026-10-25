@@ -89,7 +89,7 @@ export async function determineNextAction(
       ? stateOverride.activeAssessment
       : await one<{ id: string; started_at: string }>(
           `select id, started_at from assessments 
-           where user_id = $1 and status = 'in_progress' and now() - started_at < interval '30 minutes' 
+           where user_id = $1 and status in ('started', 'in_progress') and now() - started_at < interval '30 minutes' 
            order by started_at desc limit 1`,
           [userId]
         );
