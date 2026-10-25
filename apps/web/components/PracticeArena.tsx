@@ -537,6 +537,26 @@ export function PracticeArena({
             <textarea
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  if (!executing) {
+                    void handleRunCode(false);
+                  }
+                  return;
+                }
+                if (e.key === 'Tab') {
+                  e.preventDefault();
+                  const target = e.currentTarget;
+                  const start = target.selectionStart;
+                  const end = target.selectionEnd;
+                  const next = code.substring(0, start) + '  ' + code.substring(end);
+                  setCode(next);
+                  requestAnimationFrame(() => {
+                    target.selectionStart = target.selectionEnd = start + 2;
+                  });
+                }
+              }}
               rows={14}
               style={{
                 width: '100%',
