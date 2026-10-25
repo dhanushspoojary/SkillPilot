@@ -340,6 +340,16 @@ export function Assess({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (busy || !q || feedback || results) return;
+      const activeElement = document.activeElement;
+      const isTextInput =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement instanceof HTMLSelectElement ||
+        (activeElement as HTMLElement)?.isContentEditable;
+
+      // Do not hijack typing when the user is focused on a form input or textarea
+      if (isTextInput) return;
+
       const key = e.key.toUpperCase();
       const num = parseInt(e.key, 10);
 
@@ -357,18 +367,13 @@ export function Assess({
       }
 
       if (e.key === 'Enter') {
-        // Only trigger submit on enter if not in a textarea
-        const activeElement = document.activeElement;
-        const isTextarea = activeElement instanceof HTMLTextAreaElement;
-        if (!isTextarea) {
-          e.preventDefault();
-          if (q.type === 'multiple_choice' && picked === null) {
-            setSubmitError('Please select an answer option above before proceeding to the next question.');
-          } else if (q.type !== 'multiple_choice' && !openEndedAnswer.trim()) {
-            setSubmitError('Please enter your response or explanation before submitting.');
-          } else {
-            void submit();
-          }
+        e.preventDefault();
+        if (q.type === 'multiple_choice' && picked === null) {
+          setSubmitError('Please select an answer option above before proceeding to the next question.');
+        } else if (q.type !== 'multiple_choice' && !openEndedAnswer.trim()) {
+          setSubmitError('Please enter your response or explanation before submitting.');
+        } else {
+          void submit();
         }
       }
     };
