@@ -1,6 +1,9 @@
 import type { Question, Evidence } from './types.ts';
 import { QUESTIONS } from './questions.ts';
 import { PREREQUISITES } from './assessment-planner.ts';
+import { getActiveLLMProvider } from './llm-provider.ts';
+import { generateQuestionId, validateAssessmentQuestion } from './question-contract.ts';
+import type { StudentCapabilityProfile } from './capability-profile.ts';
 
 /**
  * Classification of student responses for adaptive assessment.
@@ -256,3 +259,133 @@ export function computeSkillAdaptiveSummary(params: {
     nextAction,
   };
 }
+
+/**
+ * Asynchronously generates an adaptive diagnostic question tailored to the student
+ * using the configured LLM provider, with transparent fallback to the vetted question bank.
+ */
+export async function generateAdaptiveAssessmentQuestion(params: {
+  skill: string;
+  currentQuestion?: Question;
+  evalResult?: EvaluatedItemResult;
+  usedQuestionIds?: Set<string>;
+  usedQuestionTexts?: string[];
+  studentProfile?: Partial<StudentCapabilityProfile>;
+}): Promise<Question | null> {
+  const { skill, currentQuestion, evalResult, studentProfile } = params;
+  const usedQuestionIds = params.usedQuestionIds || new Set<string>();
+  const currentLevel = currentQuestion?.level ?? 1;
+
+  let targetLevel = currentLevel;
+  if (evalResult) {
+    if (evalResult.classification === 'CORRECT') {
+      targetLevel = Math.min(5, currentLevel + 1);
+    } else if (evalResult.classification === 'INCORRECT') {
+      targetLevel = Math.max(0, currentLevel - 1);
+    } else {
+      targetLevel = Math.max(0, currentLevel - 1);
+    }
+  }
+
+  const { provider, isReal } = getActiveLLMProvider();
+  if (provider && isReal) {
+    try {
+      const exp = studentProfile?.programmingExperience || 'beginner';
+      const edu = studentProfile?.educationLevel || 'first_year';
+      const goal =
+        (studentProfile?.careerInterests && studentProfile.careerInterests[0]) ||
+        'Software Engineer';
+      const prevConcept = currentQuestion ? currentQuestion.q : 'Baseline evaluation';
+
+      const systemPrompt = `You are SkillPilot's expert technical diagnostic question author.
+Generate a single, original multiple-choice diagnostic question to assess competency in the skill "${skill}".
+
+STUDENT CONTEXT:
+- Experience: ${exp}
+- Education: ${edu}
+- Target Career: ${goal}
+- Skill: ${skill}
+- Target Level: Level ${targetLevel} of 5
+- Previous question: "${prevConcept.slice(0, 120)}"
+- Previous response classification: ${evalResult?.classification || 'INITIAL'}
+
+RULES:
+1. Return VALID JSON ONLY. No markdown backticks, no explanatory preamble.
+2. Provide exactly 4 distinct, plausible options.
+3. Only ONE option must be clearly correct.
+4. "answer" must be the 0-based index (0, 1, 2, or 3) of the correct option.
+5. "why" must concisely explain why the correct option is right.
+6. Provide misconception explanation for wrong choices.
+7. For beginner students, focus on core logic and conceptual clarity rather than obscure syntax trivia.
+
+STRICT JSON SCHEMA:
+{
+  "q": "Clear, precise question prompt",
+  "level": ${targetLevel},
+  "options": ["Option A", "Option B", "Option C", "Option D"],
+  "answer": 0,
+  "why": "Explanation of the correct answer and underlying principle",
+  "misconceptions": ["Misconception for option 0", "Misconception for option 1", "Misconception for option 2", "Misconception for option 3"]
+}`;
+
+      const userPrompt = `Generate a Level ${targetLevel} question in "${skill}". Output JSON only:`;
+
+      const responseText = await provider.generateText(userPrompt, {
+        tier: 'fast',
+        systemPrompt,
+        temperature: 0.3,
+        maxTokens: 700,
+        timeoutMs: 9000,
+      });
+
+      const cleanJson = responseText.replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+
+      const generatedId = generateQuestionId(skill, targetLevel, 'llm-q');
+      const validation = validateAssessmentQuestion(parsed, generatedId, skill);
+
+      if (validation.valid && validation.question.type === 'multiple_choice') {
+        const vq = validation.question;
+        const normalizedPrompt = vq.q.toLowerCase().trim();
+
+        // Check deduplication against previous question texts
+        const isDuplicate = (params.usedQuestionTexts || []).some(
+          (t) => t.toLowerCase().trim() === normalizedPrompt
+        );
+
+        if (
+          !isDuplicate &&
+          typeof parsed.answer === 'number' &&
+          parsed.answer >= 0 &&
+          parsed.answer < vq.options.length
+        ) {
+          const newQ: Question = {
+            id: vq.id,
+            skill: vq.skill,
+            level: vq.level,
+            q: vq.q,
+            options: vq.options,
+            answer: parsed.answer,
+            why: vq.why || '',
+            misconceptions: Array.isArray(parsed.misconceptions)
+              ? parsed.misconceptions
+              : undefined,
+            prerequisiteConcept: vq.prerequisiteConcept,
+          };
+          return newQ;
+        }
+      }
+    } catch {
+      // Clean fallback on timeout, rate limit, quota exhaustion, or malformed JSON
+    }
+  }
+
+  // Transparent fallback to vetted question bank
+  return selectAdaptiveNextQuestion({
+    skill,
+    currentQuestion,
+    evalResult,
+    usedQuestionIds,
+  });
+}
+
