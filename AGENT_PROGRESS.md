@@ -112,8 +112,20 @@ The following independent, focused Git commits have been created in accordance w
    - Files: `apps/web/app/api/learn/`, `apps/web/lib/llm-provider.ts`, `apps/web/lib/practice-engine.ts`
 6. `872d182` - `test: add regression coverage for critical workflows`
    - Files: `apps/web/lib/mentor-calling.test.ts`, `apps/web/lib/mentor-chat.test.ts`, `apps/web/lib/microphone-permission.test.ts`, `apps/web/lib/accessibility-contrast.test.ts`
-7. *(Current)* - `docs: update bug fix and verification progress`
-   - Files: `AGENT_PROGRESS.md`
+7. `df4d525` - `fix(assess): establish canonical question contract and repair missing identifiers`
+   - Files: `db/migrations/015-repair-assessment-question-identifiers.sql`, `apps/web/lib/question-contract.ts`, `apps/web/app/api/assess/start/route.ts`, `apps/web/app/api/assess/submit/route.ts`, `apps/web/components/Assess.tsx`
+8. `4fe920c` - `feat(assess): implement LLM-powered adaptive question generation and stopping rules`
+   - Files: `apps/web/lib/adaptive-engine.ts`, `apps/web/lib/adaptive-onboarding.ts`
+9. `6081bb9` - `feat(onboarding): automate transition from onboarding to diagnostic assessment`
+   - Files: `apps/web/components/CapabilityOnboarding.tsx`, `apps/web/components/App.tsx`
+10. `d97d6a8` - `fix(video): add camera capability diagnostics and audio-only fallback`
+    - Files: `apps/web/components/LiveKitVideoCall.tsx`
+11. `3b4042c` - `fix(next-action): recognize started status for in-progress assessments`
+    - Files: `apps/web/lib/next-action-engine.ts`
+12. `c5fd2b0` - `test: add regression coverage for diagnostic contracts and camera recovery`
+    - Files: `apps/web/lib/assessment-end-to-end-resilience.test.ts`
+13. *(Current)* - `docs: document autonomous repair and AI intelligence upgrade execution`
+    - Files: `AGENT_PROGRESS.md`
 
 ---
 
@@ -121,21 +133,62 @@ The following independent, focused Git commits have been created in accordance w
 
 | Verification Check | Command | Result | Notes |
 |---|---|---|---|
-| Unit & Integration Tests | `npm test` in `apps/web` | **222 Passed, 0 Failed (11 suites)** | Full pass in ~1.96s |
-| API Integration Suite | `node scripts/api-integration.mjs` | **PASS (100%)** | All auth, learn, practice, next-action, and projects verified |
-| TypeScript Typecheck | `npm run typecheck` in `apps/web` | **0 Errors** | Clean compilation |
-| Next.js Production Build | `npm run build` in `apps/web` | **0 Errors (Exit code 0)** | 55+ routes, dynamic APIs, and middleware compiled |
-| Live Dev Server | `http://localhost:3000/api/health` | **200 OK** | DB online, service healthy |
+| Unit & Integration Tests | `npm test` in `apps/web` | **229 Passed, 0 Failed (12 suites)** | Includes all diagnostic contracts, question recovery, and adaptive stopping tests |
+| API Integration Suite | `node scripts/api-integration.mjs` | **PASS (100%)** | All auth, assessment start/submit, learning, practice, next-action, and projects verified against Neon DB |
+| TypeScript Typecheck | `npm run typecheck` in `apps/web` | **0 Errors** | Clean compilation across all routes, components, and libraries |
+| Next.js Production Build | `npm run build` in `apps/web` | **0 Errors (Exit code 0)** | All 55+ dynamic API endpoints, middleware, and static routes compiled and optimized |
+| Live Dev Server | `http://localhost:3000/api/health` | **200 OK** | DB online, service healthy, LiveKit and Gemini configurations active |
 
 ---
 
-## 5. Real-World Verification & Environmental Distinctions
+## 5. Phase 6: Autonomous End-to-End Repair & AI Intelligence Upgrade
+
+### A. Root Cause: Broken Diagnostic Assessment ("Missing valid identifier: id or question_id")
+- **Empirical Database Audit:** An authoritative query on Neon PostgreSQL revealed **19 existing rows** in `assessment_items` where `prompt->>'id'` was null or empty.
+- **Root Cause Analysis:**
+  1. `adaptive-onboarding.ts`: `NextQuestionData` and `getInitialOnboardingQuestion()` defined questions without `id` or `question_id`.
+  2. `start/route.ts`: Resumed sessions queried `assessments` without filtering `kind = 'adaptive'`, resuming onboarding adaptive sessions into the diagnostic interface, and omitted `question_id` in the select query.
+  3. `submit/route.ts`: When evaluating existing questions, `if (p && p.id)` threw a 400 error whenever `p.id` was missing from JSON, ignoring the database table's authoritative `question_id` column.
+  4. `Assess.tsx`: When `validationError` was displayed, `submit()` aborted early if `!targetQid`, trapping students in an unrecoverable notice state.
+- **Implemented Fixes:**
+  - Applied Neon database migration `015-repair-assessment-question-identifiers.sql`, updating all legacy rows so `prompt->>'id' = question_id`. Zero malformed items remain.
+  - Enhanced `validateAssessmentQuestion` and `canonicalizeQuestion` to accept fallback IDs, normalize legacy aliases (`text`, `skill_id`, `difficulty`), and enforce strict multiple-choice schema.
+  - Updated `start/route.ts` to filter `kind = 'adaptive'` and canonicalize resumed questions with authoritative `question_id`.
+  - Updated `submit/route.ts` to support `qid === 'current'` fallback and canonicalize all outbound questions.
+  - Updated `Assess.tsx` to ensure `targetQid = q?.id || rawQuestionId || 'current'`, allowing students to skip past any bad question without being trapped.
+
+### B. LLM-Powered Adaptive Diagnostic Assessment
+- Built `generateAdaptiveAssessmentQuestion` in `apps/web/lib/adaptive-engine.ts`:
+  - Connects to the configured Gemini model (`getActiveLLMProvider()`).
+  - Calibrates prompt according to student experience level, academic year, and career goal.
+  - Generates structured multiple-choice questions with 4 distinct options, unambiguous correct index, explanations, and misconception mapping.
+  - Prevents question repetition via session fingerprint and `usedQuestionIds`.
+  - Enforces explicit adaptive stopping rules (consecutive correct answers elevate difficulty; consecutive struggles trigger diagnostic probe; decisive evidence reached at 2 consecutive correct at level >= 2 or 4 items per skill).
+  - Handles API rate limits, timeouts (9s limit), and quota exhaustion with transparent fallback to the vetted bank in `questions.ts` without fabricating responses or crashing.
+
+### C. Automatic Onboarding-to-Diagnostic Transition
+- Added `onStartDiagnostic` callback prop to `CapabilityOnboarding.tsx`.
+- Wired onboarding completion in `App.tsx` and `CapabilityOnboarding.tsx` to automatically navigate the student directly to `go('assess')` once onboarding background information is saved.
+- Preserves student background data and prevents duplicate session creation via advisory locks.
+
+### D. Mentor Video Call Camera Diagnostics & Audio-Only Fallback
+- Added pre-flight media capability checks in `LiveKitVideoCall.tsx` (`isSecureContext` and `enumerateDevices`).
+- Added graceful audio-only fallback mode: if camera access fails due to `NotReadableError` (camera in use by Zoom/Teams/Skype), `NotAllowedError` (permission denied), or `NotFoundError` (no camera hardware), the call automatically maintains the connection in audio-only mode.
+- Added interactive `[Retry Camera]` action with real-time browser diagnostic feedback.
+
+### E. Next-Action State Alignment
+- Fixed `determineNextAction` in `apps/web/lib/next-action-engine.ts` to query `status in ('started', 'in_progress')`, ensuring active assessments are correctly recognized and surfaced as "Resume Assessment".
+
+---
+
+## 6. Real-World Verification & Environmental Distinctions
 
 1. **Automated Unit & Signalling Tests:**
-   - 100% verified locally via Node.js test runner and integration scripts.
-   - Deterministic room names, cryptographic token signing, JWT claims, role permissions, state machine transitions, and 60-second auto-expiration verified.
+   - 100% verified locally via Node.js test runner (229/229 passing).
+   - Deterministic room names, cryptographic token signing, JWT claims, role permissions, state machine transitions, and auto-expiration verified.
 2. **Database Signalling Verification:**
    - Active calls, ringing states, and transitions verified against live Neon PostgreSQL instance.
 3. **Real-World Live WebRTC Media Testing:**
    - Real-time video/audio track exchange in LiveKit Cloud requires physical hardware (camera/mic) permissions and two separate active browser sessions.
-   - The signaling layer, room assignment, in-app notification modal, and LiveKit Cloud credentials are fully active and production-ready for live user testing.
+   - The signaling layer, room assignment, in-app notification modal, audio-only fallback, and LiveKit Cloud credentials are fully active and production-ready for live user testing.
+
