@@ -42,6 +42,61 @@ export function LiveKitVideoCall({
   const [isConfigured, setIsConfigured] = useState<boolean>(true);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   const [mediaWarning, setMediaWarning] = useState<string | null>(null);
+  const [videoEnabled, setVideoEnabled] = useState<boolean>(true);
+  const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
+  const [isAudioOnlyFallback, setIsAudioOnlyFallback] = useState<boolean>(false);
+  const [testingCamera, setTestingCamera] = useState<boolean>(false);
+
+  const checkMediaCapabilities = useCallback(async () => {
+    if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost') {
+      setIsAudioOnlyFallback(true);
+      setVideoEnabled(false);
+      setMediaWarning('Insecure browser context (HTTP). Camera access requires HTTPS. Call running in audio-only mode.');
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasVideo = devices.some((d) => d.kind === 'videoinput');
+        if (!hasVideo && devices.length > 0) {
+          setIsAudioOnlyFallback(true);
+          setVideoEnabled(false);
+          setMediaWarning('No camera device detected on this system. Operating in audio-only mode.');
+        }
+      } catch {
+        // Transient enumeration error; proceed with standard media initiation
+      }
+    }
+  }, []);
+
+  const handleRetryCamera = async () => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setMediaWarning('Media devices API is unavailable in this browser.');
+      return;
+    }
+    setTestingCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setIsAudioOnlyFallback(false);
+      setVideoEnabled(true);
+      setMediaWarning(null);
+    } catch (e: any) {
+      const errName = e?.name || '';
+      if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+        setMediaWarning('Camera is in use by another application (Zoom, Teams, or another tab). Close other video apps and retry.');
+      } else if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setMediaWarning('Camera permission denied. Tap the lock icon in your browser address bar to allow camera access.');
+      } else if (errName === 'NotFoundError') {
+        setMediaWarning('No physical camera device detected on this machine.');
+      } else {
+        setMediaWarning(`Camera test notice: ${e?.message || 'Camera is currently unavailable'}`);
+      }
+    } finally {
+      setTestingCamera(false);
+    }
+  };
 
   const fetchToken = useCallback(async () => {
     setLoading(true);
@@ -82,12 +137,15 @@ export function LiveKitVideoCall({
 
   useEffect(() => {
     if (isOpen) {
+      void checkMediaCapabilities();
       void fetchToken();
     } else {
       setToken(null);
       setError(null);
+      setIsAudioOnlyFallback(false);
+      setVideoEnabled(true);
     }
-  }, [isOpen, fetchToken]);
+  }, [isOpen, fetchToken, checkMediaCapabilities]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -389,23 +447,44 @@ export function LiveKitVideoCall({
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    maxWidth: '90%',
+                    gap: '10px',
+                    maxWidth: '92%',
                   }}
                 >
-                  <AlertCircle size={16} />
-                  <span>{mediaWarning}</span>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>{mediaWarning}</span>
+                  {isAudioOnlyFallback && (
+                    <button
+                      type="button"
+                      onClick={() => void handleRetryCamera()}
+                      disabled={testingCamera}
+                      style={{
+                        background: '#000',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '4px 10px',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {testingCamera ? 'Testing…' : 'Retry Camera'}
+                    </button>
+                  )}
                   <button
                     onClick={() => setMediaWarning(null)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#000' }}
+                    aria-label="Dismiss notice"
                   >
                     <X size={14} />
                   </button>
                 </div>
               )}
               <LiveKitRoom
-                video={true}
-                audio={true}
+                video={videoEnabled}
+                audio={audioEnabled}
                 token={token}
                 serverUrl={serverUrl}
                 connectOptions={{ autoSubscribe: true }}
@@ -416,15 +495,28 @@ export function LiveKitVideoCall({
                 }}
                 onError={(err) => {
                   const msg = err.message || 'LiveKit media error';
-                  const isDeviceError = /permission|notallowed|devicesnotfound|notfound|overconstrained|track/i.test(msg);
+                  const isDeviceError = /permission|notallowed|devicesnotfound|notfound|overconstrained|track|notreadable|concurrent/i.test(msg);
                   if (isDeviceError) {
-                    const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
-                    if (isAndroid && /notallowed|permission/i.test(msg)) {
+                    setIsAudioOnlyFallback(true);
+                    setVideoEnabled(false);
+                    const isBusy = /notreadable|trackstart|concurrent/i.test(msg);
+                    const isPermission = /notallowed|permission/i.test(msg);
+                    const isNotFound = /notfound|devicesnotfound/i.test(msg);
+
+                    if (isBusy) {
                       setMediaWarning(
-                        'Microphone/Camera blocked by Android overlay or permission. Close floating chat bubbles/screen recorders and tap the lock icon in the address bar to allow.'
+                        'Camera is currently in use by another application (such as Zoom, Teams, or another tab). Audio-only mode is active so you can continue the call.'
+                      );
+                    } else if (isPermission) {
+                      setMediaWarning(
+                        'Camera permission was blocked. Check browser address bar permissions. Call running in audio-only mode.'
+                      );
+                    } else if (isNotFound) {
+                      setMediaWarning(
+                        'No physical camera device found on this machine. Continuing in audio-only mode.'
                       );
                     } else {
-                      setMediaWarning(`Media device notice: ${msg}. You can continue the session in audio or listen-only mode.`);
+                      setMediaWarning(`Media device notice: ${msg}. Continuing in audio-only mode.`);
                     }
                   } else {
                     setError(msg);

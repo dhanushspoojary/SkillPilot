@@ -15,6 +15,8 @@ export interface EvaluationResult {
 }
 
 export interface NextQuestionData {
+  id?: string;
+  question_id?: string;
   text: string;
   skill_id: string;
   difficulty: number;
@@ -165,11 +167,20 @@ export function validateAdaptiveOutput(
     if (options.length < 2) options = null;
   }
 
+  const nextId =
+    typeof qObj.id === 'string' && qObj.id.trim()
+      ? (qObj.id as string).trim()
+      : typeof qObj.question_id === 'string' && qObj.question_id.trim()
+      ? (qObj.question_id as string).trim()
+      : `onboarding-${matchedSkill}-${difficulty}-${Date.now().toString(36)}`;
+
   return {
     valid: true,
     data: {
       evaluation: { summary, correctness, misconceptions },
       next_question: {
+        id: nextId,
+        question_id: nextId,
         text,
         skill_id: matchedSkill,
         difficulty,
@@ -187,6 +198,8 @@ export function validateAdaptiveOutput(
  */
 export function getInitialOnboardingQuestion(targetRole: string = 'Software Engineer'): NextQuestionData {
   return {
+    id: 'onboarding-q-1',
+    question_id: 'onboarding-q-1',
     text: `In software development, explain what happens to local variables inside a function when that function finishes executing and returns. What is the execution stack's role?`,
     skill_id: 'problem-solving',
     difficulty: 1,
@@ -314,9 +327,12 @@ export function generateDeterministicAdaptiveTurn(params: {
     nextType = 'practical';
   }
 
+  const genQId = `onboarding-q-${currentQNumber + 1}`;
   return {
     evaluation: { summary, correctness, misconceptions },
     next_question: {
+      id: genQId,
+      question_id: genQId,
       text: nextText,
       skill_id: nextSkill,
       difficulty: nextDifficulty,
@@ -528,7 +544,13 @@ export async function startAdaptiveOnboardingSession(params: {
             provenance: respObj.provenance || 'deterministic',
           });
         } else {
+          const promptId =
+            item.question_id ||
+            (promptObj && (promptObj.id || promptObj.question_id)) ||
+            `onboarding-q-${item.position || item.id}`;
           lastPrompt = {
+            id: promptId,
+            question_id: promptId,
             text: promptObj.text || promptObj.q || '',
             skill_id: item.skill_slug,
             difficulty: Number(promptObj.difficulty ?? 1),
@@ -560,8 +582,9 @@ export async function startAdaptiveOnboardingSession(params: {
       }
     }
 
-    // Create fresh assessment session
     const firstQ = getInitialOnboardingQuestion(targetRole);
+    firstQ.id = 'onboarding-q-1';
+    firstQ.question_id = 'onboarding-q-1';
     const newAss = await client.query<{ id: string; started_at: string }>(
       `insert into assessments (user_id, kind, version, status) values ($1, 'onboarding_adaptive', 'v2.1', 'started') returning id, started_at`,
       [userId]
@@ -570,7 +593,7 @@ export async function startAdaptiveOnboardingSession(params: {
 
     await client.query(
       `insert into assessment_items (assessment_id, question_id, skill_slug, prompt) values ($1, $2, $3, $4)`,
-      [aid, `onboarding-q-1`, firstQ.skill_id, JSON.stringify(firstQ)]
+      [aid, firstQ.id, firstQ.skill_id, JSON.stringify(firstQ)]
     );
 
     return {
@@ -840,11 +863,14 @@ export async function submitAdaptiveOnboardingAnswer(params: {
     // Assessment is NOT complete: insert next question into assessment_items
     const nextQ = output.next_question!;
     const nextPosition = history.length + 1;
+    const nextQId = nextQ.id || nextQ.question_id || `onboarding-q-${nextPosition}`;
+    nextQ.id = nextQId;
+    nextQ.question_id = nextQId;
 
     await client.query(
       `insert into assessment_items (assessment_id, question_id, skill_slug, prompt)
        values ($1, $2, $3, $4)`,
-      [sessionId, `onboarding-q-${nextPosition}`, nextQ.skill_id, JSON.stringify(nextQ)]
+      [sessionId, nextQId, nextQ.skill_id, JSON.stringify(nextQ)]
     );
 
     return {

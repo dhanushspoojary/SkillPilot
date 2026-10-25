@@ -53,10 +53,15 @@ export type QuestionValidationResult =
 
 /**
  * Validates any raw question payload received from API, database, or LLM.
+ * Accepts optional fallbackId and fallbackSkill (such as from assessment_items table).
  * Guarantees that multiple-choice questions have non-null, non-empty options arrays (>= 2 strings),
  * and that other supported types use their appropriate contracts.
  */
-export function validateAssessmentQuestion(raw: unknown): QuestionValidationResult {
+export function validateAssessmentQuestion(
+  raw: unknown,
+  fallbackId?: string,
+  fallbackSkill?: string,
+): QuestionValidationResult {
   if (!raw || typeof raw !== 'object') {
     return {
       valid: false,
@@ -67,8 +72,18 @@ export function validateAssessmentQuestion(raw: unknown): QuestionValidationResu
 
   const obj = raw as Record<string, unknown>;
 
-  // Extract question ID
-  const id = typeof obj.id === 'string' ? obj.id.trim() : typeof obj.question_id === 'string' ? obj.question_id.trim() : '';
+  // Extract question ID with fallback support
+  const id =
+    typeof obj.id === 'string' && obj.id.trim()
+      ? obj.id.trim()
+      : typeof obj.question_id === 'string' && obj.question_id.trim()
+      ? obj.question_id.trim()
+      : typeof obj.questionId === 'string' && obj.questionId.trim()
+      ? obj.questionId.trim()
+      : fallbackId && typeof fallbackId === 'string' && fallbackId.trim()
+      ? fallbackId.trim()
+      : '';
+
   if (!id) {
     return {
       valid: false,
@@ -77,8 +92,20 @@ export function validateAssessmentQuestion(raw: unknown): QuestionValidationResu
     };
   }
 
-  // Extract skill
-  const skill = typeof obj.skill === 'string' ? obj.skill.trim() : typeof obj.skill_slug === 'string' ? obj.skill_slug.trim() : '';
+  // Extract skill with fallback support
+  const skill =
+    typeof obj.skill === 'string' && obj.skill.trim()
+      ? obj.skill.trim()
+      : typeof obj.skill_slug === 'string' && obj.skill_slug.trim()
+      ? obj.skill_slug.trim()
+      : typeof obj.skill_id === 'string' && obj.skill_id.trim()
+      ? obj.skill_id.trim()
+      : typeof obj.skillSlug === 'string' && obj.skillSlug.trim()
+      ? obj.skillSlug.trim()
+      : fallbackSkill && typeof fallbackSkill === 'string' && fallbackSkill.trim()
+      ? fallbackSkill.trim()
+      : '';
+
   if (!skill) {
     return {
       valid: false,
@@ -88,7 +115,17 @@ export function validateAssessmentQuestion(raw: unknown): QuestionValidationResu
   }
 
   // Extract question text
-  const q = typeof obj.q === 'string' ? obj.q.trim() : typeof obj.text === 'string' ? obj.text.trim() : typeof obj.prompt === 'string' ? obj.prompt.trim() : '';
+  const q =
+    typeof obj.q === 'string' && obj.q.trim()
+      ? obj.q.trim()
+      : typeof obj.text === 'string' && obj.text.trim()
+      ? obj.text.trim()
+      : typeof obj.prompt === 'string' && obj.prompt.trim()
+      ? obj.prompt.trim()
+      : typeof obj.question === 'string' && obj.question.trim()
+      ? obj.question.trim()
+      : '';
+
   if (!q) {
     return {
       valid: false,
@@ -99,30 +136,65 @@ export function validateAssessmentQuestion(raw: unknown): QuestionValidationResu
 
   // Extract level / difficulty
   const levelRaw = obj.level ?? obj.difficulty;
-  const level = typeof levelRaw === 'number' && Number.isFinite(levelRaw) ? Math.max(0, Math.min(5, Math.round(levelRaw))) : 1;
+  const level =
+    typeof levelRaw === 'number' && Number.isFinite(levelRaw)
+      ? Math.max(0, Math.min(5, Math.round(levelRaw)))
+      : 1;
 
   // Extract optional metadata
   const why = typeof obj.why === 'string' ? obj.why.trim() : undefined;
-  const prerequisiteConcept = typeof obj.prerequisiteConcept === 'string' ? obj.prerequisiteConcept.trim() : undefined;
-  const codeSnippet = typeof obj.codeSnippet === 'string' ? obj.codeSnippet : typeof obj.code === 'string' ? obj.code : undefined;
+  const prerequisiteConcept =
+    typeof obj.prerequisiteConcept === 'string' ? obj.prerequisiteConcept.trim() : undefined;
+  const codeSnippet =
+    typeof obj.codeSnippet === 'string'
+      ? obj.codeSnippet
+      : typeof obj.code === 'string'
+      ? obj.code
+      : undefined;
   const starterCode = typeof obj.starterCode === 'string' ? obj.starterCode : undefined;
 
-  // Determine explicit or inferred question type
-  const rawType = typeof obj.type === 'string' ? obj.type.toLowerCase().trim() : typeof obj.question_type === 'string' ? obj.question_type.toLowerCase().trim() : '';
+  // Determine question type (defaults to multiple_choice if empty)
+  const rawType =
+    typeof obj.type === 'string'
+      ? obj.type.toLowerCase().trim()
+      : typeof obj.question_type === 'string'
+      ? obj.question_type.toLowerCase().trim()
+      : '';
 
-  // Inspect options array
+  const supportedTypes = [
+    '',
+    'multiple_choice',
+    'conceptual',
+    'code_tracing',
+    'debugging',
+    'practical',
+    'open_ended',
+  ];
+
+  if (rawType && !supportedTypes.includes(rawType)) {
+    return {
+      valid: false,
+      error: `Unsupported question type: "${rawType}"`,
+      raw,
+    };
+  }
+
+  const isOpenEndedType =
+    rawType === 'conceptual' ||
+    rawType === 'code_tracing' ||
+    rawType === 'debugging' ||
+    rawType === 'practical' ||
+    rawType === 'open_ended';
+
   const rawOptions = obj.options;
   const hasOptionsArray = Array.isArray(rawOptions);
 
-  // If rawType is explicitly open-ended (conceptual, code_tracing, debugging, practical) AND options is null/undefined
-  if (
-    (rawType === 'conceptual' || rawType === 'code_tracing' || rawType === 'debugging' || rawType === 'practical') &&
-    (rawOptions === null || rawOptions === undefined)
-  ) {
+  // If explicit open-ended question without options:
+  if (isOpenEndedType && (rawOptions === null || rawOptions === undefined)) {
     return {
       valid: true,
       question: {
-        type: rawType as 'conceptual' | 'code_tracing' | 'debugging' | 'practical',
+        type: rawType === 'open_ended' ? 'conceptual' : (rawType as 'conceptual' | 'code_tracing' | 'debugging' | 'practical'),
         id,
         skill,
         level,
@@ -136,9 +208,8 @@ export function validateAssessmentQuestion(raw: unknown): QuestionValidationResu
     };
   }
 
-  // If options is provided, it MUST be a valid multiple choice array
+  // If options array is provided: validate as multiple-choice options
   if (hasOptionsArray) {
-    // Check option count
     if (rawOptions.length < 2) {
       return {
         valid: false,
@@ -147,7 +218,6 @@ export function validateAssessmentQuestion(raw: unknown): QuestionValidationResu
       };
     }
 
-    // Check that every option is a non-empty string
     const sanitizedOptions: string[] = [];
     for (let i = 0; i < rawOptions.length; i++) {
       const opt = rawOptions[i];
@@ -161,7 +231,10 @@ export function validateAssessmentQuestion(raw: unknown): QuestionValidationResu
       sanitizedOptions.push(opt.trim());
     }
 
-    const answer = typeof obj.answer === 'number' && obj.answer >= 0 && obj.answer < sanitizedOptions.length ? obj.answer : undefined;
+    const answer =
+      typeof obj.answer === 'number' && obj.answer >= 0 && obj.answer < sanitizedOptions.length
+        ? obj.answer
+        : undefined;
 
     return {
       valid: true,
@@ -179,33 +252,46 @@ export function validateAssessmentQuestion(raw: unknown): QuestionValidationResu
     };
   }
 
-  // If rawType was multiple_choice but options was null, undefined, or non-array:
-  if (rawType === 'multiple_choice' || !rawType) {
-    if (rawOptions === null) {
-      return {
-        valid: false,
-        error: 'Multiple choice question has options defined as null',
-        raw,
-      };
-    }
-    if (rawOptions === undefined) {
-      return {
-        valid: false,
-        error: 'Multiple choice question is missing options array',
-        raw,
-      };
-    }
+  // Options was null or undefined or non-array
+  if (rawOptions === null) {
     return {
       valid: false,
-      error: `Question options is of type ${typeof rawOptions}; expected Array of strings`,
+      error: 'Multiple choice question has options defined as null',
       raw,
     };
   }
 
-  // Unsupported question type
+  if (rawOptions === undefined) {
+    return {
+      valid: false,
+      error: 'Multiple choice question is missing options array',
+      raw,
+    };
+  }
+
   return {
     valid: false,
-    error: `Unsupported question type: "${rawType}"`,
+    error: `Question options is of type ${typeof rawOptions}; expected Array of strings`,
     raw,
   };
+}
+
+/**
+ * Returns a canonicalized, fully validated question or null if invalid.
+ */
+export function canonicalizeQuestion(
+  raw: unknown,
+  fallbackId?: string,
+  fallbackSkill?: string,
+): ValidatedAssessmentQuestion | null {
+  const result = validateAssessmentQuestion(raw, fallbackId, fallbackSkill);
+  return result.valid ? result.question : null;
+}
+
+/**
+ * Generates a stable, unique question identifier for LLM or dynamic questions.
+ */
+export function generateQuestionId(skill: string, level: number, prefix: string = 'q'): string {
+  const normSkill = skill.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 16);
+  return `${prefix}-${normSkill}-l${level}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
