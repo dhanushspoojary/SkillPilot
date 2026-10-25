@@ -67,6 +67,7 @@ interface Props {
   onClose?: () => void;
   canDismiss?: boolean;
   onNavigateToRoadmap?: () => void;
+  onStartDiagnostic?: () => void;
   initialTab?: 'discovery' | 'adaptive_assessment';
 }
 
@@ -85,6 +86,7 @@ export function CapabilityOnboarding({
   onClose,
   canDismiss = true,
   onNavigateToRoadmap,
+  onStartDiagnostic,
   initialTab = 'discovery',
 }: Props) {
   const [activeTab, setActiveTab] = useState<'discovery' | 'adaptive_assessment'>(initialTab);
@@ -452,8 +454,12 @@ export function CapabilityOnboarding({
         onboardingCompleted: true,
       });
 
-      // Launch technical diagnostic
-      await startAdaptiveAssessment(careerInterest);
+      // Launch technical diagnostic directly if available
+      if (onStartDiagnostic) {
+        onStartDiagnostic();
+      } else {
+        await startAdaptiveAssessment(careerInterest);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save calibration');
       setBusy(false);
@@ -1138,14 +1144,16 @@ export function CapabilityOnboarding({
                     className="primary"
                     style={{ minHeight: 44, padding: '0 24px', fontSize: 14, fontWeight: 600 }}
                     onClick={() => {
-                      if (onNavigateToRoadmap) {
+                      if (onStartDiagnostic) {
+                        onStartDiagnostic();
+                      } else if (onNavigateToRoadmap) {
                         onNavigateToRoadmap();
                       } else if (onClose) {
                         onClose();
                       }
                     }}
                   >
-                    View Personalized Roadmap
+                    Start Diagnostic Assessment
                     <ArrowRight size={15} style={{ marginLeft: 6 }} />
                   </button>
                 </div>

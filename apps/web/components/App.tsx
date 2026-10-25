@@ -728,6 +728,10 @@ export function App({ user, onLogout }: {
         onSave={saveCalibration}
         onClose={() => setShowCalibration(false)}
         canDismiss={true}
+        onStartDiagnostic={() => {
+          setShowCalibration(false);
+          go('assess');
+        }}
         onNavigateToRoadmap={() => {
           setShowCalibration(false);
           go('roadmap');
