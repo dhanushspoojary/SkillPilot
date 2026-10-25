@@ -76,14 +76,27 @@ export function IncomingCallDialog({ call, onDismiss }: IncomingCallDialogProps)
     }
   }
 
+  async function handleEndCall() {
+    setInCall(false);
+    try {
+      await fetch(`/api/mentor-requests/${call.requestId}/call/end`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch {
+      // Ignore network errors on end
+    } finally {
+      onDismiss();
+    }
+  }
+
   if (inCall) {
     return (
       <LiveKitVideoCall
         requestId={call.requestId}
         isOpen={true}
         onClose={() => {
-          setInCall(false);
-          onDismiss();
+          void handleEndCall();
         }}
       />
     );
