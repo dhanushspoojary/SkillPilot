@@ -4,7 +4,9 @@ import { dbRateLimit } from '../../../../lib/guard';
 import { json, readJsonBody, requireOrigin, safeText, isUuid } from '../../../../lib/server-security';
 import { QUESTIONS, publicQ } from '../../../../lib/questions';
 import { answeredCount as countAnswered, totalQuestions as countTotal } from '../../../../lib/assessment';
-import { evaluateResponse, selectAdaptiveNextQuestion, computeSkillAdaptiveSummary } from '../../../../lib/adaptive-engine';
+import { evaluateResponse, selectAdaptiveNextQuestion, computeSkillAdaptiveSummary, generateAdaptiveAssessmentQuestion } from '../../../../lib/adaptive-engine';
+import { canonicalizeQuestion } from '../../../../lib/question-contract';
+import { getStudentCapabilityProfile } from '../../../../lib/capability-profile';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
@@ -69,7 +71,10 @@ export async function POST(req: Request) {
                 await c.query(`update assessments set status='abandoned' where id=$1`, [aid]);
                 throw new Error('expired');
             }
-            const item = await c.query<any>(`select id,question_id,skill_slug,response,prompt from assessment_items where assessment_id=$1 and question_id=$2 for update`, [aid, qid]);
+            let item = await c.query<any>(`select id,question_id,skill_slug,response,prompt from assessment_items where assessment_id=$1 and question_id=$2 for update`, [aid, qid]);
+            if (!item.rowCount && (qid === 'current' || isSkip)) {
+                item = await c.query<any>(`select id,question_id,skill_slug,response,prompt from assessment_items where assessment_id=$1 and response is null order by position limit 1 for update`, [aid]);
+            }
             if (!item.rowCount)
                 throw new Error('question');
             if (item.rows[0].response) {
@@ -79,7 +84,12 @@ export async function POST(req: Request) {
                 const remaining = await c.query<any>(`select question_id,skill_slug,prompt from assessment_items where assessment_id=$1 and response is null order by position limit 1`, [aid]);
                 if (remaining.rowCount) {
                     const promptObj = typeof remaining.rows[0].prompt === 'string' ? JSON.parse(remaining.rows[0].prompt) : remaining.rows[0].prompt;
-                    return { recorded: true, done: false, index: answeredCount, total: totalQuestions, question: promptObj };
+                    const canonical = canonicalizeQuestion(promptObj, remaining.rows[0].question_id, remaining.rows[0].skill_slug) || {
+                        ...promptObj,
+                        id: remaining.rows[0].question_id,
+                        skill: remaining.rows[0].skill_slug,
+                    };
+                    return { recorded: true, done: false, index: answeredCount, total: totalQuestions, question: canonical };
                 }
                 const comp = await c.query<any>(`select server_score from assessments where id=$1 and status='completed'`, [aid]);
                 if (comp.rowCount) {
@@ -120,16 +130,16 @@ export async function POST(req: Request) {
                     return { recorded: true, done: true, results, overall: comp.rows[0].server_score ?? 100, workflowStage: 'SKILL_BASELINE_REVIEW' };
                 }
             }
-            let q = QUESTIONS.find(x => x.id === qid);
+            let q = QUESTIONS.find(x => x.id === item.rows[0].question_id || x.id === qid);
             if (!q && item.rows[0].prompt) {
                 try {
                     const p = typeof item.rows[0].prompt === 'string' ? JSON.parse(item.rows[0].prompt) : item.rows[0].prompt;
-                    if (p && p.id) {
+                    if (p) {
                         q = {
-                            id: p.id,
-                            skill: p.skill || item.rows[0].skill_slug,
-                            level: Number(p.level ?? 1),
-                            q: p.q || p.text || '',
+                            id: p.id || item.rows[0].question_id,
+                            skill: p.skill || p.skill_slug || item.rows[0].skill_slug,
+                            level: Number(p.level ?? p.difficulty ?? 1),
+                            q: p.q || p.text || p.prompt || '',
                             options: Array.isArray(p.options) ? p.options : [],
                             answer: Number(p.answer ?? 0),
                             why: p.why || '',
@@ -190,11 +200,24 @@ export async function POST(req: Request) {
             // If decisive evidence has not been reached and question limit for skill (< 4) not exceeded, select next adaptive question
             if (!currentSkillSummary.decisiveEvidenceReached && currentSkillItems.length < 4) {
                 const used = new Set(answered.rows.map((r: any) => r.question_id));
-                const next = selectAdaptiveNextQuestion({
+                const usedTexts = answered.rows.map((r: any) => {
+                    try {
+                        const p = typeof r.prompt === 'string' ? JSON.parse(r.prompt) : r.prompt;
+                        return p.q || p.text || '';
+                    } catch {
+                        return '';
+                    }
+                }).filter(Boolean);
+
+                const capability = await getStudentCapabilityProfile(u.id).catch(() => null);
+
+                const next = await generateAdaptiveAssessmentQuestion({
                     skill,
                     currentQuestion: q,
                     evalResult,
                     usedQuestionIds: used,
+                    usedQuestionTexts: usedTexts,
+                    studentProfile: capability ?? undefined,
                 });
                 if (next) {
                     await c.query(
@@ -236,12 +259,17 @@ export async function POST(req: Request) {
             const remaining = await c.query<any>(`select question_id,skill_slug,prompt from assessment_items where assessment_id=$1 and response is null order by position limit 1`, [aid]);
             if (remaining.rowCount) {
                 const promptObj = typeof remaining.rows[0].prompt === 'string' ? JSON.parse(remaining.rows[0].prompt) : remaining.rows[0].prompt;
+                const canonical = canonicalizeQuestion(promptObj, remaining.rows[0].question_id, remaining.rows[0].skill_slug) || {
+                    ...promptObj,
+                    id: remaining.rows[0].question_id,
+                    skill: remaining.rows[0].skill_slug,
+                };
                 return {
                     recorded: true,
                     done: false,
                     index: answeredCount,
                     total: totalQuestions,
-                    question: promptObj,
+                    question: canonical,
                     adaptation: {
                         direction: 'RESOLVING',
                         previousLevel: q.level,

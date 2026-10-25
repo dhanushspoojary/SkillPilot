@@ -217,10 +217,10 @@ export function Assess({
     async (overrideOptions?: { action?: 'skip' | 'dont_know'; choice?: number }) => {
       const isSkipAction =
         overrideOptions?.action === 'skip' || overrideOptions?.action === 'dont_know';
-      const targetQid = q?.id || rawQuestionId;
+      const targetQid = q?.id || rawQuestionId || 'current';
 
       if (!isSkipAction && !q) return;
-      if (!targetQid || !assessmentId || busy || submitInFlightRef.current) return;
+      if (!assessmentId || busy || submitInFlightRef.current) return;
 
       if (!isSkipAction) {
         if (q?.type === 'multiple_choice' && picked === null) {

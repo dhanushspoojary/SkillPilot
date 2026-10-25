@@ -6,6 +6,7 @@ import { QUESTIONS, SKILLS, publicQ } from '../../../../lib/questions';
 import { answeredCount, nextUnanswered, totalQuestions } from '../../../../lib/assessment';
 import { getStudentCapabilityProfile } from '../../../../lib/capability-profile';
 import { planAssessmentSession } from '../../../../lib/assessment-planner';
+import { canonicalizeQuestion } from '../../../../lib/question-contract';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const COOLDOWN_MS = 30 * 60000;
@@ -35,15 +36,20 @@ export async function POST(req: Request) {
             // Serialise concurrent starts for the same user (double clicks, StrictMode, two tabs).
             await c.query('select pg_advisory_xact_lock(hashtext($1))', [`assess-start:${u.id}`]);
             // Abandoned attempts cannot remain open forever.
-            await c.query(`update assessments set status='abandoned' where user_id=$1 and status='started' and started_at < now()-interval '30 minutes'`, [u.id]);
-            // Resume an in-progress assessment instead of locking the student out for 30 minutes.
-            const active = await c.query<any>(`select id from assessments where user_id=$1 and status='started' order by started_at desc limit 1`, [u.id]);
+            await c.query(`update assessments set status='abandoned' where user_id=$1 and kind='adaptive' and status='started' and started_at < now()-interval '30 minutes'`, [u.id]);
+            // Resume an in-progress adaptive assessment instead of locking the student out for 30 minutes.
+            const active = await c.query<any>(`select id from assessments where user_id=$1 and kind='adaptive' and status='started' order by started_at desc limit 1`, [u.id]);
             if (active.rowCount) {
-                const items = await c.query<any>(`select skill_slug,prompt,response from assessment_items where assessment_id=$1 order by position`, [active.rows[0].id]);
+                const items = await c.query<any>(`select id,question_id,skill_slug,prompt,response from assessment_items where assessment_id=$1 order by position`, [active.rows[0].id]);
                 const next = nextUnanswered(items.rows);
                 if (next) {
                     const parsedQ = typeof next.prompt === 'string' ? JSON.parse(next.prompt) : next.prompt;
-                    return { id: active.rows[0].id, question: parsedQ, total: totalQuestions(items.rows), index: answeredCount(items.rows), resumed: true };
+                    const canonical = canonicalizeQuestion(parsedQ, next.question_id, next.skill_slug) || {
+                        ...parsedQ,
+                        id: next.question_id,
+                        skill: next.skill_slug,
+                    };
+                    return { id: active.rows[0].id, question: canonical, total: totalQuestions(items.rows), index: answeredCount(items.rows), resumed: true };
                 }
                 await c.query(`update assessments set status='abandoned' where id=$1`, [active.rows[0].id]);
             }
