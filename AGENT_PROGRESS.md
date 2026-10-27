@@ -184,11 +184,64 @@ The following independent, focused Git commits have been created in accordance w
 ## 6. Real-World Verification & Environmental Distinctions
 
 1. **Automated Unit & Signalling Tests:**
-   - 100% verified locally via Node.js test runner (229/229 passing).
+   - 100% verified locally via Node.js test runner (229/229 passing across 12 test suites).
    - Deterministic room names, cryptographic token signing, JWT claims, role permissions, state machine transitions, and auto-expiration verified.
 2. **Database Signalling Verification:**
    - Active calls, ringing states, and transitions verified against live Neon PostgreSQL instance.
 3. **Real-World Live WebRTC Media Testing:**
    - Real-time video/audio track exchange in LiveKit Cloud requires physical hardware (camera/mic) permissions and two separate active browser sessions.
    - The signaling layer, room assignment, in-app notification modal, audio-only fallback, and LiveKit Cloud credentials are fully active and production-ready for live user testing.
+
+---
+
+## 7. SkillPilot 2.2: Full-Stack Quality Upgrade & Multi-Journey Verification
+
+### A. Modal Pointer-Event Interception Resolution
+- **Root Cause:**
+  1. `.onboarding-overlay` had `z-index: 1000`, while `NextActionGuidedModal` (`.guided-modal-overlay`) had `z-index: 9999`. For new students whose onboarding was in progress, the guided next-action suggestion modal was mounted in the background `Today` view, overlaying the onboarding dialogue and intercepting pointer clicks on all form chips and buttons.
+  2. In `App.tsx`, changing views did not dismiss `showCalibration`, causing onboarding modals to linger over active diagnostic assessments.
+- **Implemented Fixes:**
+  1. Updated `globals.css` so `.onboarding-overlay` has `z-index: 10000`, ensuring the calibration/onboarding modal is always top-most and unobstructed.
+  2. Guarded `NextActionGuidedModal` in `views.tsx`: it will never auto-open if the student is uncalibrated or currently in the `REGISTERED` / `ONBOARDING_IN_PROGRESS` stage.
+  3. In `App.tsx`, `go(v)` now automatically clears `showCalibration`, and `{showCalibration && view !== 'assess'}` guarantees zero overlay during active assessments.
+  4. In `CapabilityOnboarding.tsx`, `activeTurn` is initialized synchronously with `ONBOARDING_TOPIC_CONFIGS[0]` on mount, eliminating initial DOM lag before `/api/workflow` resolves.
+  5. Added Target Career Role selection to Quick Form mode (Frontend, Backend, Software Engineer), directly setting claimed skills and domain focus.
+
+### B. End-to-End Automated Test Verification Results
+All three full-stack browser-driven Playwright test suites were executed against the running application and passed 100%:
+
+1. **`node apps/web/scripts/e2e-workflow.mjs` — PASS (100%):**
+   - Registered isolated student account.
+   - Verified student dashboard.
+   - Completed 4-question adaptive diagnostic assessment (Level 1 foundational problem solving adaptively tuned).
+   - Verified diagnostic results breakdown and interactively confirmed skill baseline.
+   - Navigated to and verified living personalized roadmap with milestone graph.
+   - Executed Today learning action ("Open project workspace").
+   - Verified Mock Interview view.
+   - Verified Skill Passport and generated public unauthenticated share link (`/passport/[token]`).
+   - Verified public passport card rendered cleanly with zero console errors in an isolated browser context.
+   - Verified Career Companion AI agent conversation with context retention.
+   - Verified Practical Project workspace and in-browser automated test assertion suite execution.
+   - Verified 5 responsive viewports (`320px`, `375px`, `768px`, `1024px`, `1440px`) with zero horizontal overflow (`overflow: false`).
+
+2. **`node apps/web/scripts/verify-journeys-e2e.mjs` — PASS (100%):**
+   - **Journey 1 (Complete Beginner):**
+     - Completed 7-turn conversational onboarding dialogue.
+     - Verified baseline summary card (`BACKGROUND CALIBRATION CONFIRMED`).
+     - Verified beginner assigned foundational question (`Skill="Problem solving", Level="Level 1"`, never JavaScript or SQL).
+     - Verified Today dashboard 8-item hierarchy, Stage 02 stepper, and Context Triad card.
+     - Verified AI natural language preference tuning ("I have 20 minutes daily").
+     - Verified mobile `320px` layout without overflow.
+   - **Journey 2 (Advanced Practical JS Developer):**
+     - Completed direct calibration with Built Projects experience and Frontend Engineer target.
+     - Verified advanced assigned question (`Skill="JavaScript", Level="Level 2"`).
+     - Verified AI Companion prerequisite conflict explanation ("REST APIs require prerequisite foundational JavaScript and Problem Solving first...").
+     - Verified personalized roadmap milestones reflecting the advanced frontend path.
+   - Cleaned up isolated test accounts from database.
+
+3. **`node apps/web/scripts/verify-onboarding-keys.mjs` — PASS (100%):**
+   - Verified React key integrity across rapid double-clicks (ZERO duplicate key warnings).
+   - Verified mid-session dialogue restoration after browser reload (resumed seamlessly at Turn 3).
+   - Verified restart dialogue functionality resetting safely to Turn 1.
+
 

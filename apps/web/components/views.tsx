@@ -55,7 +55,8 @@ export function Today({
           setDynamicNextAction(d.nextAction);
           try {
             const dismissed = sessionStorage.getItem('skillpilot_guided_step_v4');
-            if (!dismissed) {
+            const isCalibrating = !capabilityProfile?.onboardingCompleted && (!workflow || workflow.stage === 'REGISTERED' || workflow.stage === 'ONBOARDING_IN_PROGRESS');
+            if (!dismissed && !isCalibrating) {
               setShowGuidedModal(true);
             }
           } catch {}
@@ -65,7 +66,7 @@ export function Today({
     return () => {
       cancelled = true;
     };
-  }, [state.evidence.length, state.activity.length]);
+  }, [state.evidence.length, state.activity.length, capabilityProfile?.onboardingCompleted, workflow?.stage]);
 
   const handlePerformGuidedAction = (action: any) => {
     setShowGuidedModal(false);

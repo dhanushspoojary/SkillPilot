@@ -86,13 +86,13 @@ try {
 
   // Step 3.5: Handle Capability Discovery Onboarding if present
   try {
-    const modal = page.locator('.onboarding-modal');
-    if (await modal.isVisible({ timeout: 4000 }).catch(() => false)) {
+    const modal = page.locator('.onboarding-overlay, .onboarding-modal');
+    if (await modal.isVisible({ timeout: 5000 }).catch(() => false)) {
       console.log('   Handling Capability Discovery Onboarding modal...');
       const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now")').first();
       if (await closeBtn.isVisible().catch(() => false)) {
         await closeBtn.click();
-        await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 5000 }).catch(() => {});
+        await page.waitForSelector('.onboarding-overlay, .onboarding-modal', { state: 'detached', timeout: 5000 }).catch(() => {});
         console.log('   Onboarding modal dismissed for e2e navigation.');
       }
     }
@@ -201,14 +201,19 @@ try {
   await page.click('button.nav-item:has-text("Today")');
   await page.waitForSelector('.priority-card, .welcome, #main-content', { timeout: 15000 });
 
-  // Dismiss onboarding modal if present
+  // Dismiss onboarding modal or guided suggestion modal if present
   try {
-    const modal = page.locator('.onboarding-modal');
+    const guidedModalClose = page.locator('button[aria-label="Close guided suggestion"]');
+    if (await guidedModalClose.isVisible({ timeout: 2500 }).catch(() => false)) {
+      await guidedModalClose.click();
+      await page.waitForSelector('.guided-modal-overlay', { state: 'detached', timeout: 3000 }).catch(() => {});
+    }
+    const modal = page.locator('.onboarding-overlay, .onboarding-modal');
     if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
       const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now")').first();
       if (await closeBtn.isVisible().catch(() => false)) {
         await closeBtn.click();
-        await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 3000 }).catch(() => {});
+        await page.waitForSelector('.onboarding-overlay, .onboarding-modal', { state: 'detached', timeout: 3000 }).catch(() => {});
       }
     }
   } catch {}

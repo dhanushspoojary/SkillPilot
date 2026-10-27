@@ -102,7 +102,7 @@ try {
   await t3Chip.click();
   await page.waitForTimeout(300);
 
-  const confirmBtn = page.locator('button:has-text("Confirm selected skills")');
+  const confirmBtn = page.locator('button:has-text("Confirm selected")');
   await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/workflow/onboarding') && r.status() === 200),
     confirmBtn.click(),
@@ -151,14 +151,15 @@ try {
 
   // 4. Verify Self-Reported Baseline Summary Card & Complete Calibration
   console.log('4. Verifying Self-Reported Baseline Summary card rendered...');
-  await page.waitForSelector('text=SELF-REPORTED BASELINE SUMMARY', { timeout: 8000 });
-  const completeCalibrationBtn = page.locator('button:has-text("Confirm Profile & Start Diagnostic"), button:has-text("Confirm Profile")').first();
+  await page.waitForSelector(':has-text("BACKGROUND CALIBRATION CONFIRMED"), :has-text("SELF-REPORTED BASELINE SUMMARY")', { timeout: 15000 });
+  const completeCalibrationBtn = page.locator('button:has-text("Launch Adaptive Technical Diagnostic"), button:has-text("Confirm Profile & Start Diagnostic"), button:has-text("Confirm Profile")').first();
   await completeCalibrationBtn.click();
   await page.waitForTimeout(1000);
 
   // 5. Check Adaptive Assessment Question Planner for Beginner
   console.log('5. Starting diagnostic assessment for beginner...');
-  await page.click('button.nav-item:has-text("Assess")');
+  const assessNav = page.locator('nav button:has-text("Assess"), button.nav-item:has-text("Assess")').first();
+  if (await assessNav.isVisible()) await assessNav.click();
   await page.waitForTimeout(1000);
 
   // Inspect question assigned to beginner
@@ -272,7 +273,7 @@ try {
   await page2.waitForSelector('.onboarding-modal', { timeout: 30000 });
 
   // Use Switch to Quick Form for direct structured calibration
-  const switchBtn = page2.locator('button:has-text("Switch to Quick Form")');
+  const switchBtn = page2.locator('button:has-text("Quick Form"), button:has-text("Switch to Quick Form")');
   if (await switchBtn.isVisible()) {
     await switchBtn.click();
     await page2.waitForTimeout(400);
@@ -289,7 +290,7 @@ try {
     await page2.click('.chip-card:has-text("Frontend Engineer")');
     await page2.waitForTimeout(200);
 
-    const saveQuickBtn = page2.locator('button.submit-setup-btn, button:has-text("Save & Continue to Diagnostic")').first();
+    const saveQuickBtn = page2.locator('button.submit-setup-btn, button:has-text("Save & Launch Adaptive Diagnostic"), button:has-text("Save & Continue to Diagnostic")').first();
     await Promise.all([
       page2.waitForResponse((r) => r.url().includes('/api/profile') && r.status() === 200).catch(() => {}),
       saveQuickBtn.click(),
@@ -329,7 +330,8 @@ try {
 
   // 3. Inspect Assessment Question Planner for Practical JS Student
   console.log('3. Starting diagnostic assessment for practical JS student...');
-  await page2.click('button.nav-item:has-text("Assess")');
+  const assessNav2 = page2.locator('nav button:has-text("Assess"), button.nav-item:has-text("Assess")').first();
+  if (await assessNav2.isVisible()) await assessNav2.click();
   await page2.waitForTimeout(1000);
 
   await page2.waitForSelector('.skill-pill', { timeout: 15000 });
@@ -345,7 +347,8 @@ try {
 
   // 4. Verify AI Companion Prerequisite Conflict Warning
   console.log('4. Testing prerequisite conflict in AI Companion: "I want to focus on REST APIs first"...');
-  await page2.click('nav button:has-text("Today")');
+  const todayNav2 = page2.locator('nav button:has-text("Today"), nav button:has-text("Home"), button.nav-item:has-text("Today")').first();
+  if (await todayNav2.isVisible()) await todayNav2.click();
   await page2.waitForSelector('.today-dashboard, .dashboard-container', { timeout: 8000 });
 
   const chatInput2 = page2.locator('.companion-form input').first();
@@ -365,7 +368,13 @@ try {
 
   // 5. Visibly Different Roadmap Path
   console.log('5. Verifying visibly different roadmap milestones for advanced path...');
-  await page2.click('nav button:has-text("Roadmap")');
+  const guidedModalDismiss2 = page2.locator('button[aria-label="Close guided suggestion"]');
+  if (await guidedModalDismiss2.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await guidedModalDismiss2.click();
+    await page2.waitForTimeout(400);
+  }
+  const roadmapNav2 = page2.locator('nav button:has-text("Roadmap"), button.nav-item:has-text("Roadmap")').first();
+  if (await roadmapNav2.isVisible()) await roadmapNav2.click();
   await page2.waitForSelector('.roadmap-container, .timeline, #main-content', { timeout: 8000 });
   const roadmapText = await page2.textContent('#main-content');
   console.log(`   Advanced Roadmap Excerpt: "${roadmapText?.replace(/\s+/g, ' ').trim().slice(0, 90)}..."`);

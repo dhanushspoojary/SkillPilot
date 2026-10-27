@@ -139,7 +139,7 @@ try {
   console.log(`   Restored turns in stream: ${restoredAnsweredTurns}`);
 
   // Check active question text (should be Turn 3: struggles)
-  const activeTurnHeader = await page.locator('.onboarding-modal b:has-text("Step")').textContent();
+  const activeTurnHeader = await page.locator('.onboarding-modal span:has-text("Question"), .onboarding-modal b').first().textContent();
   console.log(`   Current active step indicator: "${activeTurnHeader?.trim()}"`);
 
   // Step 6: Test Rapid Repeated Submissions (Clicking chip multiple times in rapid succession)
@@ -193,7 +193,7 @@ try {
 
   // Step 8: Verify baseline summary card appears
   console.log('8. Verifying Self-Reported Baseline Summary Card...');
-  await page.waitForSelector('text=SELF-REPORTED BASELINE SUMMARY', { timeout: 8000 });
+  await page.waitForSelector(':has-text("BACKGROUND CALIBRATION CONFIRMED"), :has-text("SELF-REPORTED BASELINE SUMMARY")', { timeout: 8000 });
   console.log('   Summary card rendered successfully.');
 
   // Step 9: Test Dialogue Restart
@@ -213,7 +213,7 @@ try {
   await page.waitForTimeout(800);
 
   // Verify Turn 2 is now active
-  const postRestartStep = await page.locator('.onboarding-modal b:has-text("Step")').textContent();
+  const postRestartStep = await page.locator('.onboarding-modal span:has-text("Question"), .onboarding-modal b').first().textContent();
   console.log(`    Post-restart active step indicator: "${postRestartStep?.trim()}"`);
 
   // Step 11: Assert React key warnings

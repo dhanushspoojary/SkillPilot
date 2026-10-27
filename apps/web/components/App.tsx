@@ -221,19 +221,24 @@ export function App({ user, onLogout }: {
                 const x = await r.json();
                 if (x.careerGoal)
                     setCareerGoal(x.careerGoal);
-                if (x.capabilityProfile) {
+                if (!cancelled && view !== 'assess') {
+                    if (x.capabilityProfile) {
+                        setCapabilityProfile(x.capabilityProfile);
+                        if (x.capabilityProfile.onboardingCompleted !== true) {
+                            setShowCalibration(true);
+                        }
+                    } else {
+                        setShowCalibration(true);
+                    }
+                    if (x.workflow) {
+                        setWorkflow(x.workflow);
+                        if (x.workflow.stage === 'REGISTERED' || x.workflow.stage === 'ONBOARDING_IN_PROGRESS') {
+                            setShowCalibration(true);
+                        }
+                    }
+                } else if (x.capabilityProfile) {
                     setCapabilityProfile(x.capabilityProfile);
-                    if (x.capabilityProfile.onboardingCompleted !== true) {
-                        setShowCalibration(true);
-                    }
-                } else {
-                    setShowCalibration(true);
-                }
-                if (x.workflow) {
-                    setWorkflow(x.workflow);
-                    if (x.workflow.stage === 'REGISTERED' || x.workflow.stage === 'ONBOARDING_IN_PROGRESS') {
-                        setShowCalibration(true);
-                    }
+                    if (x.workflow) setWorkflow(x.workflow);
                 }
                 const remote = x.evidence ? { ...defaultState(), name: x.user?.name ?? user.name, evidence: x.evidence, activity: x.activity ?? [], mentorNoteResolved: (x.activity ?? []).some((a: any) => a.id === 'MENTOR:feedback'), requests: x.requests ?? [], agentRuns: x.agentRuns ?? [], planNote: 'Server evidence loaded. The browser is not authoritative.' } : defaultState();
                 if (!cancelled) {
@@ -268,6 +273,7 @@ export function App({ user, onLogout }: {
             setShowCalibration(true);
             return;
         }
+        setShowCalibration(false);
         setView(v);
         setFocus(f);
         setMenu(false);
@@ -722,7 +728,7 @@ export function App({ user, onLogout }: {
         <span>More</span>
       </button>
     </nav>
-    {showCalibration && (
+    {showCalibration && view !== 'assess' && (
       <CapabilityOnboarding
         initialProfile={capabilityProfile ?? undefined}
         onSave={saveCalibration}

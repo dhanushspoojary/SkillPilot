@@ -94,7 +94,18 @@ export function CapabilityOnboarding({
   const [busy, setBusy] = useState(false);
   const [customText, setCustomText] = useState('');
   const [turns, setTurns] = useState<OnboardingTurn[]>([]);
-  const [activeTurn, setActiveTurn] = useState<OnboardingTurn | null>(null);
+  const [activeTurn, setActiveTurn] = useState<OnboardingTurn | null>(() => {
+    const first = ONBOARDING_TOPIC_CONFIGS[0];
+    return {
+      id: generateTurnId(first.topic),
+      topic: first.topic,
+      question: first.defaultQuestion,
+      explanation: first.explanation,
+      options: first.options,
+      multiSelect: first.multiSelect,
+      allowSkip: true,
+    };
+  });
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [error, setError] = useState('');
 
@@ -417,7 +428,11 @@ export function CapabilityOnboarding({
       });
 
       // Transition to adaptive technical assessment
-      await startAdaptiveAssessment(chosenGoal);
+      if (onStartDiagnostic) {
+        onStartDiagnostic();
+      } else {
+        await startAdaptiveAssessment(chosenGoal);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not finalize calibration');
       setBusy(false);
@@ -873,6 +888,38 @@ export function CapabilityOnboarding({
                         type="button"
                         className={`chip-card ${progExp === opt.id ? 'active' : ''}`}
                         onClick={() => setProgExp(opt.id)}
+                      >
+                        <b>{opt.label}</b>
+                        <small>{opt.note}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="onboarding-group">
+                  <label className="group-label">
+                    <Compass size={16} /> Target Career Role
+                  </label>
+                  <div className="chip-grid">
+                    {[
+                      { id: 'Frontend Engineer', label: 'Frontend Engineer', note: 'UI, React, JavaScript' },
+                      { id: 'Backend Engineer', label: 'Backend Engineer', note: 'APIs, SQL, Databases' },
+                      { id: 'Software Engineer', label: 'Software Engineer', note: 'Full-stack & Systems' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`chip-card ${careerInterest === opt.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setCareerInterest(opt.id);
+                          if (opt.id === 'Frontend Engineer') {
+                            setSkillsToLearn(['JavaScript', 'React', 'Frontend Engineering']);
+                            setSkillsKnown((prev) => Array.from(new Set([...prev, 'JavaScript'])));
+                          } else if (opt.id === 'Backend Engineer') {
+                            setSkillsToLearn(['SQL', 'REST APIs', 'Backend Engineering']);
+                            setSkillsKnown((prev) => Array.from(new Set([...prev, 'SQL'])));
+                          }
+                        }}
                       >
                         <b>{opt.label}</b>
                         <small>{opt.note}</small>
