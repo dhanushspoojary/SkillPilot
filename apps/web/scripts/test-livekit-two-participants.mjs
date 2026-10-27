@@ -87,6 +87,8 @@ async function main() {
 
     const pageStudent = await contextStudent.newPage();
     const pageMentor = await contextMentor.newPage();
+    pageStudent.on('console', msg => console.log('PAGE [STUDENT]:', msg.text()));
+    pageMentor.on('console', msg => console.log('PAGE [MENTOR]:', msg.text()));
 
     // 3. Authenticate both sessions via API
     console.log('\n[STEP 3] Authenticating student and mentor sessions...');
@@ -211,7 +213,8 @@ async function main() {
               publishedTracks: room.localParticipant.trackPublications.size,
             });
           } catch (err) {
-            reject({ message: err.message, stack: err.stack });
+            console.error('Participant connect caught error:', err);
+            reject(new Error(err && err.message ? err.message : String(err)));
           }
         });
       }, { role, token, wsUrl });
