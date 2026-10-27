@@ -130,6 +130,26 @@ export function CapabilityOnboarding({
   const assessmentScrollRef = useRef<HTMLDivElement>(null);
   const [selectedChips, setSelectedChips] = useState<string[]>([]);
 
+  // Lock background body scrolling while onboarding overlay is open
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && canDismiss && onClose) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [canDismiss, onClose]);
+
   // Initialize dynamic onboarding from server
   useEffect(() => {
     let cancelled = false;

@@ -185,6 +185,71 @@ export function LearnWorkspace({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showTutorModal]);
 
+  // Keyboard navigation for walkthrough steps and practice choices
+  useEffect(() => {
+    if (showTutorModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          (activeEl as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      if (activeTab === "walkthrough" && lessonData?.walkthroughSteps) {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          setCurrentStepIndex((p) => Math.max(0, p - 1));
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          if (currentStepIndex < lessonData.walkthroughSteps.length - 1) {
+            setCurrentStepIndex((p) => p + 1);
+          } else {
+            setActiveTab("practice");
+          }
+        }
+      } else if (activeTab === "practice") {
+        const key = e.key.toUpperCase();
+        const choiceMap: Record<string, number> = {
+          "1": 0,
+          A: 0,
+          "2": 1,
+          B: 1,
+          "3": 2,
+          C: 2,
+          "4": 3,
+          D: 3,
+        };
+        const currentExercise =
+          dynamicQuestion ||
+          (lessonData ? lessonData.exercises[currentExerciseIndex] : null);
+        if (!attemptResult && key in choiceMap) {
+          const idx = choiceMap[key];
+          const numChoices = currentExercise?.choices?.length || 0;
+          if (idx < numChoices) {
+            e.preventDefault();
+            setSelectedChoice(idx);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    showTutorModal,
+    activeTab,
+    lessonData,
+    currentStepIndex,
+    currentExerciseIndex,
+    dynamicQuestion,
+    attemptResult,
+  ]);
+
   // Load lesson catalog
   const loadLessons = useCallback(async () => {
     try {

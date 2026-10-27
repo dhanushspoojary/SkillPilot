@@ -257,24 +257,31 @@ export async function evaluateProjectSubmission(
     [submissionCode, JSON.stringify(results), newStatus, userId, slug],
   );
 
-  // If verified, record authoritative evidence for each required skill!
+  // If verified, record authoritative evidence for each required skill idempotently!
   if (allPassed) {
     for (const skillId of catalogItem.requiredSkills) {
       const skillRow = await one<{ id: string }>(`select id from skills where slug = $1`, [skillId]);
       if (skillRow) {
-        await db().query(
-          `insert into user_skill_evidence(user_id, skill_id, source, score, confidence, metadata)
-           values($1, $2, 'project', 88, 0.85, $3)`,
-          [
-            userId,
-            skillRow.id,
-            JSON.stringify({
-              label: `Practical Project: ${catalogItem.title}`,
-              projectSlug: slug,
-              verifiedAt,
-            }),
-          ],
-        ).catch(() => {});
+        const existingEvidence = await db().query(
+          `select id from user_skill_evidence
+           where user_id = $1 and skill_id = $2 and metadata->>'projectSlug' = $3`,
+          [userId, skillRow.id, slug],
+        );
+        if ((existingEvidence.rowCount ?? 0) === 0) {
+          await db().query(
+            `insert into user_skill_evidence(user_id, skill_id, source, score, confidence, metadata)
+             values($1, $2, 'project', 88, 0.85, $3)`,
+            [
+              userId,
+              skillRow.id,
+              JSON.stringify({
+                label: `Practical Project: ${catalogItem.title}`,
+                projectSlug: slug,
+                verifiedAt,
+              }),
+            ],
+          ).catch(() => {});
+        }
       }
     }
   }

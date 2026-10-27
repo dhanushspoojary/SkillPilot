@@ -291,13 +291,13 @@ export function App({ user, onLogout }: {
     const onAction = (a: PlanAction) => {
         if (a.route === 'assess')
             return go('assess', a.skill);
-        setState((s) => toggleActivity(s, a, new Date().toISOString()));
+        setState((s) => toggleActivity(s, a, new Date().toISOString(), careerGoal, capabilityProfile));
         persistActivity(a.id, true);
         setToast(a.kind === 'BUILD' ? 'Marked done. Retest to turn the work into evidence.' : 'Marked done.');
     };
     const onUndo = (id: string) => setState((s) => {
         const item = s.activity.find((a) => a.id === id);
-        return item ? toggleActivity(s, item, new Date().toISOString()) : s;
+        return item ? toggleActivity(s, item, new Date().toISOString(), careerGoal, capabilityProfile) : s;
     });
     const onUndoSaved = (id: string) => { onUndo(id); persistActivity(id, false); };
     const refreshProfile = async () => {
@@ -382,7 +382,7 @@ export function App({ user, onLogout }: {
             a.href = url;
             a.download = `skillpilot-account-${new Date().toISOString().slice(0, 10)}.json`;
             a.click();
-            URL.revokeObjectURL(url);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
             setToast('Latest server account data exported.');
         }
         catch {

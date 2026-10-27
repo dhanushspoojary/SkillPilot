@@ -95,15 +95,16 @@ export async function PATCH(req: Request) {
     const b = await readJsonBody<any>(req, 20000);
 
     let updatedUser = u;
-    if (b.name) {
+    if (b.name !== undefined) {
       const name = safeText(b.name, 80);
-      if (name && name.length >= 2) {
-        const r = await db().query(
-          `update users set name = $1, updated_at = now() where id = $2 returning id, email, name, role, status`,
-          [name, u.id]
-        );
-        updatedUser = r.rows[0];
+      if (!name || name.length < 2) {
+        return json({ error: 'Name must be between 2 and 80 characters' }, 400);
       }
+      const r = await db().query(
+        `update users set name = $1, updated_at = now() where id = $2 returning id, email, name, role, status`,
+        [name, u.id]
+      );
+      updatedUser = r.rows[0];
     }
 
     if (b.capabilityProfile && typeof b.capabilityProfile === 'object') {

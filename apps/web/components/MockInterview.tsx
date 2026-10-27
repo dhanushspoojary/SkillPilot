@@ -87,7 +87,15 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      try { rec.current?.stop(); } catch {}
+      try {
+        if (rec.current) {
+          rec.current.onresult = null;
+          rec.current.onerror = null;
+          rec.current.onend = null;
+          rec.current.stop();
+          rec.current = null;
+        }
+      } catch {}
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -301,7 +309,13 @@ export function MockInterview({ onDone }: { onDone: () => void }) {
 
   function stopListen() {
     try {
-      rec.current?.stop();
+      if (rec.current) {
+        rec.current.onresult = null;
+        rec.current.onerror = null;
+        rec.current.onend = null;
+        rec.current.stop();
+        rec.current = null;
+      }
     } catch {}
     setListening(false);
   }

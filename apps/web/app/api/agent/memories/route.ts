@@ -21,6 +21,15 @@ export async function GET() {
   return json({ memories });
 }
 
+const VALID_CATEGORIES: ReadonlySet<string> = new Set([
+  'preference',
+  'strength',
+  'goal',
+  'struggle',
+  'background',
+  'project_interest',
+]);
+
 export async function POST(req: Request) {
   if (!requireOrigin(req)) {
     return json({ error: 'Origin not allowed' }, 403);
@@ -33,11 +42,24 @@ export async function POST(req: Request) {
 
   try {
     const body = await readJsonBody<any>(req, 10000);
-    const category = (body?.category || 'preference') as MemoryCategory;
+    const rawCategory = body?.category || 'preference';
+    if (!VALID_CATEGORIES.has(rawCategory)) {
+      return json(
+        {
+          error:
+            'Invalid category. Allowed: preference, strength, goal, struggle, background, project_interest',
+        },
+        400
+      );
+    }
+    const category = rawCategory as MemoryCategory;
     const fact = typeof body?.fact === 'string' ? body.fact.trim() : '';
 
     if (!fact) {
       return json({ error: 'fact is required' }, 400);
+    }
+    if (fact.length > 500) {
+      return json({ error: 'fact must not exceed 500 characters' }, 400);
     }
 
     const memory = await addStudentMemory(u.id, category, fact, 'student_input');
@@ -77,6 +99,9 @@ export async function DELETE(req: Request) {
     }
 
     const deleted = await deleteStudentMemory(u.id, memoryId);
+    if (!deleted) {
+      return json({ error: 'Memory not found or not owned by user' }, 404);
+    }
     const memories = await listStudentMemories(u.id);
 
     return json({ ok: true, deleted, memories });
