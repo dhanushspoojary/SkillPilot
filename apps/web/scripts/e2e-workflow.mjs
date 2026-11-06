@@ -203,17 +203,21 @@ try {
 
   // Dismiss onboarding modal or guided suggestion modal if present
   try {
-    const guidedModalClose = page.locator('button[aria-label="Close guided suggestion"]');
-    if (await guidedModalClose.isVisible({ timeout: 2500 }).catch(() => false)) {
-      await guidedModalClose.click();
-      await page.waitForSelector('.guided-modal-overlay', { state: 'detached', timeout: 3000 }).catch(() => {});
-    }
     const modal = page.locator('.onboarding-overlay, .onboarding-modal');
-    if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (await modal.isVisible().catch(() => false)) {
       const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now")').first();
       if (await closeBtn.isVisible().catch(() => false)) {
         await closeBtn.click();
         await page.waitForSelector('.onboarding-overlay, .onboarding-modal', { state: 'detached', timeout: 3000 }).catch(() => {});
+      }
+    }
+    // Wait for guided suggestion modal if it mounts asynchronously and dismiss so action cards are interactive
+    const guidedModal = await page.waitForSelector('.guided-modal-overlay', { timeout: 3500 }).catch(() => null);
+    if (guidedModal) {
+      const deferBtn = page.locator('.guided-defer-btn, button[aria-label="Close guided suggestion"]').first();
+      if (await deferBtn.isVisible().catch(() => false)) {
+        await deferBtn.click();
+        await page.waitForSelector('.guided-modal-overlay', { state: 'detached', timeout: 3000 }).catch(() => {});
       }
     }
   } catch {}
@@ -232,6 +236,16 @@ try {
     await firstAction.click();
     await page.waitForTimeout(1000);
     console.log('   Action recorded successfully.');
+
+    // If clicking action opened discovery calibration or another modal, wait and dismiss it cleanly
+    const postActionModal = await page.waitForSelector('.onboarding-overlay, .onboarding-modal', { timeout: 2500 }).catch(() => null);
+    if (postActionModal) {
+      const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now")').first();
+      if (await closeBtn.isVisible().catch(() => false)) {
+        await closeBtn.click();
+        await page.waitForSelector('.onboarding-overlay, .onboarding-modal', { state: 'detached', timeout: 5000 }).catch(() => {});
+      }
+    }
   }
 
   // Step 9: Verify Mock Interview Navigation

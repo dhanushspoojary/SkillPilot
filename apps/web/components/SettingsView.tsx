@@ -302,7 +302,7 @@ export function SettingsView({
   }, [deleteConfirmOpen, deleteBusy]);
 
   return (
-    <div className="wide settings-container">
+    <div className="wide settings-container settings-grid">
       <PageIntro
         kicker="SETTINGS & CONTROL CENTER"
         title="Account Preferences & Privacy"

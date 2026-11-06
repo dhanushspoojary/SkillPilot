@@ -12,6 +12,7 @@ import { Mentors, Passport, Roadmap, Skills, Today, SettingsView, type View } fr
 import { MockInterview } from './MockInterview';
 import { CapabilityOnboarding } from './CapabilityOnboarding';
 import { IncomingCallDialog, type ActiveCallData } from './IncomingCallDialog';
+import { CustomCursor } from './motion';
 import type { StudentCapabilityProfile } from '../lib/capability-profile';
 interface NavItem {
     id: View;
@@ -55,6 +56,14 @@ const NAV_GROUPS: NavGroup[] = [
             { id: 'mentors', num: '09', label: 'Mentors', icon: Users },
         ],
     },
+    {
+        groupTitle: 'INTELLIGENCE & SYSTEM',
+        items: [
+            { id: 'agent', num: '10', label: 'AI Agent', icon: BrainCircuit },
+            { id: 'passport', num: '11', label: 'Skill Passport', icon: Award },
+            { id: 'settings', num: '12', label: 'Settings', icon: Settings },
+        ],
+    },
 ];
 
 const PROFILE_NAV_ITEMS: NavItem[] = [
@@ -63,7 +72,7 @@ const PROFILE_NAV_ITEMS: NavItem[] = [
     { id: 'settings', num: '12', label: 'Account Settings', icon: Settings },
 ];
 
-const ALL_NAV_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), ...PROFILE_NAV_ITEMS];
+const ALL_NAV_ITEMS = Array.from(new Map([...NAV_GROUPS.flatMap((g) => g.items), ...PROFILE_NAV_ITEMS].map((item) => [item.id, item])).values());
 
 export function App({ user, onLogout }: {
     user: {
@@ -400,6 +409,7 @@ export function App({ user, onLogout }: {
         }
     };
     return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`}>
+    <CustomCursor />
     {menu && <div className="sidebar-backdrop" onClick={() => setMenu(false)} aria-hidden="true" />}
     <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${menu ? 'mobile-open' : ''}`}>
       <div className="brand">

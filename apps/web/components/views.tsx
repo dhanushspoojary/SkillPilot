@@ -280,6 +280,13 @@ export function Today({
           )}
         </div>
       </section>
+
+      <AnimatedMarquee />
+
+      <div style={{ margin: '8px 0 24px 0' }}>
+        <ConnectedSkillNetwork state={state} onSelectSkill={(id) => go?.('assess', id)} />
+      </div>
+
       {/* SECTION B: CAREER READINESS SUMMARY (4 NON-REDUNDANT ESSENTIAL METRICS) */}
       <section className="career-readiness-summary-strip" aria-label="Career Readiness Summary">
         <div className="summary-metric-card">

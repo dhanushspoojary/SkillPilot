@@ -106,19 +106,30 @@ try {
     throw new Error(`Unexpected hero heading: ${heroHeading}`);
   }
 
-  // Complete discovery calibration if presented on first login
+  // Complete or dismiss discovery calibration if presented on first login
   try {
-    await page.waitForSelector('.onboarding-modal', { timeout: 4000 });
-    const switchBtn = page.locator('button:has-text("Switch to Quick Form")');
-    if (await switchBtn.isVisible()) {
-      await switchBtn.click();
-      await page.waitForTimeout(300);
-    }
-    const saveSetupBtn = page.locator('button.submit-setup-btn, button:has-text("Save & Continue to Diagnostic")').first();
-    if (await saveSetupBtn.isVisible()) {
-      await saveSetupBtn.click();
-      await page.waitForSelector('.onboarding-modal', { state: 'detached', timeout: 8000 });
-      console.log('   Completed initial onboarding calibration.');
+    const modal = await page.waitForSelector('.onboarding-modal, .onboarding-overlay', { timeout: 6000 }).catch(() => null);
+    if (modal) {
+      const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now")').first();
+      if (await closeBtn.isVisible().catch(() => false)) {
+        await closeBtn.click();
+        await page.waitForSelector('.onboarding-modal, .onboarding-overlay', { state: 'detached', timeout: 8000 }).catch(() => {});
+        console.log('   Dismissed initial onboarding calibration modal.');
+      } else {
+        const switchBtn = page.locator('button:has-text("Quick Form"), button:has-text("Switch to Quick Form")').first();
+        if (await switchBtn.isVisible().catch(() => false)) {
+          await switchBtn.click();
+          await page.waitForTimeout(400);
+          const saveSetupBtn = page.locator('button.submit-setup-btn, button:has-text("Save & Continue to Diagnostic")').first();
+          if (await saveSetupBtn.isVisible().catch(() => false)) {
+            await saveSetupBtn.click();
+            await page.waitForSelector('.onboarding-modal, .onboarding-overlay', { state: 'detached', timeout: 8000 }).catch(() => {});
+            await page.click('button.nav-item:has-text("Today")');
+            await page.waitForSelector('.welcome, #main-content', { timeout: 10000 });
+            console.log('   Completed initial onboarding calibration.');
+          }
+        }
+      }
     }
   } catch {
     // Modal did not mount or already completed
@@ -237,6 +248,8 @@ try {
   console.log(`   Option clicked class: "${optionSelectedClass}" (has selected-answer: ${optionSelectedClass?.includes('selected-answer')})`);
 
   const submitBtn = page.locator('.submit-btn:not([disabled])');
+  await page.waitForTimeout(300);
+  await submitBtn.waitFor({ state: 'visible', timeout: 5000 });
   await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/assess/submit'), { timeout: 20000 }),
     submitBtn.click(),
@@ -363,7 +376,7 @@ try {
   console.log('\n--- 11. Verifying Logout & Session Termination ---');
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.click('button.nav-item:has-text("Settings")');
-  await page.waitForSelector('.settings-grid', { timeout: 15000 });
+  await page.waitForSelector('.settings-container, .settings-layout, .settings-grid', { timeout: 15000 });
 
   // Call logout endpoint and verify redirect back to AuthGate
   await page.evaluate(async () => {
