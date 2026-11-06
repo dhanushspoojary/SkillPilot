@@ -16,6 +16,10 @@ import {
   Sparkles,
   Code,
   FileText,
+  History,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react';
 import type { Evidence } from '../lib/types';
 import {
@@ -47,6 +51,12 @@ type ResultItem = {
   asked: number;
   correct: number;
   score: number;
+  comparison?: {
+    previousScore: number;
+    currentScore: number;
+    delta: number;
+    previousCapturedAt?: string;
+  } | null;
 };
 
 async function fetchWithRetry(
@@ -415,6 +425,28 @@ export function Assess({
     const strengths = results.filter((r) => r.score >= 70);
     const gaps = results.filter((r) => r.score < 70);
 
+    const resultsWithComparison = results
+      .map((r) => {
+        let comp = r.comparison;
+        if (!comp && typeof comp !== 'object') {
+          const prior = (evidence || [])
+            .filter((e) => e.skill === r.skill && e.kind === 'assessment' && e.score !== null && !e.id.startsWith('seed-'))
+            .sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+          if (prior.length > 0) {
+            const prevScore = Math.round(Number(prior[0].score));
+            const delta = r.score - prevScore;
+            comp = {
+              previousScore: prevScore,
+              currentScore: r.score,
+              delta,
+              previousCapturedAt: prior[0].at,
+            };
+          }
+        }
+        return comp && typeof comp.previousScore === 'number' ? { item: r, comp } : null;
+      })
+      .filter((x): x is { item: ResultItem; comp: NonNullable<ResultItem['comparison']> } => x !== null);
+
     const handleConfirmSkills = async () => {
       setWorkflowBusy(true);
       setWorkflowError('');
@@ -499,6 +531,106 @@ export function Assess({
             All questions were scored on the server. Your evidence has been
             authoritatively recorded in your profile.
           </p>
+
+          {resultsWithComparison.length > 0 && (
+            <div
+              className="reassessment-comparison-card"
+              style={{
+                width: '100%',
+                background: 'var(--surface-navy, #F5F3FA)',
+                border: '1px solid var(--cyan-border, #E7E3EB)',
+                borderRadius: 12,
+                padding: '16px 20px',
+                marginBottom: 20,
+                textAlign: 'left',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 12,
+                  flexWrap: 'wrap',
+                  gap: 6,
+                }}
+              >
+                <span
+                  className="kicker"
+                  style={{
+                    color: 'var(--primary-purple, #8874C7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    margin: 0,
+                  }}
+                >
+                  <History size={14} /> REASSESSMENT COMPARISON
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--secondary-text, #77727F)' }}>
+                  Compared to previous assessment evidence
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {resultsWithComparison.map(({ item, comp }) => {
+                  const isPositive = comp.delta > 0;
+                  const isNegative = comp.delta < 0;
+                  const deltaFormatted = isPositive ? `+${comp.delta}%` : isNegative ? `${comp.delta}%` : `0%`;
+                  const deltaColor = isPositive ? '#065F46' : isNegative ? '#991B1B' : '#4A4553';
+                  const deltaBg = isPositive ? '#ECFDF5' : isNegative ? '#FEF2F2' : '#F3F4F6';
+                  const deltaBorder = isPositive ? '#A7F3D0' : isNegative ? '#FECACA' : '#E5E7EB';
+
+                  return (
+                    <div
+                      key={item.skill}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#FFFFFF',
+                        border: '1px solid var(--cyan-border, #E7E3EB)',
+                        borderRadius: 8,
+                        padding: '12px 16px',
+                        flexWrap: 'wrap',
+                        gap: 10,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary, #17151B)' }}>
+                          {SKILL_NAMES[item.skill] || item.skill}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--secondary-text, #77727F)', marginTop: 2 }}>
+                          Previous Score: <b style={{ color: 'var(--text-primary, #17151B)' }}>{comp.previousScore}%</b>
+                          <span style={{ margin: '0 8px', color: '#D1D5DB' }}>•</span>
+                          Current Score: <b style={{ color: 'var(--text-primary, #17151B)' }}>{comp.currentScore}%</b>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: deltaColor,
+                            background: deltaBg,
+                            border: `1px solid ${deltaBorder}`,
+                            borderRadius: 6,
+                            padding: '4px 10px',
+                          }}
+                        >
+                          {isPositive ? <TrendingUp size={14} /> : isNegative ? <TrendingDown size={14} /> : <Minus size={14} />}
+                          {deltaFormatted} {isPositive ? 'Improvement' : isNegative ? 'Score Shift' : 'Consistent'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="results-breakdown">
             <div className="results-col">

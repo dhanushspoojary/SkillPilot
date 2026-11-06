@@ -38,7 +38,7 @@ export async function POST(req: Request) {
                     list.push(r);
                     bySkill.set(r.skill_slug, list);
                 }
-                const results = [...bySkill.entries()].map(([sSlug, items]) => {
+                const results = await Promise.all([...bySkill.entries()].map(async ([sSlug, items]) => {
                     const skillItems = items.map((it: any) => {
                         const promptObj = typeof it.prompt === 'string' ? JSON.parse(it.prompt) : it.prompt;
                         const questionObj = QUESTIONS.find((x) => x.id === promptObj?.id) || {
@@ -54,6 +54,18 @@ export async function POST(req: Request) {
                         return { question: questionObj, response: respObj || {} };
                     });
                     const summary = computeSkillAdaptiveSummary({ skill: sSlug, items: skillItems });
+                    let comparison = null;
+                    const skill = (await c.query<any>('select id from skills where slug=$1', [sSlug])).rows[0];
+                    if (skill) {
+                        const ev = await c.query<any>(
+                            `select metadata from user_skill_evidence
+                             where user_id=$1 and skill_id=$2 and source='assessment' and metadata->>'assessmentId'=$3 limit 1`,
+                            [u.id, skill.id, aid]
+                        );
+                        if (ev.rowCount && ev.rows[0].metadata?.comparison) {
+                            comparison = ev.rows[0].metadata.comparison;
+                        }
+                    }
                     return {
                         skill: sSlug,
                         asked: items.length,
@@ -63,8 +75,9 @@ export async function POST(req: Request) {
                         conceptsNeedingEvidence: summary.conceptsNeedingEvidence,
                         misconceptions: summary.misconceptions,
                         nextAction: summary.nextAction,
+                        comparison,
                     };
-                });
+                }));
                 return { recorded: true, done: true, results, overall: a.rows[0].server_score ?? 100, workflowStage: 'SKILL_BASELINE_REVIEW' };
             }
             if (Date.now() - new Date(a.rows[0].started_at).getTime() > 30 * 60000) {
@@ -100,7 +113,7 @@ export async function POST(req: Request) {
                         list.push(r);
                         bySkill.set(r.skill_slug, list);
                     }
-                    const results = [...bySkill.entries()].map(([sSlug, items]) => {
+                    const results = await Promise.all([...bySkill.entries()].map(async ([sSlug, items]) => {
                         const skillItems = items.map((it: any) => {
                             const promptObj = typeof it.prompt === 'string' ? JSON.parse(it.prompt) : it.prompt;
                             const questionObj = QUESTIONS.find((x) => x.id === promptObj?.id) || {
@@ -116,6 +129,18 @@ export async function POST(req: Request) {
                             return { question: questionObj, response: respObj || {} };
                         });
                         const summary = computeSkillAdaptiveSummary({ skill: sSlug, items: skillItems });
+                        let comparison = null;
+                        const skill = (await c.query<any>('select id from skills where slug=$1', [sSlug])).rows[0];
+                        if (skill) {
+                            const ev = await c.query<any>(
+                                `select metadata from user_skill_evidence
+                                 where user_id=$1 and skill_id=$2 and source='assessment' and metadata->>'assessmentId'=$3 limit 1`,
+                                [u.id, skill.id, aid]
+                            );
+                            if (ev.rowCount && ev.rows[0].metadata?.comparison) {
+                                comparison = ev.rows[0].metadata.comparison;
+                            }
+                        }
                         return {
                             skill: sSlug,
                             asked: items.length,
@@ -125,8 +150,9 @@ export async function POST(req: Request) {
                             conceptsNeedingEvidence: summary.conceptsNeedingEvidence,
                             misconceptions: summary.misconceptions,
                             nextAction: summary.nextAction,
+                            comparison,
                         };
-                    });
+                    }));
                     return { recorded: true, done: true, results, overall: comp.rows[0].server_score ?? 100, workflowStage: 'SKILL_BASELINE_REVIEW' };
                 }
             }
@@ -325,9 +351,29 @@ export async function POST(req: Request) {
             });
 
             const overall = Math.round(results.reduce((s: number, r: any) => s + r.score, 0) / Math.max(1, results.length));
+            const resultsWithComparison = [];
             for (const r of results) {
                 const skill = (await c.query<any>('select id from skills where slug=$1', [r.skill])).rows[0];
+                let comparison = null;
                 if (skill) {
+                    // Query the most recent prior valid assessment evidence for this specific skill
+                    const prevRow = await c.query<any>(
+                        `select score, captured_at, metadata from user_skill_evidence
+                         where user_id=$1 and skill_id=$2 and source='assessment'
+                         order by captured_at desc limit 1`,
+                        [u.id, skill.id]
+                    );
+                    if (prevRow.rowCount && prevRow.rows[0].score !== null) {
+                        const previousScore = Math.round(Number(prevRow.rows[0].score));
+                        const delta = r.score - previousScore;
+                        comparison = {
+                            previousScore,
+                            currentScore: r.score,
+                            delta,
+                            previousCapturedAt: prevRow.rows[0].captured_at,
+                        };
+                    }
+
                     await c.query(
                         `insert into user_skill_evidence(user_id,skill_id,source,score,confidence,metadata) values($1,$2,'assessment',$3,$4,$5)`,
                         [
@@ -343,10 +389,15 @@ export async function POST(req: Request) {
                                 misconceptions: r.misconceptions,
                                 nextAction: r.nextAction,
                                 timestamp: new Date().toISOString(),
+                                comparison: comparison || undefined,
                             }),
                         ]
                     );
                 }
+                resultsWithComparison.push({
+                    ...r,
+                    comparison,
+                });
             }
             await c.query(`update assessments set status='completed',completed_at=now(),server_score=$1 where id=$2`, [overall, aid]);
             await c.query(
@@ -358,7 +409,7 @@ export async function POST(req: Request) {
             return {
                 recorded: true,
                 done: true,
-                results,
+                results: resultsWithComparison,
                 overall,
                 workflowStage: 'SKILL_BASELINE_REVIEW',
                 stoppingDecision: {
