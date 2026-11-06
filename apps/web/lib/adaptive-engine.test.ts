@@ -108,3 +108,51 @@ test('computeSkillAdaptiveSummary: aggregates proficiency, misconceptions, and c
   assert.ok(summary.confidence >= 0.5);
   assert.ok(summary.misconceptions.includes('Confused 0-based indexing with 1-based indexing'));
 });
+
+test('mastery calculation: three easy questions cannot produce 100% mastery', () => {
+  const easyQuestions = [
+    {
+      id: 'easy-1',
+      skill: 'problem-solving',
+      level: 1,
+      q: 'Easy question 1',
+      options: ['A', 'B'],
+      answer: 0,
+      why: '',
+    },
+    {
+      id: 'easy-2',
+      skill: 'problem-solving',
+      level: 1,
+      q: 'Easy question 2',
+      options: ['A', 'B'],
+      answer: 0,
+      why: '',
+    },
+    {
+      id: 'easy-3',
+      skill: 'problem-solving',
+      level: 1,
+      q: 'Easy question 3',
+      options: ['A', 'B'],
+      answer: 0,
+      why: '',
+    },
+  ];
+
+  const summary = computeSkillAdaptiveSummary({
+    skill: 'problem-solving',
+    items: easyQuestions.map((q) => ({
+      question: q,
+      response: { choice: 0 }, // all 3 answered correctly
+    })),
+  });
+
+  // Specifically verifies requirement: three easy questions cannot produce 100% mastery
+  assert.ok(summary.proficiency < 100, `Three easy questions must NOT yield 100% mastery (got ${summary.proficiency}%)`);
+  assert.ok(
+    summary.proficiency >= 60 && summary.proficiency <= 75,
+    `Three easy questions should award foundational proficiency between 60-75% (got ${summary.proficiency}%)`
+  );
+  assert.equal(summary.decisiveEvidenceReached, false, 'Level 1 questions alone cannot reach decisive advanced mastery');
+});

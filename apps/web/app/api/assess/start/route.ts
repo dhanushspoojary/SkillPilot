@@ -9,7 +9,6 @@ import { planAssessmentSession } from '../../../../lib/assessment-planner';
 import { canonicalizeQuestion } from '../../../../lib/question-contract';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-const COOLDOWN_MS = 30 * 60000;
 const MAX_ACTIVE_MS = 30 * 60000;
 function shuffle<T>(items: T[]): T[] {
     const a = [...items];
@@ -55,9 +54,6 @@ export async function POST(req: Request) {
             }
             if (!(await dbRateLimit(`assess-start:user:${u.id}`, 10, 3600000, Date.now(), c)))
                 throw new Error('rate_limit');
-            const recent = await c.query(`select 1 from assessments where user_id=$1 and status='completed' and completed_at > now()-interval '30 minutes' limit 1`, [u.id]);
-            if (recent.rowCount)
-                throw new Error('cooldown');
             const evidenceRows = await c.query<any>(
                 `select e.id, s.slug as skill, e.source as kind, e.score, e.confidence, e.captured_at as at
                  from user_skill_evidence e join skills s on s.id=e.skill_id
@@ -93,8 +89,6 @@ export async function POST(req: Request) {
         const m = e instanceof Error ? e.message : '';
         if (m === 'rate_limit')
             return json({ error: 'Assessment start limit reached. Try again later.' }, 429);
-        if (m === 'cooldown')
-            return json({ error: 'Please wait 30 minutes between completed assessments.' }, 429);
         if (m === 'body_too_large')
             return json({ error: 'Request too large' }, 413);
         console.error('assess/start error:', e);

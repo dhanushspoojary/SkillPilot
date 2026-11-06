@@ -1402,18 +1402,101 @@ export function deterministicCareerReply(
     }
   };
 
-  // 1. Natural Greetings (e.g. "hi", "hello", "hey", "good morning")
-  const isGreeting = /^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening)|howdy)\b/i.test(q);
-  if (isGreeting && q.split(/\s+/).length <= 6) {
-    const name = state.name.trim() || 'there';
-    addStep('get_student_profile', {}, `Greeted ${name}`);
-    answer = `Hello ${name}! I am your SkillPilot Career Companion (Career AI).\n\nI track your verified skill evidence and guide you toward Software Engineer career readiness. You can ask me to teach programming concepts (like C, pointers, arrays, or APIs), explain what to do next, or prepare for internship benchmarks. How can I help you today?`;
+  // 0. Ambiguous / Gibberish / Noise Input (e.g. "asdfghjk", "????", keyboard mashing)
+  const isGibberish =
+    /^[\s\p{P}\p{S}]+$/u.test(q) ||
+    /^(asdf|asdfg|asdfgh|asdfghj|asdfghjk|qwerty|zxcvbnm|123456)/i.test(q) ||
+    (q.length >= 5 && !/[aeiouy]/i.test(q)) ||
+    /^(wht|idk|plz|pls|huh|xyz|zzz+)$/i.test(q);
+  if (isGibberish) {
+    addStep('clarify_request', {}, 'Requested student clarification');
+    answer = `I didn't quite catch that! Could you clarify what you'd like help with?\n\nHere are a few ways I can help:\n- **Explain concepts**: Ask me about C pointers, JavaScript closures, loops, or SQL.\n- **Guide your roadmap**: Ask *"What should I do next?"* or *"How do I prepare for internships?"*\n- **Practice & diagnostics**: Ask *"Quiz me on problem solving"* or *"Practice C pointers"*.\n\nWhat are you working on today?`;
     return {
       mode: 'fallback',
       answer,
       steps,
       proposals: [],
-      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+      fallbackReason: 'Deterministic Educational Intelligence · Clarification Prompt',
+    };
+  }
+
+  // 1. Natural Greetings & Identity (e.g. "hi", "hello", "hlo wht is your name", "who are you", "namaste")
+  const isGreetingWord = /\b(hi|hello|hey|hlo|helo|hlw|howdy|greetings|good\s+(morning|afternoon|evening)|namaste|hola|yo|sup|wazzup)\b/i.test(q);
+  const isIdentityQuestion = /\b(who\s+are\s+you|who\s+r\s+u|what\s+is\s+your\s+name|what['’]?s\s+your\s+name|wht\s+is\s+your\s+name|wht\s+ur\s+name|ur\s+name|your\s+name|introduce\s+yourself|tell\s+me\s+about\s+yourself|who\s+made\s+you|what\s+are\s+you)\b/i.test(q);
+  const isHowAreYou = /\b(how\s+are\s+you|how\s+r\s+u|how\s+do\s+you\s+do|kaise\s+ho|kya\s+haal\s+hai)\b/i.test(q);
+
+  if (isIdentityQuestion || (isGreetingWord && q.split(/\s+/).length <= 8) || isHowAreYou) {
+    const studentName = studentContext?.student.name || state.name.trim();
+    const nameGreeting = studentName && studentName !== 'Student' && studentName !== 'there' ? ` ${studentName}` : '';
+    addStep('get_student_profile', {}, `Greeted student${nameGreeting ? ` (${studentName})` : ''}`);
+
+    if (isIdentityQuestion) {
+      answer = `Hello${nameGreeting}! I am **SkillPilot's Career Companion & Learning AI (Career AI)**.\n\nI'm designed to help college students build authentic engineering competencies, master programming fundamentals (like C, memory, JavaScript, SQL, and REST APIs), debug code, and follow a personalized learning roadmap toward becoming a Software Engineer.\n\nHow can I help you today? You can ask me to explain a concept, check your next learning milestone, or help you prepare for an assessment!`;
+    } else if (isHowAreYou) {
+      answer = `Hello${nameGreeting}! I'm doing great, thank you for asking! I am your **SkillPilot Career Companion (Career AI)**.\n\nI'm here to help you understand tricky programming concepts, guide your daily practice, and track verified skills on your Career Passport. What are you working on today?`;
+    } else {
+      answer = `Hello${nameGreeting}! I am your **SkillPilot Career Companion (Career AI)**.\n\nI'm here to support your engineering journey—whether that's explaining tricky concepts (like C pointers, memory, or closures), recommending your next practice step, or helping you build verified evidence for recruiters.\n\nWhat would you like to explore or work on today?`;
+    }
+
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conversational Greeting & Identity',
+    };
+  }
+
+  // 1.5 Conversational Chitchat (gratitude, pleasantries, humor, farewell)
+  const isThanks = /\b(thank\s+you|thanks|thx|ty|shukriya|dhanyawad|thanku)\b/i.test(q);
+  if (isThanks) {
+    addStep('conversational_interaction', {}, 'Acknowledged gratitude');
+    answer = `You're very welcome! Keep up the great work. Whenever you're ready for the next concept, practice problem, or diagnostic check, just let me know.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conversational Interaction',
+    };
+  }
+
+  const isAcknowledgement = /^(ok|okay|cool|awesome|great|nice|got\s+it|understood|sure|alright|fine|perfect)\b/i.test(q) && q.split(/\s+/).length <= 4;
+  if (isAcknowledgement) {
+    addStep('conversational_interaction', {}, 'Acknowledged affirmation');
+    answer = `Sounds great! What would you like to focus on next? We can practice code exercises, explore a programming topic, or check your next milestone.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conversational Interaction',
+    };
+  }
+
+  const isJoke = /\b(tell\s+me\s+a\s+joke|joke|make\s+me\s+laugh)\b/i.test(q);
+  if (isJoke) {
+    addStep('conversational_interaction', {}, 'Shared engineering humor');
+    answer = `Why do programmers prefer dark mode?\n\nBecause light attracts bugs! 😄\n\nWhenever you're ready, let me know what coding topic or roadmap milestone we should tackle today.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conversational Interaction',
+    };
+  }
+
+  const isFarewell = /\b(bye|goodbye|see\s+you|cya|good\s*night|gn)\b/i.test(q) && q.split(/\s+/).length <= 4;
+  if (isFarewell) {
+    addStep('conversational_interaction', {}, 'Responded to farewell');
+    answer = `Goodbye! Great effort on your engineering growth today. Come back anytime to continue building your verified skill passport!`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conversational Interaction',
     };
   }
 
@@ -1723,7 +1806,7 @@ export function deterministicCareerReply(
   }
 
   // 6.1 Practical Projects & Workspace
-  if (/\b(practical project|project workspace|projects|bookstore|sql analytics|build a project)\b/i.test(q)) {
+  if (/\b(practical project|project workspace|projects?|bookstore|sql analytics|build a project|help.*project)\b/i.test(q)) {
     const proj = PROJECT_CATALOG[0];
     addStep('generate_project_plan', { project_slug: proj.slug }, `Retrieved ${proj.title} project plan`);
     answer = `SkillPilot features verified **Practical Projects** where you implement real services and test them against automated assertion suites:\n\n1. **${PROJECT_CATALOG[0].title}** (${PROJECT_CATALOG[0].requiredSkills.join(', ')}): Build CRUD route handlers with input validation and error handling.\n2. **${PROJECT_CATALOG[1].title}** (${PROJECT_CATALOG[1].requiredSkills.join(', ')}): Write 3NF relational schemas and performant department aggregations.\n\nPassing all test cases records authentic evidence on your Career Passport. Would you like to start **${proj.title}**?`;
@@ -1800,7 +1883,7 @@ export function deterministicCareerReply(
   }
 
   // 7. Beginner / First-Year Student
-  const isBeginner = /\b(first[\s-]year|1st[\s-]year|beginner|starting out|from scratch|new to code|never coded)\b/i.test(q);
+  const isBeginner = /\b(first[\s-]year|1st[\s-]year|beginner|starting out|from scratch|new to code|never coded|don'?t know (anything|how to code)|know nothing|starting from zero|complete beginner|no coding experience)\b/i.test(q);
   if (isBeginner) {
     addStep('get_profile', {}, 'Checked beginner skill baseline');
     answer = `Welcome to engineering! Starting as a beginner in your first year is the ideal time to build strong foundations.\n\nIn SkillPilot, we never judge missing experience. Your diagnostic starts with Level 1 fundamentals—variables, loops, and step-by-step logic. Would you like to take your introductory diagnostic to establish your baseline?`;
@@ -1813,6 +1896,46 @@ export function deterministicCareerReply(
       skill: targetSkill.def.id,
       permission: 'approval_required',
     });
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals,
+      fallbackReason: 'Deterministic Career Intelligence · Verified server evidence',
+    };
+  }
+
+  // 7.5 Weakest Skill / Skill Gaps ("what is my weakest skill", "where am I struggling", "my largest gap")
+  if (/\b(weakest skill|weakest|my weakness|where am i (struggling|weakest|falling behind)|largest gap|skill gap|skill gaps)\b/i.test(q)) {
+    addStep('get_my_skill_gaps', {}, 'Inspected skill gaps and evidence ledger');
+    const assessedSkills = skills.filter((s) => s.count > 0);
+    const sortedByGap = [...skills].sort((a, b) => b.gap - a.gap);
+    const primaryGap = sortedByGap[0];
+
+    if (assessedSkills.length > 0) {
+      const weakestAssessed = [...assessedSkills].sort((a, b) => a.score - b.score)[0];
+      answer = `Based on your verified assessment evidence, your current focus area is **${weakestAssessed.def.name}** (demonstrated score: **${weakestAssessed.score}%**, target: **${weakestAssessed.def.target}%**).\n\nClosing this **${weakestAssessed.gap}**-point gap will deliver the highest immediate increase in your overall career readiness. Would you like to review fundamentals or take an adaptive check?`;
+      proposals.push({
+        id: `retest-${weakestAssessed.def.id}`,
+        type: 'start_retest',
+        label: `Retest ${weakestAssessed.def.name}`,
+        reason: `Strengthen your baseline in ${weakestAssessed.def.name} and close your primary skill gap.`,
+        skill: weakestAssessed.def.id,
+        permission: 'approval_required',
+      });
+    } else {
+      answer = `You haven't completed any skill assessments yet, so your verified baseline is currently uncalibrated.\n\nYour primary starting focus is **${primaryGap ? primaryGap.def.name : 'Problem Solving'}** (target: ${primaryGap ? primaryGap.def.target : 80}%). Taking an initial 4-minute diagnostic will pinpoint your strengths and identify exact gap areas.`;
+      if (primaryGap) {
+        proposals.push({
+          id: `retest-${primaryGap.def.id}`,
+          type: 'start_retest',
+          label: `Start Baseline: ${primaryGap.def.name}`,
+          reason: `Establish your baseline signal in ${primaryGap.def.name}.`,
+          skill: primaryGap.def.id,
+          permission: 'approval_required',
+        });
+      }
+    }
     return {
       mode: 'fallback',
       answer,
@@ -1864,8 +1987,8 @@ export function deterministicCareerReply(
     };
   }
 
-  // 10. Next Steps / Workflow Navigation ("what should I do next", "what should I focus on this week")
-  if (/\b(what should i do next|what to do next|what next|what should i focus on|focus on this week)\b/i.test(q)) {
+  // 10. Next Steps / Workflow Navigation ("what should I do next", "what should I learn next", "what to study next")
+  if (/\b(what should i (do|learn|study|practice|work on) next|what to (do|learn|study|practice) next|what next|what should i focus on|focus on this week|next step|next action)\b/i.test(q)) {
     addStep('get_next_learning_action', {}, 'Selected next bottleneck task');
     const isBeginnerStudent = studentContext?.capabilityProfile?.programmingExperience === 'beginner' ||
       studentContext?.capabilityProfile?.educationLevel === 'first_year' ||
@@ -1966,6 +2089,78 @@ export function deterministicCareerReply(
     };
   }
 
+  if (/\b(recursion|recursive|explain recursion|how does recursion work)\b/i.test(q)) {
+    addStep('concept_explanation', { topic: 'Recursion' }, 'Explained recursion semantics and base cases');
+    answer = `**Recursion** is a programming technique where a function calls itself to solve smaller subproblems of the original problem.\n\nEvery recursive function requires two essential parts:\n1. **Base Case**: The condition where the function stops calling itself and returns a direct answer (preventing infinite recursion and stack overflow).\n2. **Recursive Step**: The call to itself with a simpler or smaller input.\n\n\`\`\`javascript\nfunction factorial(n) {\n  // 1. Base case\n  if (n <= 1) return 1;\n  // 2. Recursive step\n  return n * factorial(n - 1);\n}\nconsole.log(factorial(4)); // 4 * 3 * 2 * 1 = 24\n\`\`\`\n**Mental model**: Think of a stack of cafeteria trays. Each recursive call places a new frame on the call stack until the base case is reached, after which the stack unwinds back to the original caller.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
+  if (/\b(what is a variable|variables|primitive types|let vs var|let vs const)\b/i.test(q)) {
+    addStep('concept_explanation', { topic: 'Variables & Scope' }, 'Explained variables, mutation, and declaration keywords');
+    answer = `A **variable** is a named container in memory used to store and manipulate data during program execution.\n\nIn modern JavaScript:\n- **\`const\`**: Block-scoped, cannot be reassigned (best practice default).\n- **\`let\`**: Block-scoped, can be reassigned (ideal for loop counters and accumulators).\n- **\`var\`**: Function-scoped, hoisted to the top of its scope (legacy, avoid in modern code).\n\n\`\`\`javascript\nconst maxAttempts = 3; // Cannot be reassigned\nlet currentScore = 0;   // Can change\ncurrentScore += 10;\n\`\`\`\nUsing \`const\` by default prevents accidental mutations and makes code much easier to reason about.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
+  if (/\b(loop|loops|for loop|while loop|iteration|infinite loop)\b/i.test(q) && !/loop tracing/i.test(q)) {
+    addStep('concept_explanation', { topic: 'Loops & Iteration' }, 'Explained loops, iteration, and termination conditions');
+    answer = `A **loop** repeats a block of code until a specified condition evaluates to \`false\`.\n\nCommon loop types:\n1. **\`for\` loop**: Used when the number of iterations is known ahead of time (e.g. iterating over an array).\n2. **\`while\` loop**: Used when iterating until an external condition changes.\n\n\`\`\`javascript\n// for loop\nfor (let i = 0; i < 5; i++) {\n  console.log("Count:", i);\n}\n\n// while loop\nlet remaining = 3;\nwhile (remaining > 0) {\n  console.log("Remaining:", remaining);\n  remaining--;\n}\n\`\`\`\n**Key rule**: Always ensure your loop's update step moves toward the termination condition to avoid freezing the system in an infinite loop!`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
+  if (/\b(what is git|github|version control|git commit|git push|git pull|branching)\b/i.test(q) && !/git & github/i.test(q)) {
+    addStep('concept_explanation', { topic: 'Git & Version Control' }, 'Explained distributed version control principles');
+    answer = `**Git** is a distributed version control system that tracks changes in source code over time, acting like a time machine for your codebase.\n\nCore workflow:\n1. **Working Directory**: Where you edit files.\n2. **Staging Area (\`git add\`)**: Where you choose which specific changes to bundle.\n3. **Local Repository (\`git commit\`)**: Records an immutable snapshot with a descriptive message.\n4. **Remote Repository (\`git push\`)**: Syncs your commits to platforms like GitHub for team collaboration.\n\n\`\`\`bash\ngit checkout -b feature/auth   # Create and switch to new branch\ngit add src/auth.ts            # Stage changes\ngit commit -m "Add JWT validation" # Snapshot\ngit push origin feature/auth   # Share to GitHub\n\`\`\`\nWorking on separate branches ensures production code stays stable while new features are developed.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
+  if (/\b(what is an api|what are apis|what is rest|http methods|get vs post)\b/i.test(q) && !/rest-apis/i.test(q)) {
+    addStep('concept_explanation', { topic: 'APIs & Web Architecture' }, 'Explained API contracts, HTTP methods, and client-server architecture');
+    answer = `An **API (Application Programming Interface)** is a formal contract allowing two computer systems to exchange data over a network.\n\nIn **REST (Representational State Transfer)**, communication uses standard HTTP verbs:\n- **GET**: Retrieve data (idempotent, safe, e.g. \`GET /users/42\`)\n- **POST**: Create a new record (non-idempotent, e.g. \`POST /users\`)\n- **PUT / PATCH**: Update existing records\n- **DELETE**: Remove a resource\n\n\`\`\`json\n// Response payload (JSON)\n{\n  "status": "success",\n  "data": { "id": 42, "name": "Alex", "role": "engineer" }\n}\n\`\`\`\nHTTP status codes communicate the result: \`200 OK\`, \`201 Created\`, \`400 Bad Request\`, \`401 Unauthorized\`, \`404 Not Found\`, and \`500 Server Error\`.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
+  if (/\b(what is sql|what is a database|relational database|primary key|foreign key)\b/i.test(q) && !/sql/i.test(q)) {
+    addStep('concept_explanation', { topic: 'Relational Databases & SQL' }, 'Explained relational database concepts and relational keys');
+    answer = `A **database** is an organized collection of structured information stored electronically. **SQL (Structured Query Language)** is the domain-specific language used to query and manipulate relational databases.\n\nCore concepts:\n- **Tables**: Organized into rows (records) and columns (attributes).\n- **Primary Key (PK)**: A unique identifier for every row in a table (e.g. \`user_id\`).\n- **Foreign Key (FK)**: A reference in one table that points to the primary key of another table, enforcing relational integrity.\n\n\`\`\`sql\nSELECT users.name, orders.total_amount\nFROM users\nJOIN orders ON users.id = orders.user_id\nWHERE orders.status = 'completed';\n\`\`\`\nRelational schemas eliminate redundant data duplication through normalization.`;
+    return {
+      mode: 'fallback',
+      answer,
+      steps,
+      proposals: [],
+      fallbackReason: 'Deterministic Educational Intelligence · Conceptual programming knowledge',
+    };
+  }
+
   // 13. Specific Skill Inquiries
   const matchedSkill = SKILLS.find((s) => q.includes(s.id) || q.includes(s.name.toLowerCase()));
   if (matchedSkill) {
@@ -2006,9 +2201,14 @@ export function deterministicCareerReply(
   }
 
   // 15. General Fallback
-  addStep('get_profile', {}, 'Analyzed evidence profile');
-  answer = explainPlan(state);
-  attachTopAction();
+  addStep('get_profile', {}, 'Analyzed student learning state and evidence profile');
+  const targetGoal = studentContext?.careerGoal || 'Software Engineer';
+  if (topAction) {
+    answer = `Based on your verified skills toward **${targetGoal}**, here is your prioritized next step:\n\n**${topAction.title}**\n${topAction.detail ? `*${topAction.detail}*\n\n` : ''}${topAction.reason}\n\nWould you like to start this milestone, or ask a question about your learning roadmap?`;
+    attachTopAction();
+  } else {
+    answer = `All tracked skills for your **${targetGoal}** career pathway have verified evidence recorded on your Skill Passport! Would you like to tackle advanced practical projects, prepare for mock interviews, or review mentor feedback?`;
+  }
 
   return {
     mode: 'fallback',

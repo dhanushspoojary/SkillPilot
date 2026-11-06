@@ -216,7 +216,28 @@ export function computeSkillAdaptiveSummary(params: {
     }
   }
 
-  const proficiency = totalWeight > 0 ? Math.round(earnedWeighted / totalWeight) : 0;
+  const rawProficiency = totalWeight > 0 ? Math.round(earnedWeighted / totalWeight) : 0;
+
+  // Calibrated Mastery Ceiling:
+  // Answering only easy / introductory questions (Level 0 or Level 1) cannot grant 100% mastery.
+  // Full mastery (85-100%) strictly requires demonstrating competence on elevated difficulty (Level 2+).
+  const correctItems = items.filter(
+    (it) => evaluateResponse(it.question, it.response).classification === 'CORRECT',
+  );
+  const maxCorrectLevel = correctItems.length > 0
+    ? Math.max(...correctItems.map((it) => it.question.level))
+    : 0;
+
+  const levelCap =
+    maxCorrectLevel === 0
+      ? 45
+      : maxCorrectLevel === 1
+      ? 68
+      : maxCorrectLevel === 2
+      ? 88
+      : 100;
+
+  const proficiency = Math.min(rawProficiency, levelCap);
   // Confidence scales with evidence count (0.45 baseline for 1 item, up to 0.85 for 4 items)
   const confidence = Math.min(0.85, 0.40 + evidenceItemCount * 0.15);
 

@@ -223,6 +223,10 @@ export function generateDeterministicAdaptiveTurn(params: {
 
   // Heuristic evaluation of student's text answer
   const answerLower = (lastAnswer || '').toLowerCase().trim();
+  const isGibberish =
+    /^[\s\p{P}\p{S}]+$/u.test(answerLower) ||
+    /^(asdf|asdfg|asdfgh|asdfghj|asdfghjk|qwerty|zxcvbnm)/i.test(answerLower);
+
   const isStruggle =
     !answerLower ||
     answerLower === 'skip' ||
@@ -237,7 +241,11 @@ export function generateDeterministicAdaptiveTurn(params: {
   let summary = 'Evaluation recorded. Assessing next technical competency.';
   let misconceptions: string[] = [];
 
-  if (isStruggle) {
+  if (isGibberish) {
+    correctness = 'uncertain';
+    summary = 'Your input was unclear or unformatted. Please describe your understanding in your own words.';
+    misconceptions = ['Unclear or unformatted input requiring clarification'];
+  } else if (isStruggle) {
     correctness = 'incorrect';
     summary = 'Question skipped or concept unfamiliar. Routing to foundational diagnostic probe.';
     misconceptions = ['Foundational concept unfamiliar or skipped; foundation marked for reinforcement'];

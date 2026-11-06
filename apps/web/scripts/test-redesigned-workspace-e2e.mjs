@@ -265,6 +265,18 @@ async function run() {
       throw new Error('Session was lost on reload');
     }
 
+    // Dismiss onboarding modal if it mounted after reload
+    try {
+      const modal = page.locator('.onboarding-overlay');
+      await modal.waitFor({ state: 'visible', timeout: 3500 });
+      const closeBtn = page.locator('button[aria-label="Close setup"], button:has-text("Skip for now"), .icon-btn-close').first();
+      await closeBtn.click();
+      await modal.waitFor({ state: 'hidden', timeout: 5000 });
+      console.log('   Onboarding modal dismissed after reload.');
+    } catch {
+      // Modal was not mounted or already closed
+    }
+
     // Navigate to Learn tab to verify persisted progress
     await page.waitForSelector('.nav-item', { state: 'visible', timeout: 15000 });
     const learnNavAfterReload = page.getByRole('button', { name: /Learn/i }).or(page.locator('.nav-item').filter({ hasText: 'Learn' })).first();

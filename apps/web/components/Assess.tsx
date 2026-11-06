@@ -93,7 +93,7 @@ function friendlyErrorMessage(err: unknown, fallback: string): string {
     return 'Assessment limit reached for this hour. Please wait a few moments before trying again.';
   }
   if (msg.includes('cooldown')) {
-    return 'You recently completed an assessment. Please wait before starting a new diagnostic.';
+    return 'Please wait a moment before starting a new diagnostic.';
   }
   return msg || fallback;
 }
