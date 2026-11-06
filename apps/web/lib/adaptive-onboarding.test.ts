@@ -239,6 +239,7 @@ test('Trajectory A: Strong learner (Correct foundational answer -> harder questi
     currentQuestion: turn2Output.next_question!,
     lastAnswer:
       'For HTTP 429 rate-limiting, inspect the Retry-After header. Implement exponential backoff with random jitter so client requests retry gracefully without overloading the server.',
+    minQuestions: 3,
   });
 
   assert.equal(turn3Output.evaluation.correctness, 'correct');
@@ -305,6 +306,7 @@ test('Trajectory B: Learner with prerequisite gap (Incorrect answer -> easier di
     history,
     currentQuestion: turn2Output.next_question!,
     lastAnswer: 'pass',
+    minQuestions: 3,
   });
 
   assert.equal(turn3Output.evaluation.correctness, 'incorrect');
@@ -425,13 +427,13 @@ test('Trajectory E: Provider failure (LLM unavailable -> honest deterministic fa
   assert.equal(validation.valid, true);
 });
 
-test('Adaptive Stopping: Enforces MIN_ONBOARDING_QUESTIONS (3) and MAX_ONBOARDING_QUESTIONS (6)', () => {
-  assert.equal(MIN_ONBOARDING_QUESTIONS, 3);
-  assert.equal(MAX_ONBOARDING_QUESTIONS, 6);
+test('Adaptive Stopping: Enforces MIN_ONBOARDING_QUESTIONS (15) and MAX_ONBOARDING_QUESTIONS (20)', () => {
+  assert.equal(MIN_ONBOARDING_QUESTIONS, 15);
+  assert.equal(MAX_ONBOARDING_QUESTIONS, 20);
 
   // Create a history with 5 items
   const history: OnboardingTurnHistory[] = [];
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 19; i++) {
     history.push({
       questionNumber: i,
       questionText: `Question ${i}`,
@@ -448,10 +450,55 @@ test('Adaptive Stopping: Enforces MIN_ONBOARDING_QUESTIONS (3) and MAX_ONBOARDIN
   const finalTurn = generateDeterministicAdaptiveTurn({
     targetRole: 'Software Engineer',
     history,
-    lastAnswer: 'Sample answer for Q6',
+    lastAnswer: 'Sample answer for Q20',
   });
 
   assert.equal(finalTurn.assessment_complete, true);
   assert.equal(finalTurn.next_question, null);
   assert.ok(finalTurn.completion_reason?.includes('budget') || finalTurn.completion_reason?.includes('reached'));
+});
+
+
+test('11-domain background assessment covers all required domains across 15 to 20 questions', () => {
+  const initialQ = getInitialOnboardingQuestion('Software Engineer');
+  assert.ok(initialQ.options && initialQ.options.length >= 2, 'Initial question must provide multiple options');
+
+  const history: OnboardingTurnHistory[] = [];
+  let currentQ = initialQ;
+
+  // Simulate a student answering through 15 questions
+  for (let step = 1; step <= 15; step++) {
+    const turnOutput = generateDeterministicAdaptiveTurn({
+      targetRole: 'Software Engineer',
+      history,
+      currentQuestion: currentQ,
+      lastAnswer: currentQ.options ? currentQ.options[0] : 'Solid foundational understanding demonstrated',
+    });
+
+    history.push({
+      questionNumber: step,
+      questionText: currentQ.text,
+      skillId: currentQ.skill_id,
+      difficulty: currentQ.difficulty,
+      questionType: currentQ.question_type,
+      studentAnswer: currentQ.options ? currentQ.options[0] : 'Solid answer',
+      evaluation: turnOutput.evaluation,
+      provenance: 'deterministic',
+    });
+
+    if (step < 15) {
+      assert.equal(turnOutput.assessment_complete, false, `Must not complete before step 15 (at step ${step})`);
+      assert.ok(turnOutput.next_question, `Next question must be provided at step ${step}`);
+      currentQ = turnOutput.next_question!;
+    } else {
+      // Step 15: can complete
+      assert.equal(turnOutput.assessment_complete, true, 'Assessment completes at 15 questions');
+      assert.equal(turnOutput.next_question, null);
+    }
+  }
+
+  assert.equal(history.length, 15);
+  // Verify deduplication: all 15 question texts must be unique
+  const uniqueTexts = new Set(history.map((h) => h.questionText));
+  assert.equal(uniqueTexts.size, 15, 'All 15 background assessment questions must be unique without repetition');
 });

@@ -223,8 +223,22 @@ export async function POST(req: Request) {
 
             const currentSkillSummary = computeSkillAdaptiveSummary({ skill, items: currentSkillItems });
 
-            // If decisive evidence has not been reached and question limit for skill (< 4) not exceeded, select next adaptive question
-            if (!currentSkillSummary.decisiveEvidenceReached && currentSkillItems.length < 4) {
+            // Adaptive question progression:
+            // Single-skill assessments (reassessment or beginner diagnostic) expand to 10-15 questions across 5 levels.
+            // Multi-skill assessments allocate 4-6 questions per skill to reach 15-18 total questions.
+            const distinctSkills = new Set(answered.rows.map((r: any) => r.skill_slug));
+            const isSingleSkill = distinctSkills.size <= 1;
+            const skillMaxQuestions = isSingleSkill ? 15 : 6;
+            const skillMinQuestions = isSingleSkill ? 10 : 4;
+
+            const shouldContinueSkill =
+                currentSkillItems.length < skillMaxQuestions &&
+                (!currentSkillSummary.decisiveEvidenceReached || currentSkillItems.length < skillMinQuestions);
+
+            const sessionTargetTotal = isSingleSkill ? 12 : Math.max(15, distinctSkills.size * 5);
+            const displayTotal = Math.max(sessionTargetTotal, answeredCount + 1);
+
+            if (shouldContinueSkill) {
                 const used = new Set(answered.rows.map((r: any) => r.question_id));
                 const usedTexts = answered.rows.map((r: any) => {
                     try {
@@ -261,7 +275,7 @@ export async function POST(req: Request) {
                         recorded: true,
                         done: false,
                         index: answeredCount,
-                        total: Math.max(answeredCount + 1, totalQuestions),
+                        total: displayTotal,
                         question: publicQ(next),
                         adaptation: {
                             direction,

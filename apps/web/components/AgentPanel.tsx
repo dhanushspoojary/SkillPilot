@@ -778,8 +778,8 @@ export function AgentPanel({
                       borderRadius: 6,
                       marginBottom: 4,
                       cursor: 'pointer',
-                      background: isActive ? 'rgba(34, 211, 238, 0.12)' : 'transparent',
-                      border: `1px solid ${isActive ? 'rgba(34, 211, 238, 0.3)' : 'transparent'}`,
+                      background: isActive ? 'rgba(136, 116, 199, 0.12)' : 'transparent',
+                      border: `1px solid ${isActive ? 'rgba(136, 116, 199, 0.35)' : 'transparent'}`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -920,6 +920,42 @@ export function AgentPanel({
               gap: 16,
             }}
           >
+            {messages.length === 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '48px 24px',
+                  textAlign: 'center',
+                  gap: 12,
+                  color: 'var(--text-secondary, #4A4553)',
+                  margin: 'auto',
+                }}
+              >
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    background: 'rgba(136, 116, 199, 0.12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--primary-purple, #8874C7)',
+                  }}
+                >
+                  <Sparkles size={24} />
+                </div>
+                <b style={{ color: 'var(--text-primary, #17151B)', fontSize: 16 }}>
+                  Career AI Learning Companion
+                </b>
+                <p style={{ maxWidth: 420, fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+                  Ask questions about programming fundamentals, code explanations, your weakest skills, or what to learn next. Select a suggested prompt below to get started.
+                </p>
+              </div>
+            )}
             {messages.map((m) => (
               <div key={m.id} className={`chat-msg ${m.sender}`}>
                 <div className="msg-content">
@@ -1082,7 +1118,7 @@ export function AgentPanel({
           </div>
 
           {/* Input & Prompt Suggestions */}
-          <div style={{ padding: 16, borderTop: '1px solid var(--line)', background: 'rgba(0,0,0,0.1)' }}>
+          <div style={{ padding: 16, borderTop: '1px solid var(--border-color, #E7E3EB)', background: 'var(--surface, #FFFFFF)' }}>
             <div className="prompt-chips" style={{ marginBottom: 10 }}>
               {suggestedPrompts.map((prompt) => (
                 <button

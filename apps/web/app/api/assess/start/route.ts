@@ -81,7 +81,8 @@ export async function POST(req: Request) {
             const a = (await c.query<any>(`insert into assessments(user_id,kind,version,status) values($1,'adaptive','v6','started') returning id`, [u.id])).rows[0];
             for (const q of qs)
                 await c.query(`insert into assessment_items(assessment_id,question_id,skill_slug,prompt) values($1,$2,$3,$4)`, [a.id, q.id, q.skill, JSON.stringify(publicQ(q))]);
-            return { id: a.id, question: publicQ(qs[0]), total: qs.length * 2, index: 0, resumed: false };
+            const targetTotal = Boolean(focus) ? 12 : 15;
+            return { id: a.id, question: publicQ(qs[0]), total: targetTotal, index: 0, resumed: false };
         });
         return json({ assessmentId: result.id, total: result.total, index: result.index, question: result.question, resumed: result.resumed }, result.resumed ? 200 : 201);
     }

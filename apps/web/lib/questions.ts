@@ -1,4 +1,5 @@
 import type { Question, SkillDef } from './types.ts';
+import { EXTENDED_QUESTIONS } from './questions-extended.ts';
 
 export const SKILLS: SkillDef[] = [
   { id: 'javascript', name: 'JavaScript', target: 80, weight: 3, assessable: true, task: { title: 'Ship a small typed utility library with tests', detail: 'Practical evidence · 60 min', minutes: 60 } },
@@ -9,7 +10,7 @@ export const SKILLS: SkillDef[] = [
   { id: 'git', name: 'Git & GitHub', target: 75, weight: 1, assessable: true, task: { title: 'Open a pull request and respond to review comments', detail: 'Practical evidence · 30 min', minutes: 30 } },
 ];
 
-export const QUESTIONS: Question[] = [
+const BASE_QUESTIONS: Question[] = [
   // REST APIs
   {
     id: 'rest-1a',
@@ -470,6 +471,11 @@ export const QUESTIONS: Question[] = [
     why: 'In PostgreSQL MVCC, UPDATE creates new row versions leaving old versions as dead tuples until VACUUM marks space reusable.',
     prerequisiteConcept: 'mvcc-vacuum',
   },
+];
+
+export const QUESTIONS: Question[] = [
+  ...BASE_QUESTIONS,
+  ...EXTENDED_QUESTIONS,
 ];
 
 export function publicQ(q: Question) {

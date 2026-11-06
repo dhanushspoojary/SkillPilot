@@ -221,21 +221,35 @@ export function computeSkillAdaptiveSummary(params: {
   // Calibrated Mastery Ceiling:
   // Answering only easy / introductory questions (Level 0 or Level 1) cannot grant 100% mastery.
   // Full mastery (85-100%) strictly requires demonstrating competence on elevated difficulty (Level 2+).
-  const correctItems = items.filter(
-    (it) => evaluateResponse(it.question, it.response).classification === 'CORRECT',
-  );
+  const evaluatedItems = items.map((it) => ({
+    question: it.question,
+    eval: evaluateResponse(it.question, it.response),
+  }));
+
+  const correctItems = evaluatedItems.filter((x) => x.eval.classification === 'CORRECT');
+  const incorrectCount = evaluatedItems.filter((x) => x.eval.classification === 'INCORRECT').length;
   const maxCorrectLevel = correctItems.length > 0
-    ? Math.max(...correctItems.map((it) => it.question.level))
+    ? Math.max(...correctItems.map((x) => x.question.level))
     : 0;
 
-  const levelCap =
-    maxCorrectLevel === 0
-      ? 45
-      : maxCorrectLevel === 1
-      ? 68
-      : maxCorrectLevel === 2
-      ? 88
-      : 100;
+  let levelCap = 100;
+  if (maxCorrectLevel === 0) {
+    levelCap = 45;
+  } else if (maxCorrectLevel === 1) {
+    levelCap = 68;
+  } else if (maxCorrectLevel === 2) {
+    levelCap = 88;
+  } else if (maxCorrectLevel === 3) {
+    levelCap = 92;
+  } else {
+    // maxCorrectLevel >= 4 (Level 4 or Level 5 reached and answered correctly)
+    // 100% strictly requires at least 4 items answered in skill, 0 incorrect answers, and at least one Level 4 or 5 correct
+    if (items.length < 4 || incorrectCount > 0) {
+      levelCap = 95;
+    } else {
+      levelCap = 100;
+    }
+  }
 
   const proficiency = Math.min(rawProficiency, levelCap);
   // Confidence scales with evidence count (0.45 baseline for 1 item, up to 0.85 for 4 items)

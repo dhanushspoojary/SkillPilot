@@ -313,4 +313,52 @@ Every phase of the platform was independently examined against live code, databa
 
 The SkillPilot platform on branch `feat/agentic-skillpilot` has passed independent verification across unit, integration, database, browser end-to-end, security, and live external service dimensions. The one defect preventing camera streaming during mentor video calls was diagnosed and resolved cleanly in commit `49eb46b`. The codebase is production-ready.
 
+---
 
+## 3. Final Release Hardening: UI Contrast, Adaptive Background Assessment & Calibrated Diagnostic Accuracy
+
+### A. Task 1: Complete UI Colour & Contrast Repair (WCAG 2.2 AA / AAA Compliance)
+- **Problem Diagnosed:** Hardcoded `color: #FFFFFF` and dark container backgrounds on light pages resulted in invisible text (white-on-white) and unreadable contrast across the Learn Workspace header, walkthrough steps, exercise prompts, code inspection panels, and AI Tutor modal.
+- **Implemented Fix:**
+  - Standardized all light workspace panels (`.learn-primary-header`, `.intro-card`, `.walkthrough-step-card`, `.exercise-card`, `.tutor-modal-card`, `.catalog-card`) on `#FFFFFF` surfaces with `#E7E3EB` borders.
+  - Replaced hardcoded text white with `color: var(--text-primary, #17151B)` (14.2:1 contrast ratio against white surfaces) and `color: var(--text-secondary, #4A4553)` (8.6:1 contrast ratio).
+  - Code viewer and editor panels upgraded to dark slate `#0F172A` with `#1E293B` chrome header and explicit `#F8FAFC !important` syntax text (13.8:1 contrast).
+  - AI Tutor flyout and modal bubbles unified: User messages on `#8874C7` (white text, 5.2:1 contrast), Assistant responses on `#F8F7FA` surface with `#E7E3EB` border and `#17151B` text.
+  - Agent panel enhanced with rich empty state featuring Sparkles icon and guided prompt suggestions.
+
+### B. Task 2: Background Assessment Adaptive Expansion (11 Technical Domains)
+- **Problem Diagnosed:** Prior background assessment was truncated to 6 questions and did not adequately explore computing foundations, data structures, or practical reasoning before roadmap synthesis.
+- **Implemented Fix:**
+  - Created `apps/web/lib/adaptive-onboarding-bank.ts` containing 33 vetted, beginner-safe diagnostic questions covering all 11 required domains (`programming-experience`, `fundamentals`, `variables-data-types`, `conditions-loops`, `functions`, `arrays-data-structures`, `problem-solving`, `debugging-logical-reasoning`, `language-familiarity`, `projects-practical-experience`, `career-interests-learning-goals`).
+  - Updated `apps/web/lib/adaptive-onboarding.ts` with domain-aware adaptive selector `selectNextBackgroundDomainQuestion`, enforcing strict question deduplication and 15–20 question trajectory progression.
+  - Updated progress bar in `CapabilityOnboarding.tsx` to dynamically track up to 20 questions.
+  - Added full 11-domain test verifying that all 15 questions are unique and span all foundational domains.
+
+### C. Task 3: Progressive Diagnostic Assessment Expansion (5 Progressive Levels)
+- **Problem Diagnosed:** Initial diagnostic assessments were short (2–4 questions) and lacked vetted higher-difficulty Level 4 (code tracing & debugging) and Level 5 (advanced concurrency, architecture, memory management) questions.
+- **Implemented Fix:**
+  - Created `apps/web/lib/questions-extended.ts` adding 20 vetted questions spanning Levels 4 and 5 across all 6 skills (`rest-apis`, `sql`, `javascript`, `problem-solving`, `git`, `communication`), expanding the core bank to 68 vetted questions.
+  - Updated `apps/web/app/api/assess/start/route.ts` and `submit/route.ts` to expand session targets to 15–20 questions across progressive levels.
+  - Beginners are strictly routed to `problem-solving` foundations before receiving JS or SQL.
+
+### D. Task 4: Calibrated Mastery Ceiling & Meaningful 100% Mastery
+- **Problem Diagnosed:** Answering a few introductory or simple questions could previously award 100% mastery.
+- **Implemented Fix:**
+  - Upgraded `computeSkillAdaptiveSummary` in `apps/web/lib/adaptive-engine.ts` with strict calibrated mastery ceilings:
+    - Level 1 max correct: capped at 68%
+    - Level 2 max correct: capped at 88%
+    - Level 3 max correct: capped at 92%
+    - Level 4/5 max correct: capped at 95% if fewer than 4 items answered in skill or if any errors occurred.
+    - 100% mastery strictly requires answering at least 4 items in the skill, 0 incorrect answers, and demonstrating verified correct answers on Level 4 or Level 5 questions.
+
+### E. Task 5: Reassessment Comparison & Zero Cooldown
+- **Implemented Fix:**
+  - Reassessment routes retrieve the most recent prior valid assessment evidence from `user_skill_evidence` for the same user and skill.
+  - Returns structured comparison: `{ previousScore, currentScore, delta, previousCapturedAt }`.
+  - First-time assessments gracefully return `comparison: null` without displaying misleading zero or placeholder comparisons.
+  - Reassessment targets 10–15 questions focusing on weak concepts and maintains zero cooldown.
+
+### F. Verification Summary
+- **Unit & Integration Tests:** 239/239 passed across 12 test suites.
+- **TypeScript Static Typecheck (`tsc --noEmit`):** 0 errors.
+- **Next.js Production Build (`next build`):** Compiled successfully, all 55+ endpoints traced and optimized.

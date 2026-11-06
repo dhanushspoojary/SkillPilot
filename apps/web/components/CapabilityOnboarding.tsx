@@ -991,13 +991,13 @@ export function CapabilityOnboarding({
                 {/* Dynamic Progress indicator */}
                 <div style={{ marginBottom: 4 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#4A4553', marginBottom: 6 }}>
-                    <span>Questions Evaluated: <b>{assessmentSession?.questionCount || 0}</b></span>
-                    <span>Adaptive Diagnostic (3–6 questions based on evidence)</span>
+                    <span>Questions Evaluated: <b>{assessmentSession?.questionCount || 0} of {assessmentSession?.maxQuestions || 20}</b></span>
+                    <span>Adaptive Background Diagnostic (15–20 questions · 11 domains)</span>
                   </div>
                   <div style={{ width: '100%', height: 4, background: '#E7E3EB', borderRadius: 2, overflow: 'hidden' }}>
                     <div
                       style={{
-                        width: `${Math.min(100, (((assessmentSession?.questionCount || 0) + 0.5) / 6) * 100)}%`,
+                        width: `${Math.min(100, (((assessmentSession?.questionCount || 0)) / (assessmentSession?.maxQuestions || 20)) * 100)}%`,
                         height: '100%',
                         background: '#8874C7',
                         transition: 'width 0.4s ease',

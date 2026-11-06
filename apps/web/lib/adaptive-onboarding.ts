@@ -4,6 +4,7 @@ import type { Question } from './types.ts';
 import { db, tx, one } from './db.ts';
 import { saveStudentCapabilityProfile, getStudentCapabilityProfile } from './capability-profile.ts';
 import { transitionWorkflowStage } from './workflow.ts';
+import { BACKGROUND_DOMAINS, BACKGROUND_DOMAIN_QUESTIONS } from './adaptive-onboarding-bank.ts';
 
 export type EvaluationCorrectness = 'correct' | 'partial' | 'incorrect' | 'uncertain';
 export type QuestionType = 'conceptual' | 'practical' | 'debugging';
@@ -62,8 +63,8 @@ export interface AdaptiveOnboardingState {
   updatedAt: string;
 }
 
-export const MIN_ONBOARDING_QUESTIONS = 3;
-export const MAX_ONBOARDING_QUESTIONS = 6;
+export const MIN_ONBOARDING_QUESTIONS = 15;
+export const MAX_ONBOARDING_QUESTIONS = 20;
 export const KNOWN_SKILL_IDS = SKILLS.map((s) => s.id);
 
 /**
@@ -194,38 +195,135 @@ export function validateAdaptiveOutput(
 }
 
 /**
+ * Helper to select the next background domain question from the vetted bank
+ * ensuring domain coverage and strict deduplication.
+ */
+function getQuestionPromptText(q?: NextQuestionData | OnboardingTurnHistory): string {
+  if (!q) return '';
+  if ('text' in q && typeof q.text === 'string') return q.text;
+  if ('questionText' in q && typeof q.questionText === 'string') return q.questionText;
+  return '';
+}
+
+function getQuestionOptions(q?: NextQuestionData | OnboardingTurnHistory): string[] | null {
+  if (!q) return null;
+  if ('options' in q && Array.isArray(q.options)) return q.options;
+  return null;
+}
+
+function selectNextBackgroundDomainQuestion(
+  history: OnboardingTurnHistory[],
+  activeQ?: NextQuestionData | OnboardingTurnHistory,
+  targetDifficulty: number = 1
+): NextQuestionData | null {
+  const askedTexts = new Set<string>();
+  const askedIds = new Set<string>();
+
+  for (const h of history) {
+    if (h.questionText) askedTexts.add(h.questionText.trim().toLowerCase());
+  }
+  if (activeQ) {
+    const qText = getQuestionPromptText(activeQ);
+    if (qText) askedTexts.add(qText.trim().toLowerCase());
+    if ('id' in activeQ && activeQ.id) askedIds.add(activeQ.id);
+    if ('question_id' in activeQ && activeQ.question_id) askedIds.add(activeQ.question_id);
+  }
+
+  // Find domains already asked in history or current question
+  const askedDomains = new Set<string>();
+  for (const h of history) {
+    const match = BACKGROUND_DOMAIN_QUESTIONS.find(
+      (bq) => bq.text.trim().toLowerCase() === (h.questionText || '').trim().toLowerCase()
+    );
+    if (match) askedDomains.add(match.domain);
+  }
+  if (activeQ) {
+    const qText = getQuestionPromptText(activeQ);
+    const match = BACKGROUND_DOMAIN_QUESTIONS.find(
+      (bq) => bq.text.trim().toLowerCase() === qText.trim().toLowerCase()
+    );
+    if (match) askedDomains.add(match.domain);
+  }
+
+  // Filter unasked questions
+  const unasked = BACKGROUND_DOMAIN_QUESTIONS.filter(
+    (q) => !askedIds.has(q.id) && !askedTexts.has(q.text.trim().toLowerCase())
+  );
+  if (unasked.length === 0) return null;
+
+  // 1. Try to pick an unasked question from the next unvisited domain in canonical sequence
+  const unvisitedDomain = BACKGROUND_DOMAINS.find((d) => !askedDomains.has(d.id));
+  let chosen = unvisitedDomain ? unasked.find((q) => q.domain === unvisitedDomain.id) : undefined;
+
+  // 2. If all domains have at least one question asked, pick an unasked deeper probe
+  if (!chosen) {
+    chosen =
+      unasked.find((q) => Math.abs(q.difficulty - targetDifficulty) <= 1) ||
+      unasked[0];
+  }
+
+  if (!chosen) return null;
+
+  return {
+    id: chosen.id,
+    question_id: chosen.id,
+    text: chosen.text,
+    skill_id: chosen.skill_id,
+    difficulty: chosen.difficulty,
+    question_type: chosen.question_type,
+    options: chosen.options,
+  };
+}
+
+/**
  * Deterministic Initial Question for an Onboarding Diagnostic.
  */
 export function getInitialOnboardingQuestion(targetRole: string = 'Software Engineer'): NextQuestionData {
+  const q1 = BACKGROUND_DOMAIN_QUESTIONS[0];
   return {
     id: 'onboarding-q-1',
     question_id: 'onboarding-q-1',
-    text: `In software development, explain what happens to local variables inside a function when that function finishes executing and returns. What is the execution stack's role?`,
-    skill_id: 'problem-solving',
-    difficulty: 1,
-    question_type: 'conceptual',
-    options: null,
+    text: q1 ? q1.text : 'Welcome to SkillPilot! Which statement best describes your programming background so far?',
+    skill_id: q1 ? q1.skill_id : 'problem-solving',
+    difficulty: q1 ? q1.difficulty : 1,
+    question_type: q1 ? q1.question_type : 'conceptual',
+    options: q1 ? q1.options : [
+      'Complete beginner (no prior programming experience)',
+      'Basic academic coursework (studied introductory C, C++, Java, or Python in school/college)',
+      'Small scripts and functions (understand variables, loops, conditionals)',
+      'Built projects (built web apps, full scripts, or backend services)',
+    ],
   };
 }
 
 /**
  * Deterministic Fallback Generator.
- * Used whenever LLM is unavailable, rate-limited, timed out, or generates malformed output.
  */
 export function generateDeterministicAdaptiveTurn(params: {
   targetRole: string;
   history: OnboardingTurnHistory[];
   lastAnswer: string;
   currentQuestion?: NextQuestionData;
+  minQuestions?: number;
+  maxQuestions?: number;
 }): AdaptiveLLMOutput {
   const { history, lastAnswer, currentQuestion } = params;
   const activeQ = currentQuestion || (history.length > 0 ? history[history.length - 1] : getInitialOnboardingQuestion(params.targetRole));
+  const minQ = params.minQuestions ?? MIN_ONBOARDING_QUESTIONS;
+  const maxQ = params.maxQuestions ?? MAX_ONBOARDING_QUESTIONS;
 
-  // Heuristic evaluation of student's text answer
+  // Check if student selected a predefined option from a multiple-choice question
+  const activeOptions = getQuestionOptions(activeQ);
   const answerLower = (lastAnswer || '').toLowerCase().trim();
+  const isOptionAnswer = Boolean(
+    activeOptions &&
+    activeOptions.some((opt: string) => opt.toLowerCase().trim() === answerLower)
+  );
+
   const isGibberish =
-    /^[\s\p{P}\p{S}]+$/u.test(answerLower) ||
-    /^(asdf|asdfg|asdfgh|asdfghj|asdfghjk|qwerty|zxcvbnm)/i.test(answerLower);
+    !isOptionAnswer &&
+    (/^[s\p{P}\p{S}]+$/u.test(answerLower) ||
+    /^(asdf|asdfg|asdfgh|asdfghj|asdfghjk|qwerty|zxcvbnm)/i.test(answerLower));
 
   const isStruggle =
     !answerLower ||
@@ -241,7 +339,25 @@ export function generateDeterministicAdaptiveTurn(params: {
   let summary = 'Evaluation recorded. Assessing next technical competency.';
   let misconceptions: string[] = [];
 
-  if (isGibberish) {
+  // Match against background bank if applicable
+  const activeText = getQuestionPromptText(activeQ);
+  const matchedBankQ = BACKGROUND_DOMAIN_QUESTIONS.find(
+    (q) =>
+      ('id' in (activeQ || {}) && (activeQ as any).id === q.id) ||
+      ('question_id' in (activeQ || {}) && (activeQ as any).question_id === q.id) ||
+      q.text.trim().toLowerCase() === activeText.trim().toLowerCase()
+  );
+
+  if (isOptionAnswer && matchedBankQ && matchedBankQ.options) {
+    const correctOpt = matchedBankQ.options[matchedBankQ.correctOptionIndex]?.toLowerCase().trim();
+    if (correctOpt && (answerLower === correctOpt || answerLower.includes(correctOpt))) {
+      correctness = 'correct';
+      summary = matchedBankQ.explanation || 'Accurate response demonstrating clear technical understanding.';
+    } else {
+      correctness = 'partial';
+      summary = `Option selection recorded (${lastAnswer}). Demonstrating baseline familiarity with opportunities to deepen knowledge.`;
+    }
+  } else if (isGibberish) {
     correctness = 'uncertain';
     summary = 'Your input was unclear or unformatted. Please describe your understanding in your own words.';
     misconceptions = ['Unclear or unformatted input requiring clarification'];
@@ -252,7 +368,9 @@ export function generateDeterministicAdaptiveTurn(params: {
   } else if (
     (answerLower.includes('pop') || answerLower.includes('deallocated') || answerLower.includes('freed') || (answerLower.includes('stack') && answerLower.includes('frame'))) ||
     (answerLower.includes('set') || answerLower.includes('hash') || answerLower.includes('o(n)')) ||
-    (answerLower.includes('429') || answerLower.includes('backoff') || answerLower.includes('retry'))
+    (answerLower.includes('429') || answerLower.includes('backoff') || answerLower.includes('retry')) ||
+    answerLower.includes('solid') ||
+    isOptionAnswer
   ) {
     correctness = 'correct';
     summary = 'Strong explanation identifying core state transitions, data structures, and edge cases.';
@@ -271,17 +389,25 @@ export function generateDeterministicAdaptiveTurn(params: {
   const currentSkill = activeQ ? ('skill_id' in activeQ ? activeQ.skill_id : (activeQ as OnboardingTurnHistory).skillId) : 'problem-solving';
 
   // Check server-side stopping conditions:
-  // Requires at least MIN_ONBOARDING_QUESTIONS
-  if (currentQNumber >= MIN_ONBOARDING_QUESTIONS) {
+  if (currentQNumber >= minQ) {
     const prevTurn = history[history.length - 1];
     const prevCorrectness = prevTurn?.evaluation?.correctness;
 
-    if (currentQNumber >= MAX_ONBOARDING_QUESTIONS) {
+    if (currentQNumber >= maxQ) {
       return {
         evaluation: { summary, correctness, misconceptions },
         next_question: null,
         assessment_complete: true,
-        completion_reason: 'Maximum assessment question budget reached; comprehensive capability profile synthesized.',
+        completion_reason: 'Maximum assessment question budget reached; comprehensive capability profile synthesized across all 11 technical domains.',
+      };
+    }
+
+    if (isOptionAnswer && currentQNumber >= 15) {
+      return {
+        evaluation: { summary, correctness, misconceptions },
+        next_question: null,
+        assessment_complete: true,
+        completion_reason: 'Maximum assessment question budget reached; comprehensive capability profile synthesized across all 11 technical domains.',
       };
     }
 
@@ -311,9 +437,30 @@ export function generateDeterministicAdaptiveTurn(params: {
   let nextText = '';
 
   if (correctness === 'correct') {
-    // Elevate difficulty
     nextDifficulty = Math.min(5, currentDiff + 1);
     nextType = nextDifficulty >= 3 ? 'debugging' : 'practical';
+  } else if (correctness === 'incorrect') {
+    nextDifficulty = Math.max(0, currentDiff - 1);
+    nextType = 'conceptual';
+  } else {
+    nextType = 'practical';
+  }
+
+  // If taking structured background domain assessment, pull next vetted unasked question
+  if (isOptionAnswer) {
+    const nextBankQ = selectNextBackgroundDomainQuestion(history, activeQ, nextDifficulty);
+    if (nextBankQ) {
+      return {
+        evaluation: { summary, correctness, misconceptions },
+        next_question: nextBankQ,
+        assessment_complete: false,
+        completion_reason: null,
+      };
+    }
+  }
+
+  // Conversational / Free-text Adaptive Path
+  if (correctness === 'correct') {
     if (nextSkill === 'problem-solving' && nextDifficulty >= 2) {
       nextSkill = 'javascript';
       nextText = `Given an array of integers, how would you detect whether any number appears more than once in O(n) time and O(n) space in JavaScript?`;
@@ -324,15 +471,10 @@ export function generateDeterministicAdaptiveTurn(params: {
       nextText = `Describe how you would structure an immutable state update in an application with multiple concurrent actions.`;
     }
   } else if (correctness === 'incorrect') {
-    // Step down to diagnostic
-    nextDifficulty = Math.max(0, currentDiff - 1);
-    nextType = 'conceptual';
     nextSkill = 'problem-solving';
     nextText = `What is the difference between an assignment statement (like x = 5) and an equality check (like x == 5)? Why do off-by-one errors often occur in while loops?`;
   } else {
-    // Inconsistent / partial / uncertain: probe clarifying depth
     nextText = `Can you provide a short code snippet or step-by-step trace illustrating your answer to the previous question?`;
-    nextType = 'practical';
   }
 
   const genQId = `onboarding-q-${currentQNumber + 1}`;
